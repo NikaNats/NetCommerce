@@ -15,8 +15,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog.Domain", "src\Catal
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog.Infrastructure", "src\Catalog\Infrastructure\Catalog.Infrastructure.csproj", "{4BCCF662-E090-4307-9972-FE70D66D02F7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog.Presentation", "src\Catalog\Catalog.Presentation\Catalog.Presentation.csproj", "{AE65BB32-3409-4543-BC59-BC26CE19D7A4}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -63,18 +61,6 @@ Global
 		{4BCCF662-E090-4307-9972-FE70D66D02F7}.Release|x64.Build.0 = Release|Any CPU
 		{4BCCF662-E090-4307-9972-FE70D66D02F7}.Release|x86.ActiveCfg = Release|Any CPU
 		{4BCCF662-E090-4307-9972-FE70D66D02F7}.Release|x86.Build.0 = Release|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Debug|x64.Build.0 = Debug|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Debug|x86.Build.0 = Debug|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Release|x64.ActiveCfg = Release|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Release|x64.Build.0 = Release|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Release|x86.ActiveCfg = Release|Any CPU
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -84,6 +70,5 @@ Global
 		{4BCCF662-E090-4307-9972-FE70D66D02F7} = {D7C2BE3C-882E-816A-5C80-2C0E1E2BDA51}
 		{D4E693C5-3EA0-45A8-AD3C-13DC3966AC0B} = {D7C2BE3C-882E-816A-5C80-2C0E1E2BDA51}
 		{D1816983-3951-4568-BB79-B15F0A85211A} = {D7C2BE3C-882E-816A-5C80-2C0E1E2BDA51}
-		{AE65BB32-3409-4543-BC59-BC26CE19D7A4} = {D7C2BE3C-882E-816A-5C80-2C0E1E2BDA51}
 	EndGlobalSection
 EndGlobal
