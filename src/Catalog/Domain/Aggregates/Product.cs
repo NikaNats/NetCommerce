@@ -83,7 +83,7 @@ public class Product : AggregateRoot<ProductId>
             return; // Already archived, no-op
 
         Status = ProductStatus.Archived;
-        // Could add ProductArchived event if needed
+        AddDomainEvent(new ProductArchived(Id));
     }
 
     /// <summary>

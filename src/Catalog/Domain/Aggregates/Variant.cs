@@ -45,7 +45,10 @@ public class Variant : AggregateRoot<VariantId>
         if (productId == null) throw new ArgumentNullException(nameof(productId));
         if (sku == null) throw new ArgumentNullException(nameof(sku));
 
-        return new Variant(id, productId, sku);
+        var variant = new Variant(id, productId, sku);
+        variant.AddDomainEvent(new VariantCreated(id, productId, sku));
+        
+        return variant;
     }
 
     /// <summary>
