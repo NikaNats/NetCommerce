@@ -1,10 +1,11 @@
-using NetCommerce.Inventory.Application.Stock.Mappers;
-using NetCommerce.Inventory.Domain.Stock;
-using NetCommerce.Inventory.Infrastructure.Persistence;
-using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NetCommerce.Inventory.Application.Stock.Mappers;
+using NetCommerce.Inventory.Domain.Stock;
+using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
+using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 
 namespace NetCommerce.Inventory.Infrastructure;
 
@@ -27,6 +28,13 @@ public static class InventoryModule
 
         // Mappers (DRY/KISS - centralized mapping logic)
         services.AddSingleton<IStockMapper, StockMapper>();
+
+        // Background jobs
+        services.AddOptions<ReservationCleanupOptions>()
+            .BindConfiguration(ReservationCleanupOptions.SectionName)
+            .ValidateOnStart();
+
+        services.AddHostedService<ReservationCleanupJob>();
 
         return services;
     }
