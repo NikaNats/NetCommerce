@@ -1,0 +1,358 @@
+{
+  "realm": "netcommerce",
+  "enabled": true,
+  "displayName": "NetCommerce",
+  "displayNameHtml": "<b>NetCommerce</b>",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Administrator with full access"
+      },
+      {
+        "name": "customer",
+        "description": "Regular customer"
+      },
+      {
+        "name": "vendor",
+        "description": "Vendor who can manage products"
+      }
+    ],
+    "client": {
+      "netcommerce-api": [
+        {
+          "name": "catalog:read",
+          "description": "Read access to catalog"
+        },
+        {
+          "name": "catalog:write",
+          "description": "Write access to catalog"
+        },
+        {
+          "name": "orders:read",
+          "description": "Read access to orders"
+        },
+        {
+          "name": "orders:write",
+          "description": "Write access to orders"
+        },
+        {
+          "name": "inventory:read",
+          "description": "Read access to inventory"
+        },
+        {
+          "name": "inventory:write",
+          "description": "Write access to inventory"
+        },
+        {
+          "name": "payments:read",
+          "description": "Read access to payments"
+        },
+        {
+          "name": "payments:write",
+          "description": "Write access to payments"
+        },
+        {
+          "name": "media:read",
+          "description": "Read access to media"
+        },
+        {
+          "name": "media:write",
+          "description": "Write access to media"
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "Administrators",
+      "realmRoles": ["admin"]
+    },
+    {
+      "name": "Customers",
+      "realmRoles": ["customer"]
+    },
+    {
+      "name": "Vendors",
+      "realmRoles": ["vendor"]
+    }
+  ],
+  "defaultGroups": ["/Customers"],
+  "clients": [
+    {
+      "clientId": "netcommerce-api",
+      "name": "NetCommerce API",
+      "description": "Backend API Resource Server",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "netcommerce-api-secret",
+      "bearerOnly": true,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "netcommerce.api"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "netcommerce-web",
+      "name": "NetCommerce Web Application",
+      "description": "Frontend SPA/Web Client",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:5173/*",
+        "https://localhost:3000/*",
+        "https://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://localhost:3000",
+        "https://localhost:5173"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "netcommerce.api"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "netcommerce-swagger",
+      "name": "NetCommerce Swagger UI",
+      "description": "Swagger UI Client for API Documentation",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "http://localhost:*/swagger/oauth2-redirect.html",
+        "https://localhost:*/swagger/oauth2-redirect.html"
+      ],
+      "webOrigins": [
+        "http://localhost:*",
+        "https://localhost:*"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "fullScopeAllowed": true,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "netcommerce.api"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "netcommerce-service",
+      "name": "NetCommerce Service Account",
+      "description": "Machine-to-machine client for backend services",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "netcommerce-service-secret",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300"
+      },
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "netcommerce.api"
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "netcommerce.api",
+      "description": "NetCommerce API scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true",
+        "consent.screen.text": "Access to NetCommerce API"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "netcommerce-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@netcommerce.com",
+      "email": "admin@netcommerce.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin"],
+      "groups": ["/Administrators"],
+      "clientRoles": {
+        "netcommerce-api": [
+          "catalog:read",
+          "catalog:write",
+          "orders:read",
+          "orders:write",
+          "inventory:read",
+          "inventory:write",
+          "payments:read",
+          "payments:write",
+          "media:read",
+          "media:write"
+        ]
+      }
+    },
+    {
+      "username": "customer@netcommerce.com",
+      "email": "customer@netcommerce.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Customer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Customer123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["customer"],
+      "groups": ["/Customers"],
+      "clientRoles": {
+        "netcommerce-api": [
+          "catalog:read",
+          "orders:read",
+          "orders:write"
+        ]
+      }
+    },
+    {
+      "username": "vendor@netcommerce.com",
+      "email": "vendor@netcommerce.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Test",
+      "lastName": "Vendor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Vendor123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["vendor"],
+      "groups": ["/Vendors"],
+      "clientRoles": {
+        "netcommerce-api": [
+          "catalog:read",
+          "catalog:write",
+          "inventory:read",
+          "inventory:write",
+          "media:read",
+          "media:write"
+        ]
+      }
+    }
+  ]
+}
