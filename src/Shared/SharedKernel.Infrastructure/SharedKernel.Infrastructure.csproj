@@ -11,6 +11,8 @@
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="RedLock.net" />
     <PackageReference Include="MediatR" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
   <ItemGroup>

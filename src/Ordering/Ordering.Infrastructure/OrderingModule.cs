@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
+using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 namespace NetCommerce.Ordering.Infrastructure;
 
@@ -23,6 +24,9 @@ public static class OrderingModule
 
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();
+
+        // Outbox Processor for guaranteed event delivery
+        services.AddOutboxProcessor<OrderingDbContext>(configuration);
 
         return services;
     }

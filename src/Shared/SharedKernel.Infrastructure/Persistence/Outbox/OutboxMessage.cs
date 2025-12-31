@@ -1,4 +1,4 @@
-namespace NetCommerce.Ordering.Domain.Outbox;
+namespace NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 /// <summary>
 /// Transactional Outbox entry for guaranteed event delivery.
@@ -17,20 +17,21 @@ public sealed class OutboxMessage
 
     private OutboxMessage() { }
 
-    public static OutboxMessage Create(string type, string content)
+    public static OutboxMessage Create(string type, string content, DateTime occurredOn)
     {
         return new OutboxMessage
         {
             Id = Guid.NewGuid(),
             Type = type,
             Content = content,
-            OccurredOn = DateTime.UtcNow
+            OccurredOn = occurredOn
         };
     }
 
     public void MarkAsProcessed()
     {
         ProcessedOn = DateTime.UtcNow;
+        Error = null;
     }
 
     public void MarkAsFailed(string error)
@@ -38,4 +39,6 @@ public sealed class OutboxMessage
         Error = error;
         RetryCount++;
     }
+
+    public bool CanRetry(int maxRetries) => RetryCount < maxRetries;
 }

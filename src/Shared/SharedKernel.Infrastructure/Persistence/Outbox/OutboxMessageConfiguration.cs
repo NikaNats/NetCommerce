@@ -1,8 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using NetCommerce.Ordering.Domain.Outbox;
 
-namespace NetCommerce.Ordering.Infrastructure.Persistence.Configurations;
+namespace NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>
 {
@@ -11,7 +10,7 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
         builder.ToTable("outbox_messages");
 
         builder.HasKey(o => o.Id);
-        
+
         builder.Property(o => o.Id)
             .HasColumnName("id")
             .ValueGeneratedNever();
@@ -41,9 +40,9 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
             .HasColumnName("retry_count")
             .HasDefaultValue(0);
 
-        // Index for processing unprocessed messages
-        builder.HasIndex(o => o.ProcessedOn)
-            .HasFilter("processed_on IS NULL");
+        // Index for processing unprocessed messages efficiently
+        builder.HasIndex(o => new { o.ProcessedOn, o.OccurredOn })
+            .HasFilter("processed_on IS NULL")
+            .HasDatabaseName("ix_outbox_messages_unprocessed");
     }
 }
-
