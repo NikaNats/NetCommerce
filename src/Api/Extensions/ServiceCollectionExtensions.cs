@@ -37,13 +37,16 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIdempotencyService, RedisIdempotencyService>();
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
-        // MediatR with all application assemblies
+        // MediatR with all application assemblies (includes event handlers for cross-module communication)
         services.AddMediatR(cfg => 
         {
             cfg.RegisterServicesFromAssemblies(
                 typeof(NetCommerce.Catalog.Application.Products.Commands.CreateProductCommand).Assembly,
                 typeof(NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly,
-                typeof(NetCommerce.Ordering.Application.Orders.Commands.CreateOrderCommand).Assembly
+                typeof(NetCommerce.Inventory.Application.EventHandlers.OrderPaidIntegrationEventHandler).Assembly,
+                typeof(NetCommerce.Ordering.Application.Orders.Commands.CreateOrderCommand).Assembly,
+                typeof(NetCommerce.Ordering.Application.EventHandlers.PaymentCompletedIntegrationEventHandler).Assembly,
+                typeof(NetCommerce.Payments.Application.EventHandlers.OrderCreatedIntegrationEventHandler).Assembly
             );
         });
         
