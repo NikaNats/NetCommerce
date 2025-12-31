@@ -1,4 +1,5 @@
 using MediatR;
+using NetCommerce.Api.Middleware;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Application.Stock.Queries;
 
@@ -24,27 +25,32 @@ public class InventoryEndpoints : IEndpointGroup
         group.MapPost("/", CreateStock)
             .WithName("CreateStock")
             .WithSummary("Create stock record for a product")
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         group.MapPatch("/{stockId:guid}/quantity", UpdateQuantity)
             .WithName("UpdateStockQuantity")
             .WithSummary("Update stock quantity")
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         group.MapPost("/reserve", ReserveStock)
             .WithName("ReserveStock")
             .WithSummary("Reserve stock for an order (15-minute hold)")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .WithIdempotency();
 
         group.MapPost("/products/{productId:guid}/reservations/{reservationId:guid}/confirm", ConfirmReservation)
             .WithName("ConfirmStockReservation")
             .WithSummary("Confirm a stock reservation")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .WithIdempotency();
 
         group.MapPost("/products/{productId:guid}/reservations/{reservationId:guid}/release", ReleaseReservation)
             .WithName("ReleaseStockReservation")
             .WithSummary("Release a stock reservation")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .WithIdempotency();
     }
 
     private static async Task<IResult> GetByProductId(

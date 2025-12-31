@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using NetCommerce.Api.Middleware;
 using NetCommerce.Basket.Application;
 
 namespace NetCommerce.Api.Endpoints.Basket;
@@ -18,11 +19,13 @@ public class BasketEndpoints : IEndpointGroup
 
         group.MapPost("/items", AddItem)
             .WithName("AddBasketItem")
-            .WithSummary("Add item to basket");
+            .WithSummary("Add item to basket")
+            .WithIdempotency();
 
         group.MapPut("/items/{productId:guid}", UpdateItemQuantity)
             .WithName("UpdateBasketItemQuantity")
-            .WithSummary("Update item quantity");
+            .WithSummary("Update item quantity")
+            .WithIdempotency();
 
         group.MapDelete("/items/{productId:guid}", RemoveItem)
             .WithName("RemoveBasketItem")

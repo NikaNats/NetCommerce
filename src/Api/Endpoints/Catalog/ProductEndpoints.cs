@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
+using NetCommerce.Api.Middleware;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Queries;
 
@@ -55,7 +56,8 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProductResponse>(StatusCodes.Status201Created)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // PUT /api/v1/products/{id} - Full update of a product
         group.MapPut("/{id:guid}", Update)
@@ -66,7 +68,8 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // PATCH /api/v1/products/{id}/price - Partial update (price only)
         group.MapPatch("/{id:guid}/price", UpdatePrice)
@@ -77,7 +80,8 @@ public class ProductEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // POST /api/v1/products/{id}/publish - Action endpoint (state transition)
         group.MapPost("/{id:guid}/publish", Publish)
@@ -87,7 +91,8 @@ public class ProductEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // POST /api/v1/products/{id}/images - Add sub-resource
         group.MapPost("/{id:guid}/images", AddImage)
@@ -97,7 +102,8 @@ public class ProductEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status201Created)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // DELETE /api/v1/products/{id} - Remove a product
         group.MapDelete("/{id:guid}", Delete)

@@ -106,7 +106,9 @@ app.UseStatusCodePages();
 app.UseResponseCompression();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
-app.UseMiddleware<IdempotencyMiddleware>();
+// Note: IdempotencyMiddleware removed from global pipeline.
+// Idempotency is now applied selectively to mutation endpoints via .WithIdempotency() filter.
+// This prevents memory overhead from response buffering on read operations.
 
 if (app.Environment.IsDevelopment())
 {

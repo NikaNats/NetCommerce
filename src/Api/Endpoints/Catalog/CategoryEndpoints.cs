@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
+using NetCommerce.Api.Middleware;
 using NetCommerce.Catalog.Application.Categories.Commands;
 using NetCommerce.Catalog.Application.Categories.Queries;
 
@@ -61,7 +62,8 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces<CategoryResponse>(StatusCodes.Status201Created)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // PUT /api/v1/categories/{id} - Update a category
         group.MapPut("/{id:guid}", Update)
@@ -71,7 +73,8 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
-            .RequireAuthorization("VendorOnly");
+            .RequireAuthorization("VendorOnly")
+            .WithIdempotency();
 
         // DELETE /api/v1/categories/{id} - Delete a category
         group.MapDelete("/{id:guid}", Delete)
