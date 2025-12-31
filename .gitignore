@@ -52,3 +52,47 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+*.swp
+*.sln.imls
+
+# Local environment variables and secrets
+.env
+.env.local
+*.pfx
+secrets.json
+appsettings.*.local.json
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Node modules (if using npm/yarn for frontend)
+node_modules/
+dist/
+.angular/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+.coverage
+OpenCover/
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# Load test results
+LoadTest/
