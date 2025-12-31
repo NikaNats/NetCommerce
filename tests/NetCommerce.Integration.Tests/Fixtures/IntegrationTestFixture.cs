@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using NSubstitute;
 using Respawn;
 using Testcontainers.PostgreSql;
@@ -88,17 +89,25 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
     private async Task InitializeDatabaseAsync()
     {
+        // Create database and schemas
+        // Note: EnsureCreatedAsync() only works for the first context because after
+        // the database exists, subsequent calls skip schema creation.
+        // We need to use GetService<IRelationalDatabaseCreator>().CreateTables() instead.
+        
         // Initialize Catalog schema
         await using var catalogContext = CreateCatalogDbContext();
         await catalogContext.Database.EnsureCreatedAsync();
-
+        
         // Initialize Inventory schema
+        // Database already exists, so we need to create tables directly
         await using var inventoryContext = CreateInventoryDbContext();
-        await inventoryContext.Database.EnsureCreatedAsync();
-
+        var inventoryCreator = inventoryContext.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
+        await inventoryCreator.CreateTablesAsync();
+        
         // Initialize Ordering schema
         await using var orderingContext = CreateOrderingDbContext();
-        await orderingContext.Database.EnsureCreatedAsync();
+        var orderingCreator = orderingContext.GetService<Microsoft.EntityFrameworkCore.Storage.IRelationalDatabaseCreator>();
+        await orderingCreator.CreateTablesAsync();
     }
 
     /// <summary>

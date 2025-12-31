@@ -194,4 +194,254 @@ public class OutboxMessageTests
     }
 
     #endregion
+
+    #region ClaimForProcessing Tests
+
+    [Fact]
+    public void ClaimForProcessing_ShouldSetStatusToProcessing()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+
+        // Act
+        message.ClaimForProcessing();
+
+        // Assert
+        message.Status.ShouldBe(OutboxMessageStatus.Processing);
+    }
+
+    [Fact]
+    public void ClaimForProcessing_ShouldSetProcessingStartedAt()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var beforeClaim = DateTime.UtcNow;
+
+        // Act
+        message.ClaimForProcessing();
+        var afterClaim = DateTime.UtcNow;
+
+        // Assert
+        message.ProcessingStartedAt.ShouldNotBeNull();
+        message.ProcessingStartedAt.Value.ShouldBeGreaterThanOrEqualTo(beforeClaim);
+        message.ProcessingStartedAt.Value.ShouldBeLessThanOrEqualTo(afterClaim);
+    }
+
+    #endregion
+
+    #region ReleaseClaim Tests
+
+    [Fact]
+    public void ReleaseClaim_WhenProcessing_ShouldReturnToPending()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+        message.Status.ShouldBe(OutboxMessageStatus.Processing);
+
+        // Act
+        message.ReleaseClaim();
+
+        // Assert
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+        message.ProcessingStartedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void ReleaseClaim_WhenNotProcessing_ShouldNotChangeStatus()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+
+        // Act
+        message.ReleaseClaim();
+
+        // Assert - Status should remain Pending
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+    }
+
+    [Fact]
+    public void ReleaseClaim_WhenProcessed_ShouldNotChangeStatus()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+        message.MarkAsProcessed();
+        message.Status.ShouldBe(OutboxMessageStatus.Processed);
+
+        // Act
+        message.ReleaseClaim();
+
+        // Assert - Status should remain Processed
+        message.Status.ShouldBe(OutboxMessageStatus.Processed);
+    }
+
+    #endregion
+
+    #region IsStuck Tests
+
+    [Fact]
+    public void IsStuck_WhenNotProcessing_ShouldReturnFalse()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+
+        // Act
+        var isStuck = message.IsStuck(TimeSpan.FromMinutes(5));
+
+        // Assert
+        isStuck.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsStuck_WhenProcessingWithinTimeout_ShouldReturnFalse()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+
+        // Act - Check immediately (well within timeout)
+        var isStuck = message.IsStuck(TimeSpan.FromMinutes(5));
+
+        // Assert
+        isStuck.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void IsStuck_WhenProcessingBeyondTimeout_ShouldReturnTrue()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+
+        // Act - Check with a zero timeout (any processing time exceeds it)
+        var isStuck = message.IsStuck(TimeSpan.Zero);
+
+        // Assert
+        isStuck.ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region Status Transition Tests
+
+    [Fact]
+    public void Create_ShouldInitializeWithPendingStatus()
+    {
+        // Arrange & Act
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+
+        // Assert
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+        message.ProcessingStartedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void MarkAsProcessed_ShouldSetStatusToProcessed()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+
+        // Act
+        message.MarkAsProcessed();
+
+        // Assert
+        message.Status.ShouldBe(OutboxMessageStatus.Processed);
+    }
+
+    [Fact]
+    public void MarkAsFailed_WithMaxRetriesExceeded_ShouldSetStatusToFailed()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        const int maxRetries = 2;
+
+        // Act - Fail twice to exceed max retries
+        message.MarkAsFailed("Error 1", maxRetries);
+        message.MarkAsFailed("Error 2", maxRetries);
+
+        // Assert
+        message.Status.ShouldBe(OutboxMessageStatus.Failed);
+        message.RetryCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public void MarkAsFailed_WithRetriesRemaining_ShouldSetStatusToPending()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+        const int maxRetries = 3;
+
+        // Act - Fail once (retries remaining)
+        message.MarkAsFailed("Error 1", maxRetries);
+
+        // Assert
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+        message.ProcessingStartedAt.ShouldBeNull();
+        message.RetryCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public void MarkAsFailed_ShouldClearProcessingStartedAt()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        message.ClaimForProcessing();
+        message.ProcessingStartedAt.ShouldNotBeNull();
+
+        // Act
+        message.MarkAsFailed("Error", 3);
+
+        // Assert
+        message.ProcessingStartedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void FullLifecycle_ClaimProcessRelease_ShouldTransitionCorrectly()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+
+        // Assert initial state
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+
+        // Claim
+        message.ClaimForProcessing();
+        message.Status.ShouldBe(OutboxMessageStatus.Processing);
+        message.ProcessingStartedAt.ShouldNotBeNull();
+
+        // Process successfully
+        message.MarkAsProcessed();
+        message.Status.ShouldBe(OutboxMessageStatus.Processed);
+        message.ProcessedOn.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void FullLifecycle_ClaimFailRetry_ShouldTransitionCorrectly()
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        const int maxRetries = 3;
+
+        // First attempt - claim and fail
+        message.ClaimForProcessing();
+        message.Status.ShouldBe(OutboxMessageStatus.Processing);
+        
+        message.MarkAsFailed("Network timeout", maxRetries);
+        message.Status.ShouldBe(OutboxMessageStatus.Pending);
+        message.RetryCount.ShouldBe(1);
+
+        // Second attempt - claim and succeed
+        message.ClaimForProcessing();
+        message.Status.ShouldBe(OutboxMessageStatus.Processing);
+        
+        message.MarkAsProcessed();
+        message.Status.ShouldBe(OutboxMessageStatus.Processed);
+    }
+
+    #endregion
 }

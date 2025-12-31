@@ -26,4 +26,11 @@ public class OutboxProcessorOptions
     /// Whether to enable the outbox processor. Default is true.
     /// </summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Timeout in seconds after which a message stuck in "Processing" state 
+    /// will be considered abandoned and can be reclaimed by another worker.
+    /// Default is 300 seconds (5 minutes).
+    /// </summary>
+    public int StuckMessageTimeoutSeconds { get; set; } = 300;
 }

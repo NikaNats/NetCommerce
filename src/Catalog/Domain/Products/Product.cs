@@ -23,11 +23,6 @@ public sealed class Product : AggregateRoot<Guid>
     public IReadOnlyList<ProductImage> Images => _images.AsReadOnly();
     public IReadOnlyList<ProductAttribute> Attributes => _attributes.AsReadOnly();
 
-    /// <summary>
-    /// Full-text search vector column (computed in database).
-    /// </summary>
-    public string SearchVector { get; private set; } = string.Empty;
-
     private Product() { }
 
     public static Product Create(

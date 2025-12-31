@@ -62,12 +62,13 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.SeoDescription)
             .HasMaxLength(160);
 
-        // Full-text search vector - PostgreSQL specific
-        builder.Property(p => p.SearchVector)
+        // Full-text search vector - PostgreSQL specific shadow property
+        // This is a shadow property (not mapped to a CLR property) used for full-text search
+        builder.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
             .HasColumnName("search_vector")
             .HasColumnType("tsvector");
 
-        builder.HasIndex(p => p.SearchVector)
+        builder.HasIndex("SearchVector")
             .HasMethod("GIN");
 
         // Images owned collection

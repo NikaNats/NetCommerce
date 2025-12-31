@@ -12,6 +12,8 @@ namespace NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 /// <summary>
 /// Background service that polls the outbox_messages table and publishes domain events.
 /// This ensures guaranteed delivery of domain events after the transaction commits.
+/// Uses SELECT FOR UPDATE SKIP LOCKED to prevent race conditions when multiple workers
+/// process messages concurrently.
 /// </summary>
 public class OutboxProcessor<TDbContext> : BackgroundService 
     where TDbContext : DbContext, IOutboxDbContext
@@ -25,6 +27,29 @@ public class OutboxProcessor<TDbContext> : BackgroundService
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+
+    /// <summary>
+    /// Gets the raw SQL query that atomically claims messages for processing using FOR UPDATE SKIP LOCKED.
+    /// This prevents race conditions when multiple workers poll the same database:
+    /// - FOR UPDATE: Locks the selected rows within the transaction
+    /// - SKIP LOCKED: Skips rows already locked by other workers instead of waiting
+    /// 
+    /// The query selects messages that are either:
+    /// 1. In Pending status and haven't exceeded max retries, OR
+    /// 2. Stuck in Processing status for longer than the timeout (abandoned by crashed workers)
+    /// </summary>
+    private static string GetClaimMessagesSql(string? schema)
+    {
+        var tableName = string.IsNullOrEmpty(schema) ? "outbox_messages" : $"{schema}.outbox_messages";
+        return @$"SELECT id, type, content, occurred_on, processed_on, error, retry_count, status, processing_started_at
+FROM {tableName}
+WHERE 
+    (status = {{0}} AND retry_count < {{1}})
+    OR (status = {{2}} AND processing_started_at < {{3}})
+ORDER BY occurred_on
+LIMIT {{4}}
+FOR UPDATE SKIP LOCKED";
+    }
 
     public OutboxProcessor(
         IServiceScopeFactory scopeFactory,
@@ -46,8 +71,8 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         }
 
         _logger.LogInformation(
-            "OutboxProcessor for {ContextName} started. Polling every {Interval}ms, batch size: {BatchSize}",
-            _contextName, _options.PollingIntervalMs, _options.BatchSize);
+            "OutboxProcessor for {ContextName} started. Polling every {Interval}ms, batch size: {BatchSize}, stuck timeout: {StuckTimeout}s",
+            _contextName, _options.PollingIntervalMs, _options.BatchSize, _options.StuckMessageTimeoutSeconds);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -77,19 +102,63 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        var messages = await dbContext.OutboxMessages
-            .Where(m => m.ProcessedOn == null && m.RetryCount < _options.MaxRetries)
-            .OrderBy(m => m.OccurredOn)
-            .Take(_options.BatchSize)
-            .ToListAsync(cancellationToken);
+        // Use an explicit transaction to ensure FOR UPDATE SKIP LOCKED works correctly
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        if (messages.Count == 0)
+        try
         {
-            return;
+            var stuckThreshold = DateTime.UtcNow.AddSeconds(-_options.StuckMessageTimeoutSeconds);
+
+            // Get the schema from the OutboxMessage entity type configuration
+            var schema = dbContext.Model.FindEntityType(typeof(OutboxMessage))?.GetSchema();
+            var claimSql = GetClaimMessagesSql(schema);
+
+            // Use raw SQL with FOR UPDATE SKIP LOCKED to atomically claim messages
+            // This prevents race conditions when multiple workers poll simultaneously
+            var messages = await dbContext.OutboxMessages
+                .FromSqlRaw(
+                    claimSql,
+                    (int)OutboxMessageStatus.Pending,
+                    _options.MaxRetries,
+                    (int)OutboxMessageStatus.Processing,
+                    stuckThreshold,
+                    _options.BatchSize)
+                .ToListAsync(cancellationToken);
+
+            if (messages.Count == 0)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return;
+            }
+
+            _logger.LogDebug("Claimed {Count} outbox messages for {ContextName}", messages.Count, _contextName);
+
+            // Mark all claimed messages as Processing
+            foreach (var message in messages)
+            {
+                message.ClaimForProcessing();
+            }
+
+            // Save the Processing status before starting to publish events
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            // Process messages outside the transaction to avoid long-running transactions
+            await ProcessClaimedMessagesAsync(dbContext, mediator, messages, cancellationToken);
         }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
 
-        _logger.LogDebug("Processing {Count} outbox messages for {ContextName}", messages.Count, _contextName);
-
+    private async Task ProcessClaimedMessagesAsync(
+        TDbContext dbContext,
+        IMediator mediator,
+        List<OutboxMessage> messages,
+        CancellationToken cancellationToken)
+    {
         foreach (var message in messages)
         {
             try
@@ -102,7 +171,7 @@ public class OutboxProcessor<TDbContext> : BackgroundService
                         "Could not deserialize outbox message {MessageId} of type {Type}",
                         message.Id, message.Type);
                     
-                    message.MarkAsFailed("Failed to deserialize event");
+                    message.MarkAsFailed("Failed to deserialize event", _options.MaxRetries);
                     continue;
                 }
 
@@ -121,10 +190,11 @@ public class OutboxProcessor<TDbContext> : BackgroundService
                     "Failed to process outbox message {MessageId} of type {Type}. Retry {Retry}/{MaxRetries}",
                     message.Id, message.Type, message.RetryCount + 1, _options.MaxRetries);
                 
-                message.MarkAsFailed(ex.Message);
+                message.MarkAsFailed(ex.Message, _options.MaxRetries);
             }
         }
 
+        // Save final status changes (Processed or Failed)
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

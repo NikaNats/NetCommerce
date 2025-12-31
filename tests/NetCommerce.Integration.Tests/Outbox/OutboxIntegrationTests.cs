@@ -309,6 +309,276 @@ public class OutboxIntegrationTests : IntegrationTestBase
     }
 
     #endregion
+
+    #region Race Condition Prevention Tests (FOR UPDATE SKIP LOCKED)
+
+    [Fact]
+    public async Task OutboxProcessor_ShouldClaimMessagesWithProcessingStatus()
+    {
+        // Arrange
+        await using var context = Fixture.CreateOrderingDbContext();
+        
+        var order = CreateTestOrder();
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        // Get initial message
+        var initialMessage = await context.OutboxMessages.FirstAsync();
+        initialMessage.Status.ShouldBe(OutboxMessageStatus.Pending);
+
+        // Setup processor with slow mediator to observe intermediate state
+        var mediator = Substitute.For<IMediator>();
+        var scopeFactory = CreateScopeFactory(mediator);
+        var logger = Substitute.For<ILogger<OutboxProcessor<OrderingDbContext>>>();
+        var options = Options.Create(new OutboxProcessorOptions
+        {
+            PollingIntervalMs = 100,
+            BatchSize = 10,
+            MaxRetries = 3,
+            Enabled = true,
+            StuckMessageTimeoutSeconds = 300
+        });
+
+        var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
+
+        // Act
+        await processor.ProcessMessagesOnceAsync(CancellationToken.None);
+
+        // Assert - Message should be processed
+        await using var verifyContext = Fixture.CreateOrderingDbContext();
+        var processedMessage = await verifyContext.OutboxMessages.FirstAsync();
+        processedMessage.Status.ShouldBe(OutboxMessageStatus.Processed);
+        processedMessage.ProcessedOn.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task OutboxProcessor_WhenMessageFails_ShouldReturnToPendingStatus()
+    {
+        // Arrange
+        await using var context = Fixture.CreateOrderingDbContext();
+        
+        var order = CreateTestOrder();
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        // Setup processor with failing mediator
+        var mediator = Substitute.For<IMediator>();
+        mediator
+            .When(m => m.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>()))
+            .Do(_ => throw new InvalidOperationException("Handler failed"));
+
+        var scopeFactory = CreateScopeFactory(mediator);
+        var logger = Substitute.For<ILogger<OutboxProcessor<OrderingDbContext>>>();
+        var options = Options.Create(new OutboxProcessorOptions
+        {
+            PollingIntervalMs = 100,
+            BatchSize = 10,
+            MaxRetries = 3,
+            Enabled = true,
+            StuckMessageTimeoutSeconds = 300
+        });
+
+        var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
+
+        // Act
+        await processor.ProcessMessagesOnceAsync(CancellationToken.None);
+
+        // Assert - Message should return to Pending for retry
+        await using var verifyContext = Fixture.CreateOrderingDbContext();
+        var failedMessage = await verifyContext.OutboxMessages.FirstAsync();
+        failedMessage.Status.ShouldBe(OutboxMessageStatus.Pending);
+        failedMessage.RetryCount.ShouldBe(1);
+        failedMessage.Error.ShouldNotBeNullOrEmpty();
+        failedMessage.ProcessingStartedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task OutboxProcessor_WhenMaxRetriesExceeded_ShouldSetStatusToFailed()
+    {
+        // Arrange
+        await using var context = Fixture.CreateOrderingDbContext();
+        
+        var order = CreateTestOrder();
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        // Setup processor with failing mediator
+        var mediator = Substitute.For<IMediator>();
+        mediator
+            .When(m => m.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>()))
+            .Do(_ => throw new InvalidOperationException("Handler failed"));
+
+        var scopeFactory = CreateScopeFactory(mediator);
+        var logger = Substitute.For<ILogger<OutboxProcessor<OrderingDbContext>>>();
+        var options = Options.Create(new OutboxProcessorOptions
+        {
+            PollingIntervalMs = 100,
+            BatchSize = 10,
+            MaxRetries = 2, // Lower max retries for faster test
+            Enabled = true,
+            StuckMessageTimeoutSeconds = 300
+        });
+
+        var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
+
+        // Act - Process 3 times to exceed max retries of 2
+        for (var i = 0; i < 3; i++)
+        {
+            await processor.ProcessMessagesOnceAsync(CancellationToken.None);
+        }
+
+        // Assert - Message should be in Failed status
+        await using var verifyContext = Fixture.CreateOrderingDbContext();
+        var failedMessage = await verifyContext.OutboxMessages.FirstAsync();
+        failedMessage.Status.ShouldBe(OutboxMessageStatus.Failed);
+        failedMessage.RetryCount.ShouldBe(2); // Stopped at max retries
+    }
+
+    [Fact]
+    public async Task OutboxProcessor_ConcurrentProcessors_ShouldNotProcessSameMessageTwice()
+    {
+        // Arrange
+        await using var context = Fixture.CreateOrderingDbContext();
+        
+        // Create multiple orders to have several messages
+        for (var i = 0; i < 5; i++)
+        {
+            var order = CreateTestOrder(i.ToString());
+            context.Orders.Add(order);
+        }
+        await context.SaveChangesAsync();
+
+        var messageCount = await context.OutboxMessages.CountAsync();
+        messageCount.ShouldBeGreaterThanOrEqualTo(5);
+
+        // Track which messages were published
+        var publishedMessageIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+        var mediator = Substitute.For<IMediator>();
+        mediator
+            .When(m => m.Publish(Arg.Any<IDomainEvent>(), Arg.Any<CancellationToken>()))
+            .Do(call =>
+            {
+                var domainEvent = call.Arg<IDomainEvent>();
+                publishedMessageIds.Add(domainEvent.EventId);
+                // Simulate some processing time
+                Thread.Sleep(50);
+            });
+
+        var scopeFactory = CreateScopeFactory(mediator);
+        var logger = Substitute.For<ILogger<OutboxProcessor<OrderingDbContext>>>();
+        var options = Options.Create(new OutboxProcessorOptions
+        {
+            PollingIntervalMs = 100,
+            BatchSize = 10,
+            MaxRetries = 3,
+            Enabled = true,
+            StuckMessageTimeoutSeconds = 300
+        });
+
+        // Create multiple processors to simulate concurrent workers
+        var processor1 = new TestableOutboxProcessor(scopeFactory, logger, options);
+        var processor2 = new TestableOutboxProcessor(scopeFactory, logger, options);
+
+        // Act - Run both processors concurrently
+        var task1 = processor1.ProcessMessagesOnceAsync(CancellationToken.None);
+        var task2 = processor2.ProcessMessagesOnceAsync(CancellationToken.None);
+        
+        await Task.WhenAll(task1, task2);
+
+        // Assert - Each message should be published exactly once (no duplicates)
+        var uniqueIds = publishedMessageIds.Distinct().ToList();
+        uniqueIds.Count.ShouldBe(publishedMessageIds.Count, 
+            "Each message should be published exactly once - no duplicates allowed");
+    }
+
+    [Fact]
+    public async Task OutboxProcessor_ShouldNotPickUpMessagesInFailedStatus()
+    {
+        // Arrange
+        await using var context = Fixture.CreateOrderingDbContext();
+        
+        var order = CreateTestOrder();
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        // Manually set message to Failed status
+        var message = await context.OutboxMessages.FirstAsync();
+        // Simulate exhausting retries
+        message.MarkAsFailed("Error 1", 2);
+        message.MarkAsFailed("Error 2", 2);
+        message.Status.ShouldBe(OutboxMessageStatus.Failed);
+        await context.SaveChangesAsync();
+
+        // Track if mediator was called
+        var mediatorCalled = false;
+        var mediator = Substitute.For<IMediator>();
+        mediator
+            .When(m => m.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>()))
+            .Do(_ => mediatorCalled = true);
+
+        var scopeFactory = CreateScopeFactory(mediator);
+        var logger = Substitute.For<ILogger<OutboxProcessor<OrderingDbContext>>>();
+        var options = Options.Create(new OutboxProcessorOptions
+        {
+            PollingIntervalMs = 100,
+            BatchSize = 10,
+            MaxRetries = 3,
+            Enabled = true,
+            StuckMessageTimeoutSeconds = 300
+        });
+
+        var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
+
+        // Act
+        await processor.ProcessMessagesOnceAsync(CancellationToken.None);
+
+        // Assert - Mediator should not be called for Failed messages
+        mediatorCalled.ShouldBeFalse("Failed messages should not be picked up for processing");
+    }
+
+    [Fact]
+    public async Task OutboxProcessor_ShouldNotPickUpProcessedMessages()
+    {
+        // Arrange
+        await using var context = Fixture.CreateOrderingDbContext();
+        
+        var order = CreateTestOrder();
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        // Manually set message to Processed status
+        var message = await context.OutboxMessages.FirstAsync();
+        message.MarkAsProcessed();
+        await context.SaveChangesAsync();
+
+        // Track if mediator was called
+        var mediatorCalled = false;
+        var mediator = Substitute.For<IMediator>();
+        mediator
+            .When(m => m.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>()))
+            .Do(_ => mediatorCalled = true);
+
+        var scopeFactory = CreateScopeFactory(mediator);
+        var logger = Substitute.For<ILogger<OutboxProcessor<OrderingDbContext>>>();
+        var options = Options.Create(new OutboxProcessorOptions
+        {
+            PollingIntervalMs = 100,
+            BatchSize = 10,
+            MaxRetries = 3,
+            Enabled = true,
+            StuckMessageTimeoutSeconds = 300
+        });
+
+        var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
+
+        // Act
+        await processor.ProcessMessagesOnceAsync(CancellationToken.None);
+
+        // Assert - Mediator should not be called for already processed messages
+        mediatorCalled.ShouldBeFalse("Already processed messages should not be picked up again");
+    }
+
+    #endregion
 }
 
 /// <summary>
