@@ -7,7 +7,7 @@ using NetCommerce.SharedKernel.Results;
 namespace NetCommerce.Inventory.Application.Stock.Commands;
 
 /// <summary>
-/// Command to create a new stock record for a product.
+///     Command to create a new stock record for a product.
 /// </summary>
 public record CreateStockCommand(
     Guid ProductId,
@@ -34,10 +34,8 @@ public sealed class CreateStockCommandHandler : ICommandHandler<CreateStockComma
         // Check if stock already exists for this product
         var existing = await _stockRepository.GetByProductIdAsync(request.ProductId, cancellationToken);
         if (existing is not null)
-        {
             return Result.Failure<Guid>(
                 Error.Conflict($"Stock already exists for product {request.ProductId}"));
-        }
 
         var stock = Domain.Stock.Stock.Create(
             request.ProductId,
@@ -54,8 +52,8 @@ public sealed class CreateStockCommandHandler : ICommandHandler<CreateStockComma
 }
 
 /// <summary>
-/// Command to reserve stock for an order.
-/// Uses distributed locking to prevent overselling.
+///     Command to reserve stock for an order.
+///     Uses distributed locking to prevent overselling.
 /// </summary>
 public record ReserveStockCommand(
     Guid ProductId,
@@ -64,13 +62,12 @@ public record ReserveStockCommand(
 
 public sealed class ReserveStockCommandHandler : ICommandHandler<ReserveStockCommand, Guid>
 {
-    private readonly IStockRepository _stockRepository;
-    private readonly IDistributedLockService _lockService;
-    private readonly IUnitOfWork _unitOfWork;
-
     private static readonly TimeSpan LockExpiry = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan LockWait = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan LockRetry = TimeSpan.FromMilliseconds(500);
+    private readonly IDistributedLockService _lockService;
+    private readonly IStockRepository _stockRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     public ReserveStockCommandHandler(
         IStockRepository stockRepository,
@@ -83,11 +80,11 @@ public sealed class ReserveStockCommandHandler : ICommandHandler<ReserveStockCom
     }
 
     public async Task<Result<Guid>> Handle(
-        ReserveStockCommand request, 
+        ReserveStockCommand request,
         CancellationToken cancellationToken)
     {
         var lockResource = $"stock:reserve:{request.ProductId}";
-        
+
         // Acquire distributed lock using Redis Redlock
         await using var distributedLock = await _lockService.TryAcquireLockAsync(
             lockResource,
@@ -97,29 +94,24 @@ public sealed class ReserveStockCommandHandler : ICommandHandler<ReserveStockCom
             cancellationToken);
 
         if (distributedLock is null || !distributedLock.IsAcquired)
-        {
             return Result.Failure<Guid>(
                 Error.Conflict("Unable to acquire lock. The product is being processed by another request."));
-        }
 
         var stock = await _stockRepository.GetByProductIdAsync(request.ProductId, cancellationToken);
-        
+
         if (stock is null)
-        {
             return Result.Failure<Guid>(
                 Error.NotFound("Stock", request.ProductId));
-        }
 
         if (stock.AvailableQuantity < request.Quantity)
-        {
             return Result.Failure<Guid>(
-                Error.Conflict($"Insufficient stock. Available: {stock.AvailableQuantity}, Requested: {request.Quantity}"));
-        }
+                Error.Conflict(
+                    $"Insufficient stock. Available: {stock.AvailableQuantity}, Requested: {request.Quantity}"));
 
         try
         {
             var reservation = stock.Reserve(request.OrderId, request.Quantity);
-            
+
             _stockRepository.Update(stock);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -133,7 +125,7 @@ public sealed class ReserveStockCommandHandler : ICommandHandler<ReserveStockCom
 }
 
 /// <summary>
-/// Command to update stock quantity.
+///     Command to update stock quantity.
 /// </summary>
 public record UpdateStockQuantityCommand(
     Guid StockId,
@@ -154,25 +146,17 @@ public sealed class UpdateStockQuantityCommandHandler : ICommandHandler<UpdateSt
     }
 
     public async Task<Result> Handle(
-        UpdateStockQuantityCommand request, 
+        UpdateStockQuantityCommand request,
         CancellationToken cancellationToken)
     {
         var stock = await _stockRepository.GetByIdAsync(request.StockId, cancellationToken);
-        
-        if (stock is null)
-        {
-            return Result.Failure(Error.NotFound("Stock", request.StockId));
-        }
+
+        if (stock is null) return Result.Failure(Error.NotFound("Stock", request.StockId));
 
         if (request.QuantityDelta > 0)
-        {
             stock.AddStock(request.QuantityDelta, request.Reason);
-        }
-        else if (request.QuantityDelta < 0)
-        {
-            stock.RemoveStock(Math.Abs(request.QuantityDelta), request.Reason);
-        }
-        
+        else if (request.QuantityDelta < 0) stock.RemoveStock(Math.Abs(request.QuantityDelta), request.Reason);
+
         _stockRepository.Update(stock);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -181,7 +165,7 @@ public sealed class UpdateStockQuantityCommandHandler : ICommandHandler<UpdateSt
 }
 
 /// <summary>
-/// Command to confirm a stock reservation after payment.
+///     Command to confirm a stock reservation after payment.
 /// </summary>
 public record ConfirmReservationCommand(
     Guid ProductId,
@@ -201,20 +185,17 @@ public sealed class ConfirmReservationCommandHandler : ICommandHandler<ConfirmRe
     }
 
     public async Task<Result> Handle(
-        ConfirmReservationCommand request, 
+        ConfirmReservationCommand request,
         CancellationToken cancellationToken)
     {
         var stock = await _stockRepository.GetByProductIdAsync(request.ProductId, cancellationToken);
-        
-        if (stock is null)
-        {
-            return Result.Failure(Error.NotFound("Stock", request.ProductId));
-        }
+
+        if (stock is null) return Result.Failure(Error.NotFound("Stock", request.ProductId));
 
         try
         {
             stock.ConfirmReservation(request.ReservationId);
-            
+
             _stockRepository.Update(stock);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -228,7 +209,7 @@ public sealed class ConfirmReservationCommandHandler : ICommandHandler<ConfirmRe
 }
 
 /// <summary>
-/// Command to release a stock reservation.
+///     Command to release a stock reservation.
 /// </summary>
 public record ReleaseReservationCommand(
     Guid ProductId,
@@ -248,18 +229,15 @@ public sealed class ReleaseReservationCommandHandler : ICommandHandler<ReleaseRe
     }
 
     public async Task<Result> Handle(
-        ReleaseReservationCommand request, 
+        ReleaseReservationCommand request,
         CancellationToken cancellationToken)
     {
         var stock = await _stockRepository.GetByProductIdAsync(request.ProductId, cancellationToken);
-        
-        if (stock is null)
-        {
-            return Result.Failure(Error.NotFound("Stock", request.ProductId));
-        }
+
+        if (stock is null) return Result.Failure(Error.NotFound("Stock", request.ProductId));
 
         stock.ReleaseReservation(request.ReservationId);
-        
+
         _stockRepository.Update(stock);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

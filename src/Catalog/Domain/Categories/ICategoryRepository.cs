@@ -3,7 +3,7 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Catalog.Domain.Categories;
 
 /// <summary>
-/// Repository interface for Category aggregate.
+///     Repository interface for Category aggregate.
 /// </summary>
 public interface ICategoryRepository : IRepository<Category, Guid>
 {

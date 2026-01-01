@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NetCommerce.Catalog.Domain.Products;
-using NetCommerce.SharedKernel.Domain;
+using NpgsqlTypes;
 
 namespace NetCommerce.Catalog.Infrastructure.Persistence.Configurations;
 
@@ -64,7 +64,7 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         // Full-text search vector - PostgreSQL specific shadow property
         // This is a shadow property (not mapped to a CLR property) used for full-text search
-        builder.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+        builder.Property<NpgsqlTsVector>("SearchVector")
             .HasColumnName("search_vector")
             .HasColumnType("tsvector");
 
@@ -75,11 +75,11 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.OwnsMany(p => p.Images, imageBuilder =>
         {
             imageBuilder.ToTable("product_images");
-            
+
             imageBuilder.WithOwner().HasForeignKey("ProductId");
-            
+
             imageBuilder.HasKey(i => i.Id);
-            
+
             imageBuilder.Property(i => i.ImageKey)
                 .IsRequired()
                 .HasMaxLength(500);
@@ -92,9 +92,9 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.OwnsMany(p => p.Attributes, attrBuilder =>
         {
             attrBuilder.ToTable("product_attributes");
-            
+
             attrBuilder.WithOwner().HasForeignKey("ProductId");
-            
+
             attrBuilder.Property(a => a.Key)
                 .IsRequired()
                 .HasMaxLength(100);

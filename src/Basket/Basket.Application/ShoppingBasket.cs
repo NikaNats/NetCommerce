@@ -1,7 +1,7 @@
 namespace NetCommerce.Basket.Application;
 
 /// <summary>
-/// Shopping basket model stored in Redis.
+///     Shopping basket model stored in Redis.
 /// </summary>
 public class ShoppingBasket
 {
@@ -9,7 +9,7 @@ public class ShoppingBasket
     public List<BasketItem> Items { get; set; } = [];
     public DateTime CreatedAt { get; set; }
     public DateTime LastUpdatedAt { get; set; }
-    
+
     public decimal TotalPrice => Items.Sum(i => i.Price * i.Quantity);
 
     public static ShoppingBasket Create(string customerId)
@@ -27,13 +27,9 @@ public class ShoppingBasket
     {
         var existingItem = Items.FirstOrDefault(i => i.ProductId == item.ProductId);
         if (existingItem != null)
-        {
             existingItem.Quantity += item.Quantity;
-        }
         else
-        {
             Items.Add(item);
-        }
         LastUpdatedAt = DateTime.UtcNow;
     }
 
@@ -43,13 +39,9 @@ public class ShoppingBasket
         if (item != null)
         {
             if (quantity <= 0)
-            {
                 Items.Remove(item);
-            }
             else
-            {
                 item.Quantity = quantity;
-            }
             LastUpdatedAt = DateTime.UtcNow;
         }
     }

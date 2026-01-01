@@ -5,12 +5,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 /// <summary>
-/// Extension methods for registering the Outbox Processor.
+///     Extension methods for registering the Outbox Processor.
 /// </summary>
 public static class OutboxServiceExtensions
 {
     /// <summary>
-    /// Adds the Outbox Processor for the specified DbContext.
+    ///     Adds the Outbox Processor for the specified DbContext.
     /// </summary>
     /// <typeparam name="TDbContext">The DbContext type that implements IOutboxDbContext.</typeparam>
     /// <param name="services">The service collection.</param>
@@ -23,14 +23,14 @@ public static class OutboxServiceExtensions
     {
         services.Configure<OutboxProcessorOptions>(
             configuration.GetSection(OutboxProcessorOptions.SectionName));
-        
+
         services.AddHostedService<OutboxProcessor<TDbContext>>();
 
         return services;
     }
 
     /// <summary>
-    /// Adds the Outbox Processor for the specified DbContext with custom options.
+    ///     Adds the Outbox Processor for the specified DbContext with custom options.
     /// </summary>
     /// <typeparam name="TDbContext">The DbContext type that implements IOutboxDbContext.</typeparam>
     /// <param name="services">The service collection.</param>

@@ -4,12 +4,11 @@ using NetCommerce.SharedKernel.Infrastructure;
 namespace NetCommerce.Api.Middleware;
 
 /// <summary>
-/// Endpoint filter for idempotency key processing on specific mutation endpoints.
-/// Prevents duplicate processing of the same request.
-/// Uses ArrayPool to minimize large object heap allocations.
-/// 
-/// This filter should be applied selectively to POST/PUT/PATCH endpoints that need idempotency,
-/// rather than globally, to avoid memory overhead on read operations and large responses.
+///     Endpoint filter for idempotency key processing on specific mutation endpoints.
+///     Prevents duplicate processing of the same request.
+///     Uses ArrayPool to minimize large object heap allocations.
+///     This filter should be applied selectively to POST/PUT/PATCH endpoints that need idempotency,
+///     rather than globally, to avoid memory overhead on read operations and large responses.
 /// </summary>
 public class IdempotencyEndpointFilter : IEndpointFilter
 {
@@ -23,7 +22,7 @@ public class IdempotencyEndpointFilter : IEndpointFilter
         var idempotencyService = httpContext.RequestServices.GetRequiredService<IIdempotencyService>();
 
         // Check for idempotency key
-        if (!httpContext.Request.Headers.TryGetValue(IdempotencyKeyHeader, out var idempotencyKey) 
+        if (!httpContext.Request.Headers.TryGetValue(IdempotencyKeyHeader, out var idempotencyKey)
             || string.IsNullOrWhiteSpace(idempotencyKey))
         {
             // For development, allow requests without the key
@@ -31,7 +30,7 @@ public class IdempotencyEndpointFilter : IEndpointFilter
             logger.LogWarning(
                 "Request to {Path} missing idempotency key",
                 httpContext.Request.Path);
-            
+
             return await next(context);
         }
 
@@ -58,8 +57,8 @@ public class IdempotencyEndpointFilter : IEndpointFilter
     }
 
     private static async Task CacheResponseIfSuccessful(
-        object? result, 
-        string key, 
+        object? result,
+        string key,
         IIdempotencyService idempotencyService,
         ILogger logger)
     {
@@ -76,17 +75,13 @@ public class IdempotencyEndpointFilter : IEndpointFilter
                 });
 
                 if (responseContent.Length <= MaxCacheableResponseSize)
-                {
                     // Fire and forget caching - don't block the response
                     _ = idempotencyService.SetAsync(key, responseContent, TimeSpan.FromHours(24));
-                }
                 else
-                {
                     logger.LogWarning(
                         "Response too large to cache for idempotency key: {Key}, Size: {Size}",
                         key,
                         responseContent.Length);
-                }
             }
         }
         catch (Exception ex)
@@ -98,13 +93,13 @@ public class IdempotencyEndpointFilter : IEndpointFilter
 }
 
 /// <summary>
-/// Extension methods for applying idempotency to endpoints.
+///     Extension methods for applying idempotency to endpoints.
 /// </summary>
 public static class IdempotencyEndpointExtensions
 {
     /// <summary>
-    /// Adds idempotency support to an endpoint.
-    /// Use this for POST/PUT/PATCH endpoints that modify state and need duplicate request protection.
+    ///     Adds idempotency support to an endpoint.
+    ///     Use this for POST/PUT/PATCH endpoints that modify state and need duplicate request protection.
     /// </summary>
     /// <param name="builder">The route handler builder.</param>
     /// <returns>The builder for chaining.</returns>

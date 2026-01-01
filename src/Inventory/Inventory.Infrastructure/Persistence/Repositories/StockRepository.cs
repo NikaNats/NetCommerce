@@ -1,12 +1,12 @@
-using NetCommerce.Inventory.Domain.Stock;
 using Microsoft.EntityFrameworkCore;
+using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;
 
 namespace NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Stock repository implementation.
-/// Uses AsNoTracking for read-only queries to improve performance.
+///     Stock repository implementation.
+///     Uses AsNoTracking for read-only queries to improve performance.
 /// </summary>
 public class StockRepository : BaseRepository<Stock, Guid>, IStockRepository
 {
@@ -40,7 +40,8 @@ public class StockRepository : BaseRepository<Stock, Guid>, IStockRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<StockReservation?> GetReservationByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<StockReservation?> GetReservationByOrderIdAsync(Guid orderId,
+        CancellationToken cancellationToken = default)
     {
         return await _context.StockReservations
             .FirstOrDefaultAsync(r => r.OrderId == orderId, cancellationToken);
@@ -53,4 +54,3 @@ public class StockRepository : BaseRepository<Stock, Guid>, IStockRepository
             .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
     }
 }
-

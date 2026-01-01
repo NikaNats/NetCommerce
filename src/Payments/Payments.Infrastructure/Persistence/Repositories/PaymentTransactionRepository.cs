@@ -10,7 +10,8 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
     {
     }
 
-    public async Task<PaymentTransaction?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<PaymentTransaction?> GetByOrderIdAsync(Guid orderId,
+        CancellationToken cancellationToken = default)
     {
         return await DbSet
             .Where(pt => pt.OrderId == orderId)
@@ -18,7 +19,8 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PaymentTransaction>> GetByOrderIdHistoryAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PaymentTransaction>> GetByOrderIdHistoryAsync(Guid orderId,
+        CancellationToken cancellationToken = default)
     {
         return await DbSet
             .Where(pt => pt.OrderId == orderId)
@@ -26,10 +28,10 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<PaymentTransaction?> GetByExternalIdAsync(string externalTransactionId, CancellationToken cancellationToken = default)
+    public async Task<PaymentTransaction?> GetByExternalIdAsync(string externalTransactionId,
+        CancellationToken cancellationToken = default)
     {
         return await DbSet
             .FirstOrDefaultAsync(pt => pt.ExternalTransactionId == externalTransactionId, cancellationToken);
     }
 }
-

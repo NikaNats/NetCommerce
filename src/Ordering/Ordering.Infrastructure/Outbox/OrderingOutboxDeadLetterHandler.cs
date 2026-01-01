@@ -1,18 +1,20 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
+using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Events;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 namespace NetCommerce.Ordering.Infrastructure.Outbox;
 
-public sealed class OrderingOutboxDeadLetterHandler : IOutboxDeadLetterHandler<Persistence.OrderingDbContext>
+public sealed class OrderingOutboxDeadLetterHandler : IOutboxDeadLetterHandler<OrderingDbContext>
 {
     private const string InventoryConfirmationFailedRefundReason = "inventory_confirmation_failed";
+    private readonly ILogger<OrderingOutboxDeadLetterHandler> _logger;
 
     private readonly IMediator _mediator;
-    private readonly ILogger<OrderingOutboxDeadLetterHandler> _logger;
 
     public OrderingOutboxDeadLetterHandler(
         IMediator mediator,
@@ -59,17 +61,15 @@ public sealed class OrderingOutboxDeadLetterHandler : IOutboxDeadLetterHandler<P
 
         // Cancel the order to stop downstream processing. Refund is handled asynchronously by Payments.
         var cancelResult = await _mediator.Send(
-            new NetCommerce.Ordering.Application.Orders.Commands.CancelOrderCommand(
+            new CancelOrderCommand(
                 orderPaid.OrderId,
                 "Inventory confirmation failed after payment; refund requested"),
             cancellationToken);
 
         if (!cancelResult.IsSuccess)
-        {
             _logger.LogCritical(
                 "Failed to cancel order after dead-lettered OrderPaidDomainEvent. OrderId: {OrderId}, Error: {Error}",
                 orderPaid.OrderId,
                 cancelResult.Error?.Description);
-        }
     }
 }

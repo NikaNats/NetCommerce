@@ -6,14 +6,14 @@ using NetCommerce.SharedKernel.Events;
 namespace NetCommerce.Payments.Application.EventHandlers;
 
 /// <summary>
-/// Compensating action handler: when inventory confirmation cannot be completed after payment,
-/// attempt to refund the captured payment.
+///     Compensating action handler: when inventory confirmation cannot be completed after payment,
+///     attempt to refund the captured payment.
 /// </summary>
 public sealed class OrderInventoryConfirmationFailedIntegrationEventHandler
     : INotificationHandler<OrderInventoryConfirmationFailedIntegrationEvent>
 {
-    private readonly ISender _sender;
     private readonly ILogger<OrderInventoryConfirmationFailedIntegrationEventHandler> _logger;
+    private readonly ISender _sender;
 
     public OrderInventoryConfirmationFailedIntegrationEventHandler(
         ISender sender,
@@ -23,7 +23,8 @@ public sealed class OrderInventoryConfirmationFailedIntegrationEventHandler
         _logger = logger;
     }
 
-    public async Task Handle(OrderInventoryConfirmationFailedIntegrationEvent notification, CancellationToken cancellationToken)
+    public async Task Handle(OrderInventoryConfirmationFailedIntegrationEvent notification,
+        CancellationToken cancellationToken)
     {
         _logger.LogCritical(
             "Received OrderInventoryConfirmationFailedIntegrationEvent. Attempting refund. OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}",
@@ -38,20 +39,16 @@ public sealed class OrderInventoryConfirmationFailedIntegrationEventHandler
             cancellationToken);
 
         if (!refundResult.IsSuccess)
-        {
             _logger.LogCritical(
                 "Refund failed after inventory confirmation failure. OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}, Error: {Error}, Details: {Details}",
                 notification.OrderId,
                 notification.PaymentTransactionId,
                 refundResult.Error?.Description,
                 notification.FailureDetails);
-        }
         else
-        {
             _logger.LogInformation(
                 "Refund succeeded after inventory confirmation failure. OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}",
                 notification.OrderId,
                 notification.PaymentTransactionId);
-        }
     }
 }

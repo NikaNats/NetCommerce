@@ -1,22 +1,28 @@
 using System.Reflection;
 using FluentAssertions;
 using NetArchTest.Rules;
+using NetCommerce.Catalog.Application.Products.Commands;
+using NetCommerce.Catalog.Domain.Products;
+using NetCommerce.Inventory.Application.Stock.Commands;
+using NetCommerce.Inventory.Domain.Stock;
+using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.Architecture.Tests;
 
 /// <summary>
-/// Architecture tests for naming conventions and coding standards.
+///     Architecture tests for naming conventions and coding standards.
 /// </summary>
 public class NamingConventionTests
 {
-    private static readonly Assembly CatalogDomainAssembly = typeof(Catalog.Domain.Products.Product).Assembly;
-    private static readonly Assembly OrderingDomainAssembly = typeof(Ordering.Domain.Orders.Order).Assembly;
-    private static readonly Assembly InventoryDomainAssembly = typeof(Inventory.Domain.Stock.Stock).Assembly;
-    
-    private static readonly Assembly CatalogApplicationAssembly = typeof(Catalog.Application.Products.Commands.CreateProductCommand).Assembly;
-    private static readonly Assembly OrderingApplicationAssembly = typeof(Ordering.Application.Orders.Commands.CreateOrderCommand).Assembly;
-    private static readonly Assembly InventoryApplicationAssembly = typeof(Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly;
+    private static readonly Assembly CatalogDomainAssembly = typeof(Product).Assembly;
+    private static readonly Assembly OrderingDomainAssembly = typeof(Order).Assembly;
+    private static readonly Assembly InventoryDomainAssembly = typeof(Stock).Assembly;
+
+    private static readonly Assembly CatalogApplicationAssembly = typeof(CreateProductCommand).Assembly;
+    private static readonly Assembly OrderingApplicationAssembly = typeof(CreateOrderCommand).Assembly;
+    private static readonly Assembly InventoryApplicationAssembly = typeof(ReserveStockCommand).Assembly;
 
     private static readonly Assembly[] AllDomainAssemblies =
     [
@@ -183,7 +189,7 @@ public class NamingConventionTests
             foreach (var entityType in entityTypes)
             {
                 var publicSetters = entityType.GetProperties()
-                    .Where(p => p.SetMethod?.IsPublic == true && 
+                    .Where(p => p.SetMethod?.IsPublic == true &&
                                 p.Name != "Version" && // Allow Version for EF Core
                                 !p.Name.StartsWith("Search")) // Allow computed properties
                     .Select(p => p.Name)

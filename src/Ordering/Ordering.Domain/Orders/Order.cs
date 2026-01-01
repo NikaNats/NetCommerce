@@ -3,12 +3,16 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Ordering.Domain.Orders;
 
 /// <summary>
-/// Order aggregate root with state machine workflow.
-/// Implements Price Snapshotting pattern.
+///     Order aggregate root with state machine workflow.
+///     Implements Price Snapshotting pattern.
 /// </summary>
 public sealed class Order : AggregateRoot<Guid>
 {
     private readonly List<OrderItem> _items = [];
+
+    private Order()
+    {
+    }
 
     public string OrderNumber { get; private set; } = string.Empty;
     public Guid CustomerId { get; private set; }
@@ -24,15 +28,13 @@ public sealed class Order : AggregateRoot<Guid>
     public DateTime? CancelledAt { get; private set; }
     public string? CancellationReason { get; private set; }
     public string? Notes { get; private set; }
-    
+
     /// <summary>
-    /// Idempotency key for preventing duplicate order creation.
+    ///     Idempotency key for preventing duplicate order creation.
     /// </summary>
     public string IdempotencyKey { get; private set; } = string.Empty;
 
     public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
-
-    private Order() { }
 
     public static Order Create(
         Guid customerId,
@@ -54,18 +56,18 @@ public sealed class Order : AggregateRoot<Guid>
         };
 
         order.RaiseDomainEvent(new OrderCreatedDomainEvent(order.Id, order.OrderNumber, customerId));
-        
+
         return order;
     }
 
     /// <summary>
-    /// Adds an item with SNAPSHOTTED price and title.
-    /// This ensures historical order data is preserved.
+    ///     Adds an item with SNAPSHOTTED price and title.
+    ///     This ensures historical order data is preserved.
     /// </summary>
     public void AddItem(
         Guid productId,
-        string appliedTitle,  // Snapshot: product name at order time
-        Money appliedPrice,   // Snapshot: price at order time
+        string appliedTitle, // Snapshot: product name at order time
+        Money appliedPrice, // Snapshot: price at order time
         int quantity,
         string? sku = null)
     {
@@ -86,7 +88,7 @@ public sealed class Order : AggregateRoot<Guid>
                 appliedPrice,
                 quantity,
                 sku);
-            
+
             _items.Add(item);
         }
 
@@ -99,7 +101,7 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Marks order as paid - transitions from Pending to Paid.
+    ///     Marks order as paid - transitions from Pending to Paid.
     /// </summary>
     public void MarkAsPaid(Guid paymentTransactionId)
     {
@@ -114,7 +116,7 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Transitions to Processing status.
+    ///     Transitions to Processing status.
     /// </summary>
     public void StartProcessing()
     {
@@ -126,7 +128,7 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Marks order as shipped.
+    ///     Marks order as shipped.
     /// </summary>
     public void MarkAsShipped(string? trackingNumber = null)
     {
@@ -140,7 +142,7 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Marks order as delivered.
+    ///     Marks order as delivered.
     /// </summary>
     public void MarkAsDelivered()
     {
@@ -154,7 +156,7 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Cancels the order.
+    ///     Cancels the order.
     /// </summary>
     public void Cancel(string reason)
     {
@@ -174,7 +176,7 @@ public sealed class Order : AggregateRoot<Guid>
         var total = _items.Aggregate(
             Money.Zero(),
             (sum, item) => sum.Add(item.AppliedPrice.Multiply(item.Quantity)));
-        
+
         TotalAmount = total;
     }
 
@@ -185,14 +187,14 @@ public sealed class Order : AggregateRoot<Guid>
 }
 
 /// <summary>
-/// Order status workflow.
+///     Order status workflow.
 /// </summary>
 public enum OrderStatus
 {
-    Pending = 0,      // Order created, awaiting payment
-    Paid = 1,         // Payment received
-    Processing = 2,   // Order being prepared
-    Shipped = 3,      // Order shipped
-    Delivered = 4,    // Order delivered
-    Cancelled = 5     // Order cancelled
+    Pending = 0, // Order created, awaiting payment
+    Paid = 1, // Payment received
+    Processing = 2, // Order being prepared
+    Shipped = 3, // Order shipped
+    Delivered = 4, // Order delivered
+    Cancelled = 5 // Order cancelled
 }

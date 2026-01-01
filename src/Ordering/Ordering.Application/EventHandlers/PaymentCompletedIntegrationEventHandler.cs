@@ -1,26 +1,24 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Application.Orders.Commands;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Events;
 
 namespace NetCommerce.Ordering.Application.EventHandlers;
 
 /// <summary>
-/// Integration event handler for PaymentCompletedIntegrationEvent.
-/// 
-/// When a payment is completed in the Payments module,
-/// this handler marks the order as paid in the Ordering module.
-/// 
-/// This bridges the Payments and Ordering modules without direct coupling.
-/// Architecture: Payments -> [Integration Event] -> Ordering
+///     Integration event handler for PaymentCompletedIntegrationEvent.
+///     When a payment is completed in the Payments module,
+///     this handler marks the order as paid in the Ordering module.
+///     This bridges the Payments and Ordering modules without direct coupling.
+///     Architecture: Payments -> [Integration Event] -> Ordering
 /// </summary>
 public sealed class PaymentCompletedIntegrationEventHandler : INotificationHandler<PaymentCompletedIntegrationEvent>
 {
-    private readonly ISender _mediator;
     private readonly ILogger<PaymentCompletedIntegrationEventHandler> _logger;
+    private readonly ISender _mediator;
 
-    public PaymentCompletedIntegrationEventHandler(ISender mediator, ILogger<PaymentCompletedIntegrationEventHandler> logger)
+    public PaymentCompletedIntegrationEventHandler(ISender mediator,
+        ILogger<PaymentCompletedIntegrationEventHandler> logger)
     {
         _mediator = mediator;
         _logger = logger;

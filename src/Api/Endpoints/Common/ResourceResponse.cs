@@ -1,24 +1,24 @@
 namespace NetCommerce.Api.Endpoints.Common;
 
 /// <summary>
-/// Resource response wrapper that includes HATEOAS links.
-/// Follows RESTful best practices by providing navigation information.
+///     Resource response wrapper that includes HATEOAS links.
+///     Follows RESTful best practices by providing navigation information.
 /// </summary>
 /// <typeparam name="T">The type of the resource.</typeparam>
 public sealed record ResourceResponse<T> where T : class
 {
     /// <summary>
-    /// The resource data.
+    ///     The resource data.
     /// </summary>
     public required T Data { get; init; }
 
     /// <summary>
-    /// HATEOAS links for the resource.
+    ///     HATEOAS links for the resource.
     /// </summary>
     public required IReadOnlyList<Link> Links { get; init; }
 
     /// <summary>
-    /// Creates a resource response with standard CRUD links.
+    ///     Creates a resource response with standard CRUD links.
     /// </summary>
     public static ResourceResponse<T> Create(T data, string selfUrl, params Link[] additionalLinks)
     {
@@ -39,7 +39,7 @@ public sealed record ResourceResponse<T> where T : class
     }
 
     /// <summary>
-    /// Creates a read-only resource response (no update/delete links).
+    ///     Creates a read-only resource response (no update/delete links).
     /// </summary>
     public static ResourceResponse<T> CreateReadOnly(T data, string selfUrl, params Link[] additionalLinks)
     {
@@ -59,29 +59,29 @@ public sealed record ResourceResponse<T> where T : class
 }
 
 /// <summary>
-/// Collection response with HATEOAS links for the collection itself.
-/// Use this for non-paginated collections.
+///     Collection response with HATEOAS links for the collection itself.
+///     Use this for non-paginated collections.
 /// </summary>
 /// <typeparam name="T">The type of items in the collection.</typeparam>
 public sealed record CollectionResponse<T>
 {
     /// <summary>
-    /// The collection of items.
+    ///     The collection of items.
     /// </summary>
     public required IReadOnlyList<T> Items { get; init; }
 
     /// <summary>
-    /// Total number of items in the collection.
+    ///     Total number of items in the collection.
     /// </summary>
     public required int Count { get; init; }
 
     /// <summary>
-    /// HATEOAS links for the collection.
+    ///     HATEOAS links for the collection.
     /// </summary>
     public required IReadOnlyList<Link> Links { get; init; }
 
     /// <summary>
-    /// Creates a collection response with a self link.
+    ///     Creates a collection response with a self link.
     /// </summary>
     public static CollectionResponse<T> Create(IReadOnlyList<T> items, string selfUrl, params Link[] additionalLinks)
     {

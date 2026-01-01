@@ -7,7 +7,7 @@ namespace NetCommerce.Api.Extensions;
 public static class OpenApiExtensions
 {
     /// <summary>
-    /// Adds OpenAPI configuration with Keycloak OAuth2 support using built-in ASP.NET Core OpenAPI.
+    ///     Adds OpenAPI configuration with Keycloak OAuth2 support using built-in ASP.NET Core OpenAPI.
     /// </summary>
     public static IHostApplicationBuilder AddNetCommerceOpenApi(this IHostApplicationBuilder builder)
     {
@@ -21,7 +21,7 @@ public static class OpenApiExtensions
     }
 
     /// <summary>
-    /// Maps the OpenAPI endpoint and configures Swagger UI with Keycloak OAuth2 settings.
+    ///     Maps the OpenAPI endpoint and configures Swagger UI with Keycloak OAuth2 settings.
     /// </summary>
     public static WebApplication UseNetCommerceOpenApi(this WebApplication app)
     {
@@ -36,18 +36,18 @@ public static class OpenApiExtensions
             {
                 // Point to the built-in OpenAPI endpoint
                 options.SwaggerEndpoint("/openapi/v1.json", "NetCommerce API V1");
-                
+
                 // OAuth2 configuration for Swagger UI
                 options.OAuthClientId(swaggerClientId);
                 options.OAuthUsePkce();
                 options.OAuthScopes("netcommerce.api", "openid", "profile", "email");
-                
+
                 // Keycloak authorization endpoints
                 options.OAuthAdditionalQueryStringParams(new Dictionary<string, string>
                 {
                     ["prompt"] = "consent"
                 });
-                
+
                 options.EnablePersistAuthorization();
                 options.EnableDeepLinking();
                 options.DisplayRequestDuration();
@@ -59,12 +59,13 @@ public static class OpenApiExtensions
 }
 
 /// <summary>
-/// Document transformer that adds API info and OAuth2 security scheme for Keycloak.
+///     Document transformer that adds API info and OAuth2 security scheme for Keycloak.
 /// </summary>
-internal sealed class OpenApiDocumentTransformer(IAuthenticationSchemeProvider authenticationSchemeProvider) 
+internal sealed class OpenApiDocumentTransformer(IAuthenticationSchemeProvider authenticationSchemeProvider)
     : IOpenApiDocumentTransformer
 {
-    public async Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
+    public async Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context,
+        CancellationToken cancellationToken)
     {
         // Set document info
         document.Info = new OpenApiInfo
@@ -95,8 +96,10 @@ internal sealed class OpenApiDocumentTransformer(IAuthenticationSchemeProvider a
                     {
                         AuthorizationCode = new OpenApiOAuthFlow
                         {
-                            AuthorizationUrl = new Uri("http://localhost:8080/realms/netcommerce/protocol/openid-connect/auth"),
-                            TokenUrl = new Uri("http://localhost:8080/realms/netcommerce/protocol/openid-connect/token"),
+                            AuthorizationUrl =
+                                new Uri("http://localhost:8080/realms/netcommerce/protocol/openid-connect/auth"),
+                            TokenUrl =
+                                new Uri("http://localhost:8080/realms/netcommerce/protocol/openid-connect/token"),
                             Scopes = new Dictionary<string, string>
                             {
                                 ["netcommerce.api"] = "Access to NetCommerce API",
@@ -118,11 +121,10 @@ internal sealed class OpenApiDocumentTransformer(IAuthenticationSchemeProvider a
 
             // Apply security requirement to all operations
             if (document.Paths is not null)
-            {
                 foreach (var pathItem in document.Paths.Values)
                 {
                     if (pathItem.Operations is null) continue;
-                    
+
                     foreach (var operation in pathItem.Operations.Values)
                     {
                         operation.Security ??= [];
@@ -132,7 +134,6 @@ internal sealed class OpenApiDocumentTransformer(IAuthenticationSchemeProvider a
                         });
                     }
                 }
-            }
         }
     }
 }

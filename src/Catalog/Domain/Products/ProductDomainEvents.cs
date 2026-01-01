@@ -5,17 +5,17 @@ namespace NetCommerce.Catalog.Domain.Products;
 // Domain Events for Product aggregate
 
 public sealed record ProductCreatedDomainEvent(
-    Guid ProductId, 
-    string Name, 
+    Guid ProductId,
+    string Name,
     string Sku) : DomainEvent;
 
 public sealed record ProductUpdatedDomainEvent(
-    Guid ProductId, 
+    Guid ProductId,
     string Name) : DomainEvent;
 
 public sealed record ProductPriceChangedDomainEvent(
-    Guid ProductId, 
-    Money OldPrice, 
+    Guid ProductId,
+    Money OldPrice,
     Money NewPrice) : DomainEvent;
 
 public sealed record ProductPublishedDomainEvent(

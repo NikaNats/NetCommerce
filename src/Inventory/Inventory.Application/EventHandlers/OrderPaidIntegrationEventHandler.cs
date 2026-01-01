@@ -1,24 +1,20 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
-using NetCommerce.Inventory.Application.Stock.Commands;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Events;
 
 namespace NetCommerce.Inventory.Application.EventHandlers;
 
 /// <summary>
-/// Integration event handler for OrderPaidIntegrationEvent.
-/// 
-/// When an order is marked as paid in the Ordering module,
-/// this handler confirms stock reservations in the Inventory module.
-/// 
-/// This bridges the Ordering and Inventory modules without direct coupling.
-/// Architecture: Ordering -> [Integration Event] -> Inventory
+///     Integration event handler for OrderPaidIntegrationEvent.
+///     When an order is marked as paid in the Ordering module,
+///     this handler confirms stock reservations in the Inventory module.
+///     This bridges the Ordering and Inventory modules without direct coupling.
+///     Architecture: Ordering -> [Integration Event] -> Inventory
 /// </summary>
 public sealed class OrderPaidIntegrationEventHandler : INotificationHandler<OrderPaidIntegrationEvent>
 {
-    private readonly ISender _mediator;
     private readonly ILogger<OrderPaidIntegrationEventHandler> _logger;
+    private readonly ISender _mediator;
 
     public OrderPaidIntegrationEventHandler(ISender mediator, ILogger<OrderPaidIntegrationEventHandler> logger)
     {

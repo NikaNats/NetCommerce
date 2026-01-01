@@ -1,21 +1,22 @@
-using System.Text.Json;
+using System.Collections.Concurrent;
+using System.Reflection;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NSubstitute;
-using Shouldly;
 using NetCommerce.Integration.Tests.Fixtures;
-using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using NSubstitute;
+using Shouldly;
 
 namespace NetCommerce.Integration.Tests.Outbox;
 
 /// <summary>
-/// Integration tests for the Transactional Outbox pattern.
+///     Integration tests for the Transactional Outbox pattern.
 /// </summary>
 [Collection(nameof(IntegrationTestCollection))]
 public class OutboxIntegrationTests : IntegrationTestBase
@@ -29,30 +30,30 @@ public class OutboxIntegrationTests : IntegrationTestBase
     private static ShippingAddress CreateTestShippingAddress(string suffix = "")
     {
         return ShippingAddress.Create(
-            recipientName: $"Test Recipient {suffix}",
-            street: $"Test Street {suffix}",
-            city: $"Test City {suffix}",
-            state: "TS",
-            country: "US",
-            postalCode: $"1234{suffix}",
-            phone: "+1234567890");
+            $"Test Recipient {suffix}",
+            $"Test Street {suffix}",
+            $"Test City {suffix}",
+            "TS",
+            "US",
+            $"1234{suffix}",
+            "+1234567890");
     }
 
     private static Order CreateTestOrder(string suffix = "")
     {
         return Order.Create(
-            customerId: Guid.NewGuid(),
-            shippingAddress: CreateTestShippingAddress(suffix),
-            idempotencyKey: Guid.NewGuid().ToString());
+            Guid.NewGuid(),
+            CreateTestShippingAddress(suffix),
+            Guid.NewGuid().ToString());
     }
 
     private IServiceScopeFactory CreateScopeFactory(IMediator mediator)
     {
         var services = new ServiceCollection();
-        
+
         services.AddDbContext<OrderingDbContext>(options =>
             options.UseNpgsql(Fixture.PostgresConnectionString));
-        
+
         services.AddSingleton(mediator);
 
         var serviceProvider = services.BuildServiceProvider();
@@ -68,7 +69,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         // Create an order which raises domain events
         var order = CreateTestOrder();
         context.Orders.Add(order);
@@ -80,7 +81,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
         var outboxMessages = await context.OutboxMessages.ToListAsync();
         outboxMessages.ShouldNotBeEmpty();
         outboxMessages.ShouldAllBe(m => m.ProcessedOn == null);
-        
+
         // Verify the event type is serialized correctly
         var message = outboxMessages.First();
         message.Type.ShouldContain("OrderCreatedDomainEvent");
@@ -92,11 +93,11 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         // Create multiple orders
         var order1 = CreateTestOrder("1");
         var order2 = CreateTestOrder("2");
-        
+
         context.Orders.Add(order1);
         context.Orders.Add(order2);
 
@@ -113,7 +114,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
 
@@ -137,7 +138,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         // Create an order to generate outbox messages
         var order = CreateTestOrder();
         context.Orders.Add(order);
@@ -171,9 +172,9 @@ public class OutboxIntegrationTests : IntegrationTestBase
         var processedMessages = await verifyContext.OutboxMessages
             .Where(m => m.ProcessedOn != null)
             .ToListAsync();
-        
+
         processedMessages.ShouldNotBeEmpty();
-        
+
         // Verify MediatR was called
         await mediator.Received().Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
     }
@@ -183,7 +184,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -212,7 +213,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
         // Assert - Message should be marked as failed with error
         await using var verifyContext = Fixture.CreateOrderingDbContext();
         var failedMessage = await verifyContext.OutboxMessages.FirstOrDefaultAsync();
-        
+
         failedMessage.ShouldNotBeNull();
         failedMessage.ProcessedOn.ShouldBeNull();
         failedMessage.Error.ShouldNotBeNullOrEmpty();
@@ -224,7 +225,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -248,15 +249,12 @@ public class OutboxIntegrationTests : IntegrationTestBase
         var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
 
         // Act - Process 4 times (exceeds max retries of 3)
-        for (var i = 0; i < 4; i++)
-        {
-            await processor.ProcessMessagesOnceAsync(CancellationToken.None);
-        }
+        for (var i = 0; i < 4; i++) await processor.ProcessMessagesOnceAsync(CancellationToken.None);
 
         // Assert - Message should not be picked up after max retries
         await using var verifyContext = Fixture.CreateOrderingDbContext();
         var message = await verifyContext.OutboxMessages.FirstOrDefaultAsync();
-        
+
         message.ShouldNotBeNull();
         message.RetryCount.ShouldBe(3); // Should stop at max retries
         message.ProcessedOn.ShouldBeNull();
@@ -267,7 +265,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         // Create multiple orders with slight delays to ensure different OccurredOn times
         for (var i = 0; i < 3; i++)
         {
@@ -317,7 +315,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -356,7 +354,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -397,7 +395,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -422,10 +420,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
         var processor = new TestableOutboxProcessor(scopeFactory, logger, options);
 
         // Act - Process 3 times to exceed max retries of 2
-        for (var i = 0; i < 3; i++)
-        {
-            await processor.ProcessMessagesOnceAsync(CancellationToken.None);
-        }
+        for (var i = 0; i < 3; i++) await processor.ProcessMessagesOnceAsync(CancellationToken.None);
 
         // Assert - Message should be in Failed status
         await using var verifyContext = Fixture.CreateOrderingDbContext();
@@ -439,20 +434,21 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         // Create multiple orders to have several messages
         for (var i = 0; i < 5; i++)
         {
             var order = CreateTestOrder(i.ToString());
             context.Orders.Add(order);
         }
+
         await context.SaveChangesAsync();
 
         var messageCount = await context.OutboxMessages.CountAsync();
         messageCount.ShouldBeGreaterThanOrEqualTo(5);
 
         // Track which messages were published
-        var publishedMessageIds = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+        var publishedMessageIds = new ConcurrentBag<Guid>();
         var mediator = Substitute.For<IMediator>();
         mediator
             .When(m => m.Publish(Arg.Any<IDomainEvent>(), Arg.Any<CancellationToken>()))
@@ -482,12 +478,12 @@ public class OutboxIntegrationTests : IntegrationTestBase
         // Act - Run both processors concurrently
         var task1 = processor1.ProcessMessagesOnceAsync(CancellationToken.None);
         var task2 = processor2.ProcessMessagesOnceAsync(CancellationToken.None);
-        
+
         await Task.WhenAll(task1, task2);
 
         // Assert - Each message should be published exactly once (no duplicates)
         var uniqueIds = publishedMessageIds.Distinct().ToList();
-        uniqueIds.Count.ShouldBe(publishedMessageIds.Count, 
+        uniqueIds.Count.ShouldBe(publishedMessageIds.Count,
             "Each message should be published exactly once - no duplicates allowed");
     }
 
@@ -496,7 +492,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -541,7 +537,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
     {
         // Arrange
         await using var context = Fixture.CreateOrderingDbContext();
-        
+
         var order = CreateTestOrder();
         context.Orders.Add(order);
         await context.SaveChangesAsync();
@@ -582,7 +578,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
 }
 
 /// <summary>
-/// Testable version of OutboxProcessor that exposes the processing logic.
+///     Testable version of OutboxProcessor that exposes the processing logic.
 /// </summary>
 internal class TestableOutboxProcessor : OutboxProcessor<OrderingDbContext>
 {
@@ -598,16 +594,13 @@ internal class TestableOutboxProcessor : OutboxProcessor<OrderingDbContext>
     {
         // Use reflection to call the private method
         var method = typeof(OutboxProcessor<OrderingDbContext>)
-            .GetMethod("ProcessOutboxMessagesAsync", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        
+            .GetMethod("ProcessOutboxMessagesAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
         if (method != null)
         {
             var task = (Task?)method.Invoke(this, [cancellationToken]);
-            if (task != null)
-            {
-                await task;
-            }
+            if (task != null) await task;
         }
     }
 }

@@ -11,7 +11,7 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.ToTable("order_items");
 
         builder.HasKey(oi => oi.Id);
-        
+
         builder.Property(oi => oi.Id)
             .HasColumnName("id")
             .ValueGeneratedNever();
@@ -52,4 +52,3 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Ignore(oi => oi.LineTotal);
     }
 }
-

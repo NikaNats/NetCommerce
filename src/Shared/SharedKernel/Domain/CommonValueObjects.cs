@@ -1,35 +1,37 @@
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
-/// Common value objects used across modules.
+///     Common value objects used across modules.
 /// </summary>
-
 /// <summary>
-/// Represents a monetary value with currency.
+///     Represents a monetary value with currency.
 /// </summary>
 public sealed class Money : ValueObject
 {
-    public decimal Amount { get; }
-    public string Currency { get; }
-
     private Money(decimal amount, string currency)
     {
         Amount = amount;
         Currency = currency;
     }
 
+    public decimal Amount { get; }
+    public string Currency { get; }
+
     public static Money Create(decimal amount, string currency = "GEL")
     {
         if (amount < 0)
             throw new ArgumentException("Amount cannot be negative", nameof(amount));
-        
+
         if (string.IsNullOrWhiteSpace(currency))
             throw new ArgumentException("Currency is required", nameof(currency));
 
         return new Money(Math.Round(amount, 2), currency.ToUpperInvariant());
     }
 
-    public static Money Zero(string currency = "GEL") => new(0, currency);
+    public static Money Zero(string currency = "GEL")
+    {
+        return new Money(0, currency);
+    }
 
     public Money Add(Money other)
     {
@@ -51,7 +53,8 @@ public sealed class Money : ValueObject
     private void EnsureSameCurrency(Money other)
     {
         if (Currency != other.Currency)
-            throw new InvalidOperationException($"Cannot perform operation on different currencies: {Currency} and {other.Currency}");
+            throw new InvalidOperationException(
+                $"Cannot perform operation on different currencies: {Currency} and {other.Currency}");
     }
 
     protected override IEnumerable<object?> GetEqualityComponents()
@@ -60,26 +63,29 @@ public sealed class Money : ValueObject
         yield return Currency;
     }
 
-    public override string ToString() => $"{Amount:N2} {Currency}";
+    public override string ToString()
+    {
+        return $"{Amount:N2} {Currency}";
+    }
 }
 
 /// <summary>
-/// Represents an email address.
+///     Represents an email address.
 /// </summary>
 public sealed class Email : ValueObject
 {
-    public string Value { get; }
-
     private Email(string value)
     {
         Value = value;
     }
 
+    public string Value { get; }
+
     public static Email Create(string email)
     {
         if (string.IsNullOrWhiteSpace(email))
             throw new ArgumentException("Email cannot be empty", nameof(email));
-        
+
         if (!email.Contains('@') || !email.Contains('.'))
             throw new ArgumentException("Invalid email format", nameof(email));
 
@@ -91,22 +97,22 @@ public sealed class Email : ValueObject
         yield return Value;
     }
 
-    public override string ToString() => Value;
-    
-    public static implicit operator string(Email email) => email.Value;
+    public override string ToString()
+    {
+        return Value;
+    }
+
+    public static implicit operator string(Email email)
+    {
+        return email.Value;
+    }
 }
 
 /// <summary>
-/// Represents an address.
+///     Represents an address.
 /// </summary>
 public sealed class Address : ValueObject
 {
-    public string Street { get; }
-    public string City { get; }
-    public string State { get; }
-    public string Country { get; }
-    public string PostalCode { get; }
-
     private Address(string street, string city, string state, string country, string postalCode)
     {
         Street = street;
@@ -115,6 +121,12 @@ public sealed class Address : ValueObject
         Country = country;
         PostalCode = postalCode;
     }
+
+    public string Street { get; }
+    public string City { get; }
+    public string State { get; }
+    public string Country { get; }
+    public string PostalCode { get; }
 
     public static Address Create(string street, string city, string state, string country, string postalCode)
     {
@@ -137,5 +149,8 @@ public sealed class Address : ValueObject
         yield return PostalCode;
     }
 
-    public override string ToString() => $"{Street}, {City}, {State} {PostalCode}, {Country}";
+    public override string ToString()
+    {
+        return $"{Street}, {City}, {State} {PostalCode}, {Country}";
+    }
 }

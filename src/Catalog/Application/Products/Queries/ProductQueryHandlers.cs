@@ -8,8 +8,8 @@ namespace NetCommerce.Catalog.Application.Products.Queries;
 
 public sealed class GetProductByIdQueryHandler : IQueryHandler<GetProductByIdQuery, ProductDto>
 {
-    private readonly IProductRepository _productRepository;
     private readonly IProductMapper _mapper;
+    private readonly IProductRepository _productRepository;
 
     public GetProductByIdQueryHandler(
         IProductRepository productRepository,
@@ -20,16 +20,14 @@ public sealed class GetProductByIdQueryHandler : IQueryHandler<GetProductByIdQue
     }
 
     public async Task<Result<ProductDto>> Handle(
-        GetProductByIdQuery request, 
+        GetProductByIdQuery request,
         CancellationToken cancellationToken)
     {
         var product = await _productRepository.GetByIdAsync(request.ProductId, cancellationToken);
-        
+
         if (product is null)
-        {
             return Result.Failure<ProductDto>(
                 Error.NotFound(nameof(Product), request.ProductId));
-        }
 
         return _mapper.MapToDto(product);
     }
@@ -37,8 +35,8 @@ public sealed class GetProductByIdQueryHandler : IQueryHandler<GetProductByIdQue
 
 public sealed class GetProductBySlugQueryHandler : IQueryHandler<GetProductBySlugQuery, ProductDto>
 {
-    private readonly IProductRepository _productRepository;
     private readonly IProductMapper _mapper;
+    private readonly IProductRepository _productRepository;
 
     public GetProductBySlugQueryHandler(
         IProductRepository productRepository,
@@ -49,16 +47,14 @@ public sealed class GetProductBySlugQueryHandler : IQueryHandler<GetProductBySlu
     }
 
     public async Task<Result<ProductDto>> Handle(
-        GetProductBySlugQuery request, 
+        GetProductBySlugQuery request,
         CancellationToken cancellationToken)
     {
         var product = await _productRepository.GetBySlugAsync(request.Slug, cancellationToken);
-        
+
         if (product is null)
-        {
             return Result.Failure<ProductDto>(
                 Error.NotFound(nameof(Product), request.Slug));
-        }
 
         return _mapper.MapToDto(product);
     }

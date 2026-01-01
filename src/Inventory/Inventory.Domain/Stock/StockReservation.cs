@@ -3,12 +3,16 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Inventory.Domain.Stock;
 
 /// <summary>
-/// Stock reservation entity for soft reservations.
-/// Expires after 15 minutes if not confirmed.
+///     Stock reservation entity for soft reservations.
+///     Expires after 15 minutes if not confirmed.
 /// </summary>
 public sealed class StockReservation : Entity<Guid>
 {
     public static readonly TimeSpan DefaultReservationDuration = TimeSpan.FromMinutes(15);
+
+    private StockReservation()
+    {
+    }
 
     public Guid StockId { get; private set; }
     public Guid OrderId { get; private set; }
@@ -18,8 +22,6 @@ public sealed class StockReservation : Entity<Guid>
     public ReservationStatus Status { get; private set; }
     public DateTime? ConfirmedAt { get; private set; }
     public DateTime? ReleasedAt { get; private set; }
-
-    private StockReservation() { }
 
     internal static StockReservation Create(
         Guid stockId,

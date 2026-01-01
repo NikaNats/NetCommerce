@@ -1,7 +1,6 @@
-using NetCommerce.Basket.Application;
-using NetCommerce.Basket.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NetCommerce.Basket.Application;
 
 namespace NetCommerce.Basket.Infrastructure;
 
@@ -16,4 +15,3 @@ public static class BasketModule
         return services;
     }
 }
-

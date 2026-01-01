@@ -4,15 +4,16 @@ using Microsoft.AspNetCore.Mvc;
 namespace NetCommerce.Api.Endpoints.Common;
 
 /// <summary>
-/// Factory for creating RFC 7807 compliant Problem Details responses.
-/// Provides standardized error responses following RESTful best practices.
+///     Factory for creating RFC 7807 compliant Problem Details responses.
+///     Provides standardized error responses following RESTful best practices.
 /// </summary>
 public static class ProblemDetailsFactory
 {
     /// <summary>
-    /// Creates a 400 Bad Request problem details response.
+    ///     Creates a 400 Bad Request problem details response.
     /// </summary>
-    public static ProblemDetails BadRequest(string detail, string? instance = null, IDictionary<string, object?>? extensions = null)
+    public static ProblemDetails BadRequest(string detail, string? instance = null,
+        IDictionary<string, object?>? extensions = null)
     {
         return CreateProblemDetails(
             HttpStatusCode.BadRequest,
@@ -24,9 +25,10 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 400 Bad Request with validation errors.
+    ///     Creates a 400 Bad Request with validation errors.
     /// </summary>
-    public static ValidationProblemDetails ValidationError(IDictionary<string, string[]> errors, string? instance = null)
+    public static ValidationProblemDetails ValidationError(IDictionary<string, string[]> errors,
+        string? instance = null)
     {
         return new ValidationProblemDetails(errors)
         {
@@ -38,9 +40,10 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 401 Unauthorized problem details response.
+    ///     Creates a 401 Unauthorized problem details response.
     /// </summary>
-    public static ProblemDetails Unauthorized(string detail = "Authentication is required to access this resource.", string? instance = null)
+    public static ProblemDetails Unauthorized(string detail = "Authentication is required to access this resource.",
+        string? instance = null)
     {
         return CreateProblemDetails(
             HttpStatusCode.Unauthorized,
@@ -51,9 +54,10 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 403 Forbidden problem details response.
+    ///     Creates a 403 Forbidden problem details response.
     /// </summary>
-    public static ProblemDetails Forbidden(string detail = "You don't have permission to access this resource.", string? instance = null)
+    public static ProblemDetails Forbidden(string detail = "You don't have permission to access this resource.",
+        string? instance = null)
     {
         return CreateProblemDetails(
             HttpStatusCode.Forbidden,
@@ -64,7 +68,7 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 404 Not Found problem details response.
+    ///     Creates a 404 Not Found problem details response.
     /// </summary>
     public static ProblemDetails NotFound(string resourceType, string identifier, string? instance = null)
     {
@@ -82,9 +86,10 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 409 Conflict problem details response.
+    ///     Creates a 409 Conflict problem details response.
     /// </summary>
-    public static ProblemDetails Conflict(string detail, string? instance = null, IDictionary<string, object?>? extensions = null)
+    public static ProblemDetails Conflict(string detail, string? instance = null,
+        IDictionary<string, object?>? extensions = null)
     {
         return CreateProblemDetails(
             HttpStatusCode.Conflict,
@@ -96,9 +101,10 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 422 Unprocessable Entity problem details response.
+    ///     Creates a 422 Unprocessable Entity problem details response.
     /// </summary>
-    public static ProblemDetails UnprocessableEntity(string detail, string? instance = null, IDictionary<string, object?>? extensions = null)
+    public static ProblemDetails UnprocessableEntity(string detail, string? instance = null,
+        IDictionary<string, object?>? extensions = null)
     {
         return CreateProblemDetails(
             HttpStatusCode.UnprocessableEntity,
@@ -110,7 +116,7 @@ public static class ProblemDetailsFactory
     }
 
     /// <summary>
-    /// Creates a 500 Internal Server Error problem details response.
+    ///     Creates a 500 Internal Server Error problem details response.
     /// </summary>
     public static ProblemDetails InternalServerError(string? traceId = null, string? instance = null)
     {
@@ -145,12 +151,8 @@ public static class ProblemDetailsFactory
         };
 
         if (extensions is not null)
-        {
             foreach (var (key, value) in extensions)
-            {
                 problemDetails.Extensions[key] = value;
-            }
-        }
 
         return problemDetails;
     }

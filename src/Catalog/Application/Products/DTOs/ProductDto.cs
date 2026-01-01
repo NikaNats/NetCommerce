@@ -1,7 +1,7 @@
 namespace NetCommerce.Catalog.Application.Products.DTOs;
 
 /// <summary>
-/// Product response DTO.
+///     Product response DTO.
 /// </summary>
 public record ProductDto
 {

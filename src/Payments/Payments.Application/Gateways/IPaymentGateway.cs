@@ -4,18 +4,18 @@ using NetCommerce.SharedKernel.Results;
 namespace NetCommerce.Payments.Application.Gateways;
 
 /// <summary>
-/// Payment gateway abstraction for multiple providers.
+///     Payment gateway abstraction for multiple providers.
 /// </summary>
 public interface IPaymentGateway
 {
     PaymentProvider Provider { get; }
-    
+
     Task<Result<PaymentResult>> ProcessPaymentAsync(
-        PaymentRequest request, 
+        PaymentRequest request,
         CancellationToken cancellationToken = default);
-    
+
     Task<Result<RefundResult>> ProcessRefundAsync(
-        RefundRequest request, 
+        RefundRequest request,
         CancellationToken cancellationToken = default);
 }
 

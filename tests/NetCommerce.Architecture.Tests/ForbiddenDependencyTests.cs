@@ -1,21 +1,27 @@
 using System.Reflection;
 using FluentAssertions;
 using NetArchTest.Rules;
+using NetCommerce.Catalog.Application.Products.Commands;
+using NetCommerce.Catalog.Domain.Products;
+using NetCommerce.Inventory.Application.Stock.Commands;
+using NetCommerce.Inventory.Domain.Stock;
+using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Domain.Orders;
 
 namespace NetCommerce.Architecture.Tests;
 
 /// <summary>
-/// Tests for forbidden dependencies and patterns.
+///     Tests for forbidden dependencies and patterns.
 /// </summary>
 public class ForbiddenDependencyTests
 {
-    private static readonly Assembly CatalogDomainAssembly = typeof(Catalog.Domain.Products.Product).Assembly;
-    private static readonly Assembly OrderingDomainAssembly = typeof(Ordering.Domain.Orders.Order).Assembly;
-    private static readonly Assembly InventoryDomainAssembly = typeof(Inventory.Domain.Stock.Stock).Assembly;
-    
-    private static readonly Assembly CatalogApplicationAssembly = typeof(Catalog.Application.Products.Commands.CreateProductCommand).Assembly;
-    private static readonly Assembly OrderingApplicationAssembly = typeof(Ordering.Application.Orders.Commands.CreateOrderCommand).Assembly;
-    private static readonly Assembly InventoryApplicationAssembly = typeof(Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly;
+    private static readonly Assembly CatalogDomainAssembly = typeof(Product).Assembly;
+    private static readonly Assembly OrderingDomainAssembly = typeof(Order).Assembly;
+    private static readonly Assembly InventoryDomainAssembly = typeof(Stock).Assembly;
+
+    private static readonly Assembly CatalogApplicationAssembly = typeof(CreateProductCommand).Assembly;
+    private static readonly Assembly OrderingApplicationAssembly = typeof(CreateOrderCommand).Assembly;
+    private static readonly Assembly InventoryApplicationAssembly = typeof(ReserveStockCommand).Assembly;
 
     private static readonly Assembly[] AllAssemblies =
     [

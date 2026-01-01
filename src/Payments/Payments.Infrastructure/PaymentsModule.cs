@@ -17,9 +17,9 @@ public static class PaymentsModule
     {
         // Database - uses Aspire-provided connection string "PaymentsDb"
         // Using DbContext pooling for improved performance in high-scale scenarios
-        var connectionString = configuration.GetConnectionString("PaymentsDb") 
-                            ?? configuration.GetConnectionString("DefaultConnection");
-        
+        var connectionString = configuration.GetConnectionString("PaymentsDb")
+                               ?? configuration.GetConnectionString("DefaultConnection");
+
         services.AddDbContextPool<PaymentsDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
@@ -41,4 +41,3 @@ public static class PaymentsModule
         return services;
     }
 }
-

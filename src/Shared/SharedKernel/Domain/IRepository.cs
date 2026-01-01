@@ -1,10 +1,10 @@
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
-/// Generic repository interface for aggregate roots.
+///     Generic repository interface for aggregate roots.
 /// </summary>
-public interface IRepository<TAggregate, TId> 
-    where TAggregate : AggregateRoot<TId> 
+public interface IRepository<TAggregate, TId>
+    where TAggregate : AggregateRoot<TId>
     where TId : notnull
 {
     Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);

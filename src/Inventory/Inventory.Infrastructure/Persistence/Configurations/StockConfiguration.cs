@@ -1,6 +1,6 @@
-using NetCommerce.Inventory.Domain.Stock;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NetCommerce.Inventory.Domain.Stock;
 
 namespace NetCommerce.Inventory.Infrastructure.Persistence.Configurations;
 
@@ -11,7 +11,7 @@ public class StockConfiguration : IEntityTypeConfiguration<Stock>
         builder.ToTable("stocks");
 
         builder.HasKey(s => s.Id);
-        
+
         builder.Property(s => s.Id)
             .HasColumnName("id")
             .ValueGeneratedNever();
@@ -59,4 +59,3 @@ public class StockConfiguration : IEntityTypeConfiguration<Stock>
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
-

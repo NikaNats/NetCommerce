@@ -1,3 +1,4 @@
+using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
@@ -8,8 +9,8 @@ using NetCommerce.SharedKernel.Results;
 namespace NetCommerce.Media.Infrastructure.Storage;
 
 /// <summary>
-/// Azure Blob Storage service for media storage.
-/// Used when running with Aspire (Azurite locally, Azure Blob Storage in production).
+///     Azure Blob Storage service for media storage.
+///     Used when running with Aspire (Azurite locally, Azure Blob Storage in production).
 /// </summary>
 public sealed class AzureBlobStorageService : IStorageService
 {
@@ -97,30 +98,6 @@ public sealed class AzureBlobStorageService : IStorageService
         }
     }
 
-    public async Task<Result<Stream>> DownloadAsync(
-        string key,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
-            var blobClient = containerClient.GetBlobClient(key);
-
-            var response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
-            return Result.Success(response.Value.Content);
-        }
-        catch (Azure.RequestFailedException ex) when (ex.Status == 404)
-        {
-            return Result.Failure<Stream>(
-                Error.NotFound("Storage.File.NotFound", $"File not found: {key}"));
-        }
-        catch (Exception ex)
-        {
-            return Result.Failure<Stream>(
-                Error.Failure("Storage.Download.Failed", ex.Message));
-        }
-    }
-
     public async Task<Result> DeleteAsync(
         string key,
         CancellationToken cancellationToken = default)
@@ -145,6 +122,30 @@ public sealed class AzureBlobStorageService : IStorageService
         var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
         var blobClient = containerClient.GetBlobClient(key);
         return blobClient.Uri.ToString();
+    }
+
+    public async Task<Result<Stream>> DownloadAsync(
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
+            var blobClient = containerClient.GetBlobClient(key);
+
+            var response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
+            return Result.Success(response.Value.Content);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return Result.Failure<Stream>(
+                Error.NotFound("Storage.File.NotFound", $"File not found: {key}"));
+        }
+        catch (Exception ex)
+        {
+            return Result.Failure<Stream>(
+                Error.Failure("Storage.Download.Failed", ex.Message));
+        }
     }
 
     public Result<string> GetSignedUrl(string key, TimeSpan expiry)
@@ -190,19 +191,19 @@ public sealed class AzureBlobStorageService : IStorageService
 }
 
 /// <summary>
-/// Configuration options for Azure Blob Storage.
+///     Configuration options for Azure Blob Storage.
 /// </summary>
 public class AzureBlobOptions
 {
     public const string SectionName = "AzureBlob";
 
     /// <summary>
-    /// The name of the blob container to use.
+    ///     The name of the blob container to use.
     /// </summary>
     public string ContainerName { get; set; } = "media";
 
     /// <summary>
-    /// The base URL for generating public URLs.
+    ///     The base URL for generating public URLs.
     /// </summary>
     public string? BaseUrl { get; set; }
 }

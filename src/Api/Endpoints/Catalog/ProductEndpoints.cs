@@ -8,8 +8,8 @@ using NetCommerce.Catalog.Application.Products.Queries;
 namespace NetCommerce.Api.Endpoints.Catalog;
 
 /// <summary>
-/// RESTful endpoints for Product resources.
-/// Follows best practices: nouns for resources, proper HTTP methods, and HATEOAS links.
+///     RESTful endpoints for Product resources.
+///     Follows best practices: nouns for resources, proper HTTP methods, and HATEOAS links.
 /// </summary>
 public class ProductEndpoints : IEndpointGroup
 {
@@ -27,7 +27,7 @@ public class ProductEndpoints : IEndpointGroup
             .WithName("GetProductById")
             .WithSummary("Get a product by its ID")
             .WithDescription("Retrieves a single product resource by its unique identifier.")
-            .Produces<ResourceResponse<ProductResponse>>(StatusCodes.Status200OK)
+            .Produces<ResourceResponse<ProductResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -36,7 +36,7 @@ public class ProductEndpoints : IEndpointGroup
             .WithName("GetProductBySlug")
             .WithSummary("Get a product by its URL-friendly slug")
             .WithDescription("Retrieves a single product resource using its SEO-friendly slug identifier.")
-            .Produces<ResourceResponse<ProductResponse>>(StatusCodes.Status200OK)
+            .Produces<ResourceResponse<ProductResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -44,8 +44,9 @@ public class ProductEndpoints : IEndpointGroup
         group.MapGet("/", Search)
             .WithName("SearchProducts")
             .WithSummary("Search and list products with pagination")
-            .WithDescription("Returns a paginated list of products. Supports filtering by category, price range, and full-text search.")
-            .Produces<PaginatedResponse<ProductResponse>>(StatusCodes.Status200OK)
+            .WithDescription(
+                "Returns a paginated list of products. Supports filtering by category, price range, and full-text search.")
+            .Produces<PaginatedResponse<ProductResponse>>()
             .AllowAnonymous();
 
         // POST /api/v1/products - Create a new product
@@ -123,10 +124,10 @@ public class ProductEndpoints : IEndpointGroup
     {
         var query = new GetProductByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-        
+
         var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/products/{id}";
         return result.ToResourceResult(selfUrl,
-            new Link("category", $"/api/v1/categories/{{categoryId}}", "GET"),
+            new Link("category", "/api/v1/categories/{categoryId}", "GET"),
             new Link("images", $"/api/v1/products/{id}/images", "GET"));
     }
 
@@ -138,7 +139,7 @@ public class ProductEndpoints : IEndpointGroup
     {
         var query = new GetProductBySlugQuery(slug);
         var result = await mediator.Send(query, cancellationToken);
-        
+
         var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/products/slug/{slug}";
         return result.ToResourceResult(selfUrl);
     }
@@ -161,21 +162,18 @@ public class ProductEndpoints : IEndpointGroup
 
         var query = new SearchProductsQuery(searchTerm, categoryId, minPrice, maxPrice, page, pageSize);
         var result = await mediator.Send(query, cancellationToken);
-        
-        if (!result.IsSuccess)
-        {
-            return result.ToApiResult();
-        }
+
+        if (!result.IsSuccess) return result.ToApiResult();
 
         var baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/products";
-        
+
         // Build query string for links
         var queryParams = new List<string>();
         if (!string.IsNullOrEmpty(searchTerm)) queryParams.Add($"searchTerm={Uri.EscapeDataString(searchTerm)}");
         if (categoryId.HasValue) queryParams.Add($"categoryId={categoryId}");
         if (minPrice.HasValue) queryParams.Add($"minPrice={minPrice}");
         if (maxPrice.HasValue) queryParams.Add($"maxPrice={maxPrice}");
-        
+
         var queryString = queryParams.Count > 0 ? "&" + string.Join("&", queryParams) : "";
         var fullBaseUrl = baseUrl + "?" + queryString.TrimStart('&');
 
@@ -197,15 +195,12 @@ public class ProductEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var result = await mediator.Send(command, cancellationToken);
-        
-        if (!result.IsSuccess)
-        {
-            return result.ToApiResult();
-        }
+
+        if (!result.IsSuccess) return result.ToApiResult();
 
         var location = $"/api/v1/products/{result.Value}";
         httpContext.Response.Headers.Location = location;
-        
+
         return Results.Created(location, new { id = result.Value });
     }
 
@@ -216,13 +211,11 @@ public class ProductEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         if (id != command.ProductId)
-        {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Bad Request",
                 detail: "Product ID in URL does not match the request body.",
                 type: "https://tools.ietf.org/html/rfc7231#section-6.5.1");
-        }
 
         var result = await mediator.Send(command, cancellationToken);
         return result.ToApiResult();
@@ -258,11 +251,8 @@ public class ProductEndpoints : IEndpointGroup
     {
         var command = new AddProductImageCommand(id, request.ImageKey, request.DisplayOrder, request.IsPrimary);
         var result = await mediator.Send(command, cancellationToken);
-        
-        if (!result.IsSuccess)
-        {
-            return result.ToApiResult();
-        }
+
+        if (!result.IsSuccess) return result.ToApiResult();
 
         // Return 201 Created with the product images location
         var location = $"/api/v1/products/{id}/images";
@@ -282,14 +272,14 @@ public class ProductEndpoints : IEndpointGroup
 }
 
 /// <summary>
-/// Request model for updating product price (JSON Merge Patch).
+///     Request model for updating product price (JSON Merge Patch).
 /// </summary>
 /// <param name="Amount">The new price amount.</param>
 /// <param name="Currency">The currency code (e.g., "USD", "EUR").</param>
 public record UpdateProductPriceRequest(decimal Amount, string Currency);
 
 /// <summary>
-/// Request model for adding a product image.
+///     Request model for adding a product image.
 /// </summary>
 /// <param name="ImageKey">The storage key for the image.</param>
 /// <param name="DisplayOrder">The display order (lower numbers shown first).</param>
@@ -297,6 +287,6 @@ public record UpdateProductPriceRequest(decimal Amount, string Currency);
 public record AddProductImageRequest(string ImageKey, int DisplayOrder, bool IsPrimary);
 
 /// <summary>
-/// Product response model (placeholder - actual implementation depends on query handlers).
+///     Product response model (placeholder - actual implementation depends on query handlers).
 /// </summary>
 public record ProductResponse;

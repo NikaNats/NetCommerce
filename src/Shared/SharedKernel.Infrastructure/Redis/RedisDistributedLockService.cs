@@ -6,8 +6,8 @@ using StackExchange.Redis;
 namespace NetCommerce.SharedKernel.Infrastructure.Redis;
 
 /// <summary>
-/// Distributed lock service using Redis Redlock algorithm.
-/// Provides concurrency control for operations like inventory reservation.
+///     Distributed lock service using Redis Redlock algorithm.
+///     Provides concurrency control for operations like inventory reservation.
 /// </summary>
 public sealed class RedisDistributedLockService : IDistributedLockService, IAsyncDisposable
 {
@@ -17,22 +17,28 @@ public sealed class RedisDistributedLockService : IDistributedLockService, IAsyn
     {
         var multiplexers = new List<RedLockMultiplexer>
         {
-            new RedLockMultiplexer(connectionMultiplexer)
+            new(connectionMultiplexer)
         };
         _lockFactory = RedLockFactory.Create(multiplexers);
     }
 
+    public ValueTask DisposeAsync()
+    {
+        _lockFactory.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
     public async Task<IDistributedLock?> AcquireLockAsync(
-        string resource, 
-        TimeSpan expiryTime, 
+        string resource,
+        TimeSpan expiryTime,
         CancellationToken cancellationToken = default)
     {
         var redLock = await _lockFactory.CreateLockAsync(
-            resource, 
+            resource,
             expiryTime);
 
-        return redLock.IsAcquired 
-            ? new RedisDistributedLock(redLock) 
+        return redLock.IsAcquired
+            ? new RedisDistributedLock(redLock)
             : null;
     }
 
@@ -50,15 +56,9 @@ public sealed class RedisDistributedLockService : IDistributedLockService, IAsyn
             retryTime,
             cancellationToken);
 
-        return redLock.IsAcquired 
-            ? new RedisDistributedLock(redLock) 
+        return redLock.IsAcquired
+            ? new RedisDistributedLock(redLock)
             : null;
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _lockFactory.Dispose();
-        return ValueTask.CompletedTask;
     }
 
     private sealed class RedisDistributedLock : IDistributedLock

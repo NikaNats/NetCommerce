@@ -20,7 +20,7 @@ public sealed class GetAllCategoriesQueryHandler : IQueryHandler<GetAllCategorie
     }
 
     public async Task<Result<IReadOnlyList<CategoryDto>>> Handle(
-        GetAllCategoriesQuery request, 
+        GetAllCategoriesQuery request,
         CancellationToken cancellationToken)
     {
         var categories = await _categoryRepository.GetAllAsync(cancellationToken);
@@ -42,15 +42,12 @@ public sealed class GetCategoryByIdQueryHandler : IQueryHandler<GetCategoryByIdQ
     }
 
     public async Task<Result<CategoryDto>> Handle(
-        GetCategoryByIdQuery request, 
+        GetCategoryByIdQuery request,
         CancellationToken cancellationToken)
     {
         var category = await _categoryRepository.GetByIdAsync(request.Id, cancellationToken);
-        
-        if (category is null)
-        {
-            return Result.Failure<CategoryDto>(Error.NotFound("Category", request.Id));
-        }
+
+        if (category is null) return Result.Failure<CategoryDto>(Error.NotFound("Category", request.Id));
 
         return _mapper.MapToDto(category);
     }
@@ -70,16 +67,14 @@ public sealed class GetCategoryBySlugQueryHandler : IQueryHandler<GetCategoryByS
     }
 
     public async Task<Result<CategoryDto>> Handle(
-        GetCategoryBySlugQuery request, 
+        GetCategoryBySlugQuery request,
         CancellationToken cancellationToken)
     {
         var category = await _categoryRepository.GetBySlugAsync(request.Slug, cancellationToken);
-        
+
         if (category is null)
-        {
             return Result.Failure<CategoryDto>(
                 Error.NotFound("Category", $"slug:{request.Slug}"));
-        }
 
         return _mapper.MapToDto(category);
     }
@@ -99,7 +94,7 @@ public sealed class GetRootCategoriesQueryHandler : IQueryHandler<GetRootCategor
     }
 
     public async Task<Result<IReadOnlyList<CategoryDto>>> Handle(
-        GetRootCategoriesQuery request, 
+        GetRootCategoriesQuery request,
         CancellationToken cancellationToken)
     {
         var categories = await _categoryRepository.GetRootCategoriesAsync(cancellationToken);
@@ -121,7 +116,7 @@ public sealed class GetChildCategoriesQueryHandler : IQueryHandler<GetChildCateg
     }
 
     public async Task<Result<IReadOnlyList<CategoryDto>>> Handle(
-        GetChildCategoriesQuery request, 
+        GetChildCategoriesQuery request,
         CancellationToken cancellationToken)
     {
         var categories = await _categoryRepository.GetChildCategoriesAsync(request.ParentId, cancellationToken);

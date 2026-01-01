@@ -1,7 +1,7 @@
 namespace NetCommerce.Api.Endpoints;
 
 /// <summary>
-/// Interface for defining endpoint groups in Minimal API.
+///     Interface for defining endpoint groups in Minimal API.
 /// </summary>
 public interface IEndpointGroup
 {
@@ -9,7 +9,7 @@ public interface IEndpointGroup
 }
 
 /// <summary>
-/// Extension methods for registering endpoint groups.
+///     Extension methods for registering endpoint groups.
 /// </summary>
 public static class EndpointExtensions
 {
@@ -23,10 +23,7 @@ public static class EndpointExtensions
             .Select(Activator.CreateInstance)
             .Cast<IEndpointGroup>();
 
-        foreach (var group in endpointGroups)
-        {
-            group.MapEndpoints(app);
-        }
+        foreach (var group in endpointGroups) group.MapEndpoints(app);
 
         return app;
     }

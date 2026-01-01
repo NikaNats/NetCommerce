@@ -1,11 +1,12 @@
 using System.Diagnostics;
+using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 namespace NetCommerce.Api.Middleware;
 
 /// <summary>
-/// Global exception handler that returns consistent problem details responses.
+///     Global exception handler that returns consistent problem details responses.
 /// </summary>
 public class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
@@ -24,7 +25,7 @@ public class GlobalExceptionHandler(
             Environment.MachineName);
 
         // Handle FluentValidation exceptions
-        if (exception is FluentValidation.ValidationException validationException)
+        if (exception is ValidationException validationException)
         {
             var validationProblem = new ValidationProblemDetails(
                 validationException.Errors

@@ -16,9 +16,9 @@ public static class OrderingModule
     {
         // Database - uses Aspire-provided connection string "OrderingDb"
         // Using DbContext pooling for improved performance in high-scale scenarios
-        var connectionString = configuration.GetConnectionString("OrderingDb") 
-                            ?? configuration.GetConnectionString("DefaultConnection");
-        
+        var connectionString = configuration.GetConnectionString("OrderingDb")
+                               ?? configuration.GetConnectionString("DefaultConnection");
+
         services.AddDbContextPool<OrderingDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
@@ -39,4 +39,3 @@ public static class OrderingModule
         return services;
     }
 }
-

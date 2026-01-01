@@ -1,12 +1,12 @@
-using Shouldly;
-using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Domain.Tests.Fakers;
+using NetCommerce.Inventory.Domain.Stock;
+using Shouldly;
 
 namespace NetCommerce.Domain.Tests.Inventory;
 
 /// <summary>
-/// Unit tests for Stock aggregate - the core of inventory management.
-/// Tests soft reservation pattern (15-minute holds).
+///     Unit tests for Stock aggregate - the core of inventory management.
+///     Tests soft reservation pattern (15-minute holds).
 /// </summary>
 public class StockTests
 {
@@ -39,8 +39,8 @@ public class StockTests
     public void Create_WithNegativeQuantity_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            Stock.Create(Guid.NewGuid(), "SKU", -1))
+        Should.Throw<ArgumentException>(() =>
+                Stock.Create(Guid.NewGuid(), "SKU", -1))
             .Message.ShouldContain("negative");
     }
 
@@ -48,7 +48,7 @@ public class StockTests
     public void Create_AvailableQuantity_ShouldEqualTotalQuantity()
     {
         // Arrange & Act
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
 
         // Assert
         stock.AvailableQuantity.ShouldBe(100);
@@ -63,7 +63,7 @@ public class StockTests
     public void Reserve_WithSufficientStock_ShouldCreateReservation()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var orderId = Guid.NewGuid();
 
         // Act
@@ -81,7 +81,7 @@ public class StockTests
     public void Reserve_ShouldReduceAvailableQuantity()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
 
         // Act
         stock.Reserve(Guid.NewGuid(), 30);
@@ -96,11 +96,11 @@ public class StockTests
     public void Reserve_WithInsufficientStock_ShouldThrowException()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 10);
+        var stock = StockFaker.Generate(10);
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => 
-            stock.Reserve(Guid.NewGuid(), 20))
+        Should.Throw<InvalidOperationException>(() =>
+                stock.Reserve(Guid.NewGuid(), 20))
             .Message.ShouldContain("Insufficient stock");
     }
 
@@ -108,11 +108,11 @@ public class StockTests
     public void Reserve_WithZeroQuantity_ShouldThrowException()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
 
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            stock.Reserve(Guid.NewGuid(), 0))
+        Should.Throw<ArgumentException>(() =>
+                stock.Reserve(Guid.NewGuid(), 0))
             .Message.ShouldContain("positive");
     }
 
@@ -120,14 +120,14 @@ public class StockTests
     public void Reserve_ShouldRaise_StockReservedDomainEvent()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
 
         // Act
         stock.Reserve(Guid.NewGuid(), 10);
 
         // Assert
         stock.DomainEvents.ShouldContain(e => e is StockReservedDomainEvent);
-        
+
         var reservedEvent = stock.DomainEvents.OfType<StockReservedDomainEvent>().Single();
         reservedEvent.StockId.ShouldBe(stock.Id);
         reservedEvent.Quantity.ShouldBe(10);
@@ -138,7 +138,7 @@ public class StockTests
     public void Reserve_WhenResultsInLowStock_ShouldRaise_LowStockAlertDomainEvent()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 15, threshold: 10);
+        var stock = StockFaker.Generate(15, 10);
 
         // Act
         stock.Reserve(Guid.NewGuid(), 10);
@@ -152,7 +152,7 @@ public class StockTests
     public void Reserve_MultipleOrders_ShouldTrackIndependently()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var order1 = Guid.NewGuid();
         var order2 = Guid.NewGuid();
 
@@ -174,7 +174,7 @@ public class StockTests
     public void ConfirmReservation_ShouldDeductFromTotalStock()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var reservation = stock.Reserve(Guid.NewGuid(), 10);
 
         // Act
@@ -190,7 +190,7 @@ public class StockTests
     public void ConfirmReservation_ShouldChangeStatus_ToConfirmed()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var reservation = stock.Reserve(Guid.NewGuid(), 10);
 
         // Act
@@ -205,7 +205,7 @@ public class StockTests
     public void ConfirmReservation_ShouldRaise_StockDeductedDomainEvent()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var orderId = Guid.NewGuid();
         var reservation = stock.Reserve(orderId, 10);
         stock.ClearDomainEvents();
@@ -225,11 +225,11 @@ public class StockTests
     public void ConfirmReservation_WithInvalidId_ShouldThrowException()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => 
-            stock.ConfirmReservation(Guid.NewGuid()))
+        Should.Throw<InvalidOperationException>(() =>
+                stock.ConfirmReservation(Guid.NewGuid()))
             .Message.ShouldContain("not found");
     }
 
@@ -237,13 +237,13 @@ public class StockTests
     public void ConfirmReservation_WhenAlreadyConfirmed_ShouldThrowException()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var reservation = stock.Reserve(Guid.NewGuid(), 10);
         stock.ConfirmReservation(reservation.Id);
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => 
-            stock.ConfirmReservation(reservation.Id))
+        Should.Throw<InvalidOperationException>(() =>
+                stock.ConfirmReservation(reservation.Id))
             .Message.ShouldContain("not active");
     }
 
@@ -255,7 +255,7 @@ public class StockTests
     public void ReleaseReservation_ShouldReturnStockToAvailable()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var reservation = stock.Reserve(Guid.NewGuid(), 10);
         stock.AvailableQuantity.ShouldBe(90);
 
@@ -272,7 +272,7 @@ public class StockTests
     public void ReleaseReservation_ShouldChangeStatus_ToReleased()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var reservation = stock.Reserve(Guid.NewGuid(), 10);
 
         // Act
@@ -287,7 +287,7 @@ public class StockTests
     public void ReleaseReservation_ShouldRaise_StockReleasedDomainEvent()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
         var orderId = Guid.NewGuid();
         var reservation = stock.Reserve(orderId, 10);
         stock.ClearDomainEvents();
@@ -306,7 +306,7 @@ public class StockTests
     public void ReleaseReservation_WithInvalidId_ShouldNotThrow()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100);
+        var stock = StockFaker.Generate(100);
 
         // Act & Assert (should be idempotent)
         Should.NotThrow(() => stock.ReleaseReservation(Guid.NewGuid()));
@@ -320,7 +320,7 @@ public class StockTests
     public void IsLowStock_WhenBelowThreshold_ShouldReturnTrue()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 10, threshold: 10);
+        var stock = StockFaker.Generate(10, 10);
 
         // Assert
         stock.IsLowStock.ShouldBeTrue();
@@ -330,7 +330,7 @@ public class StockTests
     public void IsLowStock_WhenAboveThreshold_ShouldReturnFalse()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 100, threshold: 10);
+        var stock = StockFaker.Generate(100, 10);
 
         // Assert
         stock.IsLowStock.ShouldBeFalse();
@@ -340,7 +340,7 @@ public class StockTests
     public void IsLowStock_ShouldConsiderReservations()
     {
         // Arrange
-        var stock = StockFaker.Generate(quantity: 20, threshold: 10);
+        var stock = StockFaker.Generate(20, 10);
         stock.IsLowStock.ShouldBeFalse();
 
         // Act
@@ -360,11 +360,11 @@ public class StockTests
     {
         // Arrange - Limited PS5 stock
         var ps5Stock = Stock.Create(
-            productId: Guid.NewGuid(),
-            sku: "PS5-DIGITAL-2024",
-            initialQuantity: 5, // Only 5 PS5s!
-            lowStockThreshold: 2,
-            warehouseLocation: "Main DC");
+            Guid.NewGuid(),
+            "PS5-DIGITAL-2024",
+            5, // Only 5 PS5s!
+            2,
+            "Main DC");
 
         var customers = Enumerable.Range(1, 5)
             .Select(_ => Guid.NewGuid())
@@ -382,8 +382,8 @@ public class StockTests
         reservations.All(r => r.Status == ReservationStatus.Active).ShouldBeTrue();
 
         // 6th customer should fail
-        Should.Throw<InvalidOperationException>(() => 
-            ps5Stock.Reserve(Guid.NewGuid(), 1))
+        Should.Throw<InvalidOperationException>(() =>
+                ps5Stock.Reserve(Guid.NewGuid(), 1))
             .Message.ShouldContain("Insufficient stock");
     }
 
@@ -392,13 +392,13 @@ public class StockTests
     {
         // Arrange
         var ps5Stock = Stock.Create(Guid.NewGuid(), "PS5", 2, 1);
-        
+
         // Customer 1 reserves
         var reservation1 = ps5Stock.Reserve(Guid.NewGuid(), 1);
-        
+
         // Customer 2 reserves
         var reservation2 = ps5Stock.Reserve(Guid.NewGuid(), 1);
-        
+
         ps5Stock.AvailableQuantity.ShouldBe(0);
 
         // Customer 1 abandons cart (reservation released)
@@ -406,7 +406,7 @@ public class StockTests
 
         // Assert - Stock is available again
         ps5Stock.AvailableQuantity.ShouldBe(1);
-        
+
         // Customer 3 can now reserve
         var reservation3 = ps5Stock.Reserve(Guid.NewGuid(), 1);
         reservation3.ShouldNotBeNull();
@@ -417,10 +417,10 @@ public class StockTests
     {
         // Arrange
         var ps5Stock = Stock.Create(Guid.NewGuid(), "PS5", 3, 1);
-        
+
         var order1 = Guid.NewGuid();
         var order2 = Guid.NewGuid();
-        
+
         var reservation1 = ps5Stock.Reserve(order1, 1);
         var reservation2 = ps5Stock.Reserve(order2, 1);
 

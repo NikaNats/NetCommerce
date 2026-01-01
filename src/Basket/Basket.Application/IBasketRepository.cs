@@ -1,7 +1,7 @@
 namespace NetCommerce.Basket.Application;
 
 /// <summary>
-/// Basket repository interface for Redis storage.
+///     Basket repository interface for Redis storage.
 /// </summary>
 public interface IBasketRepository
 {

@@ -1,23 +1,19 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Events;
 
 namespace NetCommerce.Payments.Application.EventHandlers;
 
 /// <summary>
-/// Integration event handler for OrderCreatedIntegrationEvent.
-/// 
-/// When an order is created in the Ordering module,
-/// this handler prepares payment processing setup.
-/// 
-/// This bridges the Ordering and Payments modules without direct coupling.
-/// Architecture: Ordering -> [Integration Event] -> Payments
-/// 
-/// Note: The actual payment gateway integration happens when:
-/// 1. User submits payment at the API
-/// 2. ProcessPaymentCommand is sent to Payments module
-/// 3. Payment transaction is created and sent to payment gateway
+///     Integration event handler for OrderCreatedIntegrationEvent.
+///     When an order is created in the Ordering module,
+///     this handler prepares payment processing setup.
+///     This bridges the Ordering and Payments modules without direct coupling.
+///     Architecture: Ordering -> [Integration Event] -> Payments
+///     Note: The actual payment gateway integration happens when:
+///     1. User submits payment at the API
+///     2. ProcessPaymentCommand is sent to Payments module
+///     3. Payment transaction is created and sent to payment gateway
 /// </summary>
 public sealed class OrderCreatedIntegrationEventHandler : INotificationHandler<OrderCreatedIntegrationEvent>
 {

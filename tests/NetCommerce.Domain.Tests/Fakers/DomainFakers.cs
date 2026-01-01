@@ -1,13 +1,13 @@
 using Bogus;
-using NetCommerce.SharedKernel.Domain;
 using NetCommerce.Catalog.Domain.Products;
-using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Inventory.Domain.Stock;
+using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.Domain.Tests.Fakers;
 
 /// <summary>
-/// Bogus faker for Money value object.
+///     Bogus faker for Money value object.
 /// </summary>
 public static class MoneyFaker
 {
@@ -18,12 +18,15 @@ public static class MoneyFaker
             faker.Finance.Amount(1, 10000),
             faker.PickRandom("GEL", "USD", "EUR"));
     }
-    
-    public static Money Generate(decimal amount, string currency = "GEL") => Money.Create(amount, currency);
+
+    public static Money Generate(decimal amount, string currency = "GEL")
+    {
+        return Money.Create(amount, currency);
+    }
 }
 
 /// <summary>
-/// Bogus faker for Product aggregate.
+///     Bogus faker for Product aggregate.
 /// </summary>
 public static class ProductFaker
 {
@@ -40,7 +43,7 @@ public static class ProductFaker
 }
 
 /// <summary>
-/// Bogus faker for ShippingAddress value object.
+///     Bogus faker for ShippingAddress value object.
 /// </summary>
 public static class ShippingAddressFaker
 {
@@ -59,7 +62,7 @@ public static class ShippingAddressFaker
 }
 
 /// <summary>
-/// Bogus faker for Order aggregate.
+///     Bogus faker for Order aggregate.
 /// </summary>
 public static class OrderFaker
 {
@@ -72,27 +75,25 @@ public static class OrderFaker
             faker.Random.Guid().ToString(),
             faker.Lorem.Sentence());
     }
-    
+
     public static Order GenerateWithItems(int itemCount = 3, string currency = "GEL")
     {
         var order = Generate();
         var faker = new Faker();
-        
-        for (int i = 0; i < itemCount; i++)
-        {
+
+        for (var i = 0; i < itemCount; i++)
             order.AddItem(
                 Guid.NewGuid(),
                 faker.Commerce.ProductName(),
-                MoneyFaker.Generate(faker.Finance.Amount(10, 1000), currency),
+                MoneyFaker.Generate(faker.Finance.Amount(10), currency),
                 faker.Random.Int(1, 5));
-        }
-        
+
         return order;
     }
 }
 
 /// <summary>
-/// Bogus faker for Stock aggregate.
+///     Bogus faker for Stock aggregate.
 /// </summary>
 public static class StockFaker
 {
@@ -106,7 +107,7 @@ public static class StockFaker
             faker.Random.Int(5, 20),
             faker.Address.City() + " Warehouse");
     }
-    
+
     public static Stock Generate(int quantity, int threshold = 10)
     {
         var faker = new Faker();

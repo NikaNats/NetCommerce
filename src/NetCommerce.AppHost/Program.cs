@@ -5,17 +5,14 @@ var builder = DistributedApplication.CreateBuilder(args);
 // =============================================================================
 // Parameters
 // =============================================================================
-var postgresPassword = builder.AddParameter("PostgresPassword", secret: true);
+var postgresPassword = builder.AddParameter("PostgresPassword", true);
 
 // =============================================================================
 // PostgreSQL with per-module databases
 // =============================================================================
 var postgres = builder.AddPostgres("postgres", password: postgresPassword)
     .WithDataVolume()
-    .WithPgAdmin(pgAdmin =>
-    {
-        pgAdmin.WithHostPort(5050);
-    })
+    .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); })
     .WithLifetime(ContainerLifetime.Persistent);
 
 // Module databases - each bounded context gets its own database

@@ -3,7 +3,7 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Catalog.Domain.Products;
 
 /// <summary>
-/// Repository interface for Product aggregate.
+///     Repository interface for Product aggregate.
 /// </summary>
 public interface IProductRepository : IRepository<Product, Guid>
 {

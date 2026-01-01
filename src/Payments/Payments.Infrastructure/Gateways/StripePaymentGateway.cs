@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.Payments.Application.Gateways;
-using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Stripe;
 
@@ -9,12 +8,10 @@ namespace NetCommerce.Payments.Infrastructure.Gateways;
 
 public class StripePaymentGateway : IPaymentGateway
 {
-    private readonly PaymentIntentService _paymentIntentService;
-    private readonly RefundService _refundService;
     private readonly ILogger<StripePaymentGateway> _logger;
     private readonly StripeOptions _options;
-
-    public PaymentProvider Provider => PaymentProvider.Stripe;
+    private readonly PaymentIntentService _paymentIntentService;
+    private readonly RefundService _refundService;
 
     public StripePaymentGateway(
         IOptions<StripeOptions> options,
@@ -28,7 +25,10 @@ public class StripePaymentGateway : IPaymentGateway
         _refundService = new RefundService();
     }
 
-    public async Task<Result<PaymentResult>> ProcessPaymentAsync(PaymentRequest request, CancellationToken cancellationToken = default)
+    public PaymentProvider Provider => PaymentProvider.Stripe;
+
+    public async Task<Result<PaymentResult>> ProcessPaymentAsync(PaymentRequest request,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -55,18 +55,16 @@ public class StripePaymentGateway : IPaymentGateway
             };
 
             var requestOptions = new RequestOptions();
-            if (!string.IsNullOrEmpty(request.IdempotencyKey))
-            {
-                requestOptions.IdempotencyKey = request.IdempotencyKey;
-            }
+            if (!string.IsNullOrEmpty(request.IdempotencyKey)) requestOptions.IdempotencyKey = request.IdempotencyKey;
 
-            var paymentIntent = await _paymentIntentService.CreateAsync(createOptions, requestOptions, cancellationToken);
+            var paymentIntent =
+                await _paymentIntentService.CreateAsync(createOptions, requestOptions, cancellationToken);
 
             var status = MapStripeStatus(paymentIntent.Status);
             var result = new PaymentResult(
-                TransactionId: paymentIntent.Id,
-                Status: status,
-                ErrorMessage: status == PaymentResultStatus.Failed ? paymentIntent.LastPaymentError?.Message : null);
+                paymentIntent.Id,
+                status,
+                status == PaymentResultStatus.Failed ? paymentIntent.LastPaymentError?.Message : null);
 
             _logger.LogInformation(
                 "Stripe payment {PaymentIntentId} completed with status {Status}",
@@ -78,9 +76,9 @@ public class StripePaymentGateway : IPaymentGateway
         {
             _logger.LogError(ex, "Stripe payment failed for Order {OrderId}: {Message}", request.OrderId, ex.Message);
             return Result.Success(new PaymentResult(
-                TransactionId: string.Empty,
-                Status: PaymentResultStatus.Failed,
-                ErrorMessage: ex.Message));
+                string.Empty,
+                PaymentResultStatus.Failed,
+                ex.Message));
         }
         catch (Exception ex)
         {
@@ -89,7 +87,8 @@ public class StripePaymentGateway : IPaymentGateway
         }
     }
 
-    public async Task<Result<RefundResult>> ProcessRefundAsync(RefundRequest request, CancellationToken cancellationToken = default)
+    public async Task<Result<RefundResult>> ProcessRefundAsync(RefundRequest request,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -108,9 +107,9 @@ public class StripePaymentGateway : IPaymentGateway
 
             var success = refund.Status == "succeeded";
             var result = new RefundResult(
-                RefundId: refund.Id,
-                Success: success,
-                ErrorMessage: success ? null : refund.FailureReason);
+                refund.Id,
+                success,
+                success ? null : refund.FailureReason);
 
             _logger.LogInformation(
                 "Stripe refund {RefundId} completed with status {Status}",
@@ -123,9 +122,9 @@ public class StripePaymentGateway : IPaymentGateway
             _logger.LogError(ex, "Stripe refund failed for Transaction {TransactionId}: {Message}",
                 request.OriginalTransactionId, ex.Message);
             return Result.Success(new RefundResult(
-                RefundId: string.Empty,
-                Success: false,
-                ErrorMessage: ex.Message));
+                string.Empty,
+                false,
+                ex.Message));
         }
         catch (Exception ex)
         {
@@ -135,22 +134,28 @@ public class StripePaymentGateway : IPaymentGateway
         }
     }
 
-    private static PaymentResultStatus MapStripeStatus(string stripeStatus) => stripeStatus switch
+    private static PaymentResultStatus MapStripeStatus(string stripeStatus)
     {
-        "succeeded" => PaymentResultStatus.Succeeded,
-        "processing" => PaymentResultStatus.Pending,
-        "requires_action" => PaymentResultStatus.RequiresAction,
-        "requires_payment_method" => PaymentResultStatus.Failed,
-        "canceled" => PaymentResultStatus.Failed,
-        _ => PaymentResultStatus.Pending
-    };
+        return stripeStatus switch
+        {
+            "succeeded" => PaymentResultStatus.Succeeded,
+            "processing" => PaymentResultStatus.Pending,
+            "requires_action" => PaymentResultStatus.RequiresAction,
+            "requires_payment_method" => PaymentResultStatus.Failed,
+            "canceled" => PaymentResultStatus.Failed,
+            _ => PaymentResultStatus.Pending
+        };
+    }
 
-    private static string MapRefundReason(string? reason) => reason?.ToLower() switch
+    private static string MapRefundReason(string? reason)
     {
-        "duplicate" => "duplicate",
-        "fraudulent" => "fraudulent",
-        _ => "requested_by_customer"
-    };
+        return reason?.ToLower() switch
+        {
+            "duplicate" => "duplicate",
+            "fraudulent" => "fraudulent",
+            _ => "requested_by_customer"
+        };
+    }
 }
 
 public class StripeOptions
@@ -161,4 +166,3 @@ public class StripeOptions
     public string PublishableKey { get; set; } = string.Empty;
     public string WebhookSecret { get; set; } = string.Empty;
 }
-

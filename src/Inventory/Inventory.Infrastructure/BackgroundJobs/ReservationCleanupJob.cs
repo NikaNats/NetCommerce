@@ -9,14 +9,14 @@ using NetCommerce.Inventory.Infrastructure.Persistence;
 namespace NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 
 /// <summary>
-/// Background service that periodically cleans up expired stock reservations.
-/// Runs on a configurable interval to release reservations where ExpiresAt < Now and Status == Active.
+///     Background service that periodically cleans up expired stock reservations.
+///     Runs on a configurable interval to release reservations where ExpiresAt < Now and Status== Active.
 /// </summary>
 public class ReservationCleanupJob : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ReservationCleanupJob> _logger;
     private readonly ReservationCleanupOptions _options;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public ReservationCleanupJob(
         IServiceScopeFactory scopeFactory,
@@ -58,7 +58,6 @@ public class ReservationCleanupJob : BackgroundService
         using var timer = new PeriodicTimer(interval);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
-        {
             try
             {
                 await CleanupExpiredReservationsAsync(stoppingToken);
@@ -72,7 +71,6 @@ public class ReservationCleanupJob : BackgroundService
             {
                 _logger.LogError(ex, "Error during reservation cleanup");
             }
-        }
 
         _logger.LogInformation("ReservationCleanupJob stopped");
     }
@@ -92,10 +90,7 @@ public class ReservationCleanupJob : BackgroundService
             .Select(r => new { r.Id, r.StockId, r.OrderId, r.Quantity })
             .ToListAsync(cancellationToken);
 
-        if (expiredReservations.Count == 0)
-        {
-            return;
-        }
+        if (expiredReservations.Count == 0) return;
 
         var stockIds = expiredReservations
             .Select(r => r.StockId)

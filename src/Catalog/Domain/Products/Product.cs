@@ -3,12 +3,16 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Catalog.Domain.Products;
 
 /// <summary>
-/// Product aggregate root - the main entity in the Catalog bounded context.
+///     Product aggregate root - the main entity in the Catalog bounded context.
 /// </summary>
 public sealed class Product : AggregateRoot<Guid>
 {
-    private readonly List<ProductImage> _images = [];
     private readonly List<ProductAttribute> _attributes = [];
+    private readonly List<ProductImage> _images = [];
+
+    private Product()
+    {
+    }
 
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
@@ -19,11 +23,9 @@ public sealed class Product : AggregateRoot<Guid>
     public string? SeoTitle { get; private set; }
     public string? SeoDescription { get; private set; }
     public string? Slug { get; private set; }
-    
+
     public IReadOnlyList<ProductImage> Images => _images.AsReadOnly();
     public IReadOnlyList<ProductAttribute> Attributes => _attributes.AsReadOnly();
-
-    private Product() { }
 
     public static Product Create(
         string name,
@@ -45,7 +47,7 @@ public sealed class Product : AggregateRoot<Guid>
         };
 
         product.RaiseDomainEvent(new ProductCreatedDomainEvent(product.Id, product.Name, product.Sku));
-        
+
         return product;
     }
 
@@ -55,7 +57,7 @@ public sealed class Product : AggregateRoot<Guid>
         Description = description;
         Sku = sku;
         Slug = SlugGenerator.Generate(name);
-        
+
         RaiseDomainEvent(new ProductUpdatedDomainEvent(Id, Name));
     }
 
@@ -63,7 +65,7 @@ public sealed class Product : AggregateRoot<Guid>
     {
         var oldPrice = Price;
         Price = newPrice;
-        
+
         RaiseDomainEvent(new ProductPriceChangedDomainEvent(Id, oldPrice, newPrice));
     }
 
@@ -96,13 +98,9 @@ public sealed class Product : AggregateRoot<Guid>
     public void AddImage(string imageKey, int displayOrder, bool isPrimary = false)
     {
         if (isPrimary)
-        {
             // Remove primary flag from existing images
             foreach (var img in _images.Where(i => i.IsPrimary))
-            {
                 img.SetPrimary(false);
-            }
-        }
 
         var image = new ProductImage(Guid.NewGuid(), imageKey, displayOrder, isPrimary);
         _images.Add(image);
@@ -111,10 +109,7 @@ public sealed class Product : AggregateRoot<Guid>
     public void RemoveImage(Guid imageId)
     {
         var image = _images.FirstOrDefault(i => i.Id == imageId);
-        if (image != null)
-        {
-            _images.Remove(image);
-        }
+        if (image != null) _images.Remove(image);
     }
 
     public void AddAttribute(string key, string value, string? displayName = null)
@@ -126,10 +121,7 @@ public sealed class Product : AggregateRoot<Guid>
     public void RemoveAttribute(string key)
     {
         var attribute = _attributes.FirstOrDefault(a => a.Key == key);
-        if (attribute != null)
-        {
-            _attributes.Remove(attribute);
-        }
+        if (attribute != null) _attributes.Remove(attribute);
     }
 }
 

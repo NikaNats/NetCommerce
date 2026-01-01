@@ -19,18 +19,16 @@ public sealed class CreateProductCommandHandler : ICommandHandler<CreateProductC
     }
 
     public async Task<Result<Guid>> Handle(
-        CreateProductCommand request, 
+        CreateProductCommand request,
         CancellationToken cancellationToken)
     {
         // Check if SKU already exists
         if (await _productRepository.ExistsAsync(request.Sku, cancellationToken))
-        {
             return Result.Failure<Guid>(
                 Error.Conflict($"Product with SKU '{request.Sku}' already exists"));
-        }
 
         var price = Money.Create(request.Price, request.Currency);
-        
+
         var product = Product.Create(
             request.Name,
             request.Description,
@@ -59,18 +57,15 @@ public sealed class UpdateProductCommandHandler : ICommandHandler<UpdateProductC
     }
 
     public async Task<Result> Handle(
-        UpdateProductCommand request, 
+        UpdateProductCommand request,
         CancellationToken cancellationToken)
     {
         var product = await _productRepository.GetByIdAsync(request.ProductId, cancellationToken);
-        
-        if (product is null)
-        {
-            return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
-        }
+
+        if (product is null) return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
 
         product.UpdateDetails(request.Name, request.Description, request.Sku);
-        
+
         _productRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -92,19 +87,16 @@ public sealed class UpdateProductPriceCommandHandler : ICommandHandler<UpdatePro
     }
 
     public async Task<Result> Handle(
-        UpdateProductPriceCommand request, 
+        UpdateProductPriceCommand request,
         CancellationToken cancellationToken)
     {
         var product = await _productRepository.GetByIdAsync(request.ProductId, cancellationToken);
-        
-        if (product is null)
-        {
-            return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
-        }
+
+        if (product is null) return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
 
         var newPrice = Money.Create(request.NewPrice, request.Currency);
         product.UpdatePrice(newPrice);
-        
+
         _productRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -126,18 +118,15 @@ public sealed class PublishProductCommandHandler : ICommandHandler<PublishProduc
     }
 
     public async Task<Result> Handle(
-        PublishProductCommand request, 
+        PublishProductCommand request,
         CancellationToken cancellationToken)
     {
         var product = await _productRepository.GetByIdAsync(request.ProductId, cancellationToken);
-        
-        if (product is null)
-        {
-            return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
-        }
+
+        if (product is null) return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
 
         product.Publish();
-        
+
         _productRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -159,18 +148,15 @@ public sealed class AddProductImageCommandHandler : ICommandHandler<AddProductIm
     }
 
     public async Task<Result> Handle(
-        AddProductImageCommand request, 
+        AddProductImageCommand request,
         CancellationToken cancellationToken)
     {
         var product = await _productRepository.GetByIdAsync(request.ProductId, cancellationToken);
-        
-        if (product is null)
-        {
-            return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
-        }
+
+        if (product is null) return Result.Failure(Error.NotFound(nameof(Product), request.ProductId));
 
         product.AddImage(request.ImageKey, request.DisplayOrder, request.IsPrimary);
-        
+
         _productRepository.Update(product);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 

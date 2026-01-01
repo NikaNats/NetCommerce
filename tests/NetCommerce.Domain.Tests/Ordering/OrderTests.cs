@@ -1,15 +1,51 @@
-using Shouldly;
+using NetCommerce.Domain.Tests.Fakers;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.Domain.Tests.Fakers;
+using Shouldly;
 
 namespace NetCommerce.Domain.Tests.Ordering;
 
 /// <summary>
-/// Unit tests for Order aggregate.
+///     Unit tests for Order aggregate.
 /// </summary>
 public class OrderTests
 {
+    #region Order Workflow - Full Lifecycle Test
+
+    [Fact]
+    public void Order_FullWorkflow_ShouldProgressThroughAllStatuses()
+    {
+        // Arrange & Act
+        var order = Order.Create(
+            Guid.NewGuid(),
+            ShippingAddressFaker.Generate(),
+            Guid.NewGuid().ToString());
+
+        order.AddItem(Guid.NewGuid(), "PS5", Money.Create(499.99m), 1);
+        order.Status.ShouldBe(OrderStatus.Pending);
+
+        order.MarkAsPaid(Guid.NewGuid());
+        order.Status.ShouldBe(OrderStatus.Paid);
+
+        order.StartProcessing();
+        order.Status.ShouldBe(OrderStatus.Processing);
+
+        order.MarkAsShipped("TRACK-001");
+        order.Status.ShouldBe(OrderStatus.Shipped);
+
+        order.MarkAsDelivered();
+        order.Status.ShouldBe(OrderStatus.Delivered);
+
+        // Assert - all timestamps should be set
+        order.CreatedAt.ShouldNotBe(default);
+        order.PaidAt.ShouldNotBeNull();
+        order.ShippedAt.ShouldNotBeNull();
+        order.DeliveredAt.ShouldNotBeNull();
+        order.CancelledAt.ShouldBeNull();
+    }
+
+    #endregion
+
     #region Create Tests
 
     [Fact]
@@ -42,7 +78,7 @@ public class OrderTests
 
         // Assert
         order.DomainEvents.ShouldContain(e => e is OrderCreatedDomainEvent);
-        
+
         var createdEvent = order.DomainEvents.OfType<OrderCreatedDomainEvent>().Single();
         createdEvent.OrderId.ShouldBe(order.Id);
         createdEvent.OrderNumber.ShouldBe(order.OrderNumber);
@@ -59,7 +95,7 @@ public class OrderTests
         var order = OrderFaker.Generate();
         var productId = Guid.NewGuid();
         var snapshotTitle = "PS5 Digital Edition";
-        var snapshotPrice = Money.Create(499.99m, "GEL");
+        var snapshotPrice = Money.Create(499.99m);
         var quantity = 2;
 
         // Act
@@ -79,7 +115,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.Generate();
-        var price = Money.Create(100m, "GEL");
+        var price = Money.Create(100m);
 
         // Act
         order.AddItem(Guid.NewGuid(), "Product 1", price, 2);
@@ -95,7 +131,7 @@ public class OrderTests
         // Arrange
         var order = OrderFaker.Generate();
         var productId = Guid.NewGuid();
-        var price = Money.Create(100m, "GEL");
+        var price = Money.Create(100m);
 
         // Act
         order.AddItem(productId, "Product", price, 2);
@@ -114,8 +150,8 @@ public class OrderTests
         order.MarkAsPaid(Guid.NewGuid());
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => 
-            order.AddItem(Guid.NewGuid(), "New Product", Money.Create(10), 1))
+        Should.Throw<InvalidOperationException>(() =>
+                order.AddItem(Guid.NewGuid(), "New Product", Money.Create(10), 1))
             .Message.ShouldContain("non-pending");
     }
 
@@ -191,7 +227,7 @@ public class OrderTests
         // Assert
         order.Status.ShouldBe(OrderStatus.Shipped);
         order.ShippedAt.ShouldNotBeNull();
-        
+
         var shippedEvent = order.DomainEvents.OfType<OrderShippedDomainEvent>().Single();
         shippedEvent.TrackingNumber.ShouldBe("TRACK-123");
     }
@@ -275,42 +311,6 @@ public class OrderTests
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => order.Cancel("Second cancellation"));
-    }
-
-    #endregion
-
-    #region Order Workflow - Full Lifecycle Test
-
-    [Fact]
-    public void Order_FullWorkflow_ShouldProgressThroughAllStatuses()
-    {
-        // Arrange & Act
-        var order = Order.Create(
-            Guid.NewGuid(),
-            ShippingAddressFaker.Generate(),
-            Guid.NewGuid().ToString());
-        
-        order.AddItem(Guid.NewGuid(), "PS5", Money.Create(499.99m), 1);
-        order.Status.ShouldBe(OrderStatus.Pending);
-        
-        order.MarkAsPaid(Guid.NewGuid());
-        order.Status.ShouldBe(OrderStatus.Paid);
-        
-        order.StartProcessing();
-        order.Status.ShouldBe(OrderStatus.Processing);
-        
-        order.MarkAsShipped("TRACK-001");
-        order.Status.ShouldBe(OrderStatus.Shipped);
-        
-        order.MarkAsDelivered();
-        order.Status.ShouldBe(OrderStatus.Delivered);
-
-        // Assert - all timestamps should be set
-        order.CreatedAt.ShouldNotBe(default);
-        order.PaidAt.ShouldNotBeNull();
-        order.ShippedAt.ShouldNotBeNull();
-        order.DeliveredAt.ShouldNotBeNull();
-        order.CancelledAt.ShouldBeNull();
     }
 
     #endregion

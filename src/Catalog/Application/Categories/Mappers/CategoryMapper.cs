@@ -5,8 +5,8 @@ using NetCommerce.Catalog.Domain.Categories;
 namespace NetCommerce.Catalog.Application.Categories.Mappers;
 
 /// <summary>
-/// Mapper for Category domain entities to DTOs.
-/// Centralizes mapping logic following DRY and Single Responsibility principles.
+///     Mapper for Category domain entities to DTOs.
+///     Centralizes mapping logic following DRY and Single Responsibility principles.
 /// </summary>
 public sealed class CategoryMapper : ICategoryMapper
 {
@@ -37,8 +37,8 @@ public sealed class CategoryMapper : ICategoryMapper
 }
 
 /// <summary>
-/// Interface for category mapping operations.
-/// Supports Dependency Inversion Principle.
+///     Interface for category mapping operations.
+///     Supports Dependency Inversion Principle.
 /// </summary>
 public interface ICategoryMapper
 {

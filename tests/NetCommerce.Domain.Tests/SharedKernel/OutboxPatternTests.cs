@@ -1,20 +1,16 @@
 using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using NSubstitute;
-using Shouldly;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using NSubstitute;
+using Shouldly;
 
 namespace NetCommerce.Domain.Tests.SharedKernel;
 
 /// <summary>
-/// Unit tests for the Outbox pattern using InMemory database.
-/// These tests verify the BaseDbContext outbox behavior without Docker.
+///     Unit tests for the Outbox pattern using InMemory database.
+///     These tests verify the BaseDbContext outbox behavior without Docker.
 /// </summary>
 public class OutboxPatternTests : IDisposable
 {
@@ -24,11 +20,11 @@ public class OutboxPatternTests : IDisposable
     public OutboxPatternTests()
     {
         _mediator = Substitute.For<IMediator>();
-        
+
         var options = new DbContextOptionsBuilder<TestDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        
+
         _context = new TestDbContext(options, _mediator);
     }
 
@@ -45,7 +41,7 @@ public class OutboxPatternTests : IDisposable
         // Arrange
         var entity = new TestEntity("Test Value");
         entity.RaiseTestEvent("First Event");
-        
+
         _context.TestEntities.Add(entity);
 
         // Act
@@ -54,7 +50,7 @@ public class OutboxPatternTests : IDisposable
         // Assert
         var outboxMessages = await _context.OutboxMessages.ToListAsync();
         outboxMessages.ShouldHaveSingleItem();
-        
+
         var message = outboxMessages.First();
         message.Type.ShouldContain(nameof(TestDomainEvent));
         message.ProcessedOn.ShouldBeNull();
@@ -69,7 +65,7 @@ public class OutboxPatternTests : IDisposable
         entity.RaiseTestEvent("Event 1");
         entity.RaiseTestEvent("Event 2");
         entity.RaiseTestEvent("Event 3");
-        
+
         _context.TestEntities.Add(entity);
 
         // Act
@@ -86,7 +82,7 @@ public class OutboxPatternTests : IDisposable
         // Arrange
         var entity = new TestEntity("Test Value");
         entity.RaiseTestEvent("My Message");
-        
+
         _context.TestEntities.Add(entity);
 
         // Act
@@ -95,7 +91,7 @@ public class OutboxPatternTests : IDisposable
         // Assert
         var message = await _context.OutboxMessages.FirstAsync();
         message.Content.ShouldContain("My Message");
-        
+
         // Verify JSON structure
         var jsonDoc = JsonDocument.Parse(message.Content);
         jsonDoc.RootElement.TryGetProperty("message", out var messageProperty).ShouldBeTrue();
@@ -108,7 +104,7 @@ public class OutboxPatternTests : IDisposable
         // Arrange
         var entity = new TestEntity("Test Value");
         entity.RaiseTestEvent("Test Event");
-        
+
         _context.TestEntities.Add(entity);
 
         // Act
@@ -128,7 +124,7 @@ public class OutboxPatternTests : IDisposable
         // Arrange
         var entity = new TestEntity("Test Value");
         entity.RaiseTestEvent("Event");
-        
+
         _context.TestEntities.Add(entity);
 
         // Act
@@ -200,7 +196,7 @@ public class OutboxPatternTests : IDisposable
         entity.RaiseTestEvent("Message");
         var domainEvent = entity.DomainEvents.First() as TestDomainEvent;
         var expectedOccurredOn = domainEvent!.OccurredOn;
-        
+
         _context.TestEntities.Add(entity);
 
         // Act
@@ -217,21 +213,21 @@ public class OutboxPatternTests : IDisposable
 #region Test Infrastructure
 
 /// <summary>
-/// Test DbContext that extends BaseDbContext for testing the outbox pattern.
+///     Test DbContext that extends BaseDbContext for testing the outbox pattern.
 /// </summary>
 internal class TestDbContext : BaseDbContext
 {
-    public DbSet<TestEntity> TestEntities => Set<TestEntity>();
-
-    public TestDbContext(DbContextOptions<TestDbContext> options, IMediator mediator) 
+    public TestDbContext(DbContextOptions<TestDbContext> options, IMediator mediator)
         : base(options, mediator)
     {
     }
 
+    public DbSet<TestEntity> TestEntities => Set<TestEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+
         modelBuilder.Entity<TestEntity>(builder =>
         {
             builder.HasKey(e => e.Id);
@@ -241,19 +237,21 @@ internal class TestDbContext : BaseDbContext
 }
 
 /// <summary>
-/// Test entity for testing domain events and outbox pattern.
+///     Test entity for testing domain events and outbox pattern.
 /// </summary>
 internal class TestEntity : Entity<Guid>
 {
-    public string Value { get; private set; }
-
     public TestEntity(string value)
     {
         Id = Guid.NewGuid();
         Value = value;
     }
 
-    private TestEntity() : this(string.Empty) { }
+    private TestEntity() : this(string.Empty)
+    {
+    }
+
+    public string Value { get; private set; }
 
     public void RaiseTestEvent(string message)
     {
@@ -262,7 +260,7 @@ internal class TestEntity : Entity<Guid>
 }
 
 /// <summary>
-/// Test domain event for testing outbox serialization.
+///     Test domain event for testing outbox serialization.
 /// </summary>
 internal sealed record TestDomainEvent(Guid EntityId, string Message) : DomainEvent;
 

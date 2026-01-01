@@ -1,14 +1,39 @@
-using Shouldly;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using Shouldly;
 
 namespace NetCommerce.Domain.Tests.SharedKernel;
 
 /// <summary>
-/// Unit tests for OutboxMessage entity.
+///     Unit tests for OutboxMessage entity.
 /// </summary>
 public class OutboxMessageTests
 {
     private readonly DateTime _testOccurredOn = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    #region CanRetry Tests
+
+    [Theory]
+    [InlineData(0, 3, true)]
+    [InlineData(1, 3, true)]
+    [InlineData(2, 3, true)]
+    [InlineData(3, 3, false)]
+    [InlineData(4, 3, false)]
+    [InlineData(0, 1, true)]
+    [InlineData(1, 1, false)]
+    public void CanRetry_ShouldReturnCorrectValue(int retryCount, int maxRetries, bool expectedCanRetry)
+    {
+        // Arrange
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        for (var i = 0; i < retryCount; i++) message.MarkAsFailed($"Error {i + 1}");
+
+        // Act
+        var canRetry = message.CanRetry(maxRetries);
+
+        // Assert
+        canRetry.ShouldBe(expectedCanRetry);
+    }
+
+    #endregion
 
     #region Create Tests
 
@@ -121,34 +146,6 @@ public class OutboxMessageTests
 
     #endregion
 
-    #region CanRetry Tests
-
-    [Theory]
-    [InlineData(0, 3, true)]
-    [InlineData(1, 3, true)]
-    [InlineData(2, 3, true)]
-    [InlineData(3, 3, false)]
-    [InlineData(4, 3, false)]
-    [InlineData(0, 1, true)]
-    [InlineData(1, 1, false)]
-    public void CanRetry_ShouldReturnCorrectValue(int retryCount, int maxRetries, bool expectedCanRetry)
-    {
-        // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
-        for (var i = 0; i < retryCount; i++)
-        {
-            message.MarkAsFailed($"Error {i + 1}");
-        }
-
-        // Act
-        var canRetry = message.CanRetry(maxRetries);
-
-        // Assert
-        canRetry.ShouldBe(expectedCanRetry);
-    }
-
-    #endregion
-
     #region State Transitions Tests
 
     [Fact]
@@ -159,7 +156,7 @@ public class OutboxMessageTests
 
         // Act - First attempt fails
         message.MarkAsFailed("Network error");
-        
+
         // Assert intermediate state
         message.RetryCount.ShouldBe(1);
         message.CanRetry(3).ShouldBeTrue();
@@ -182,10 +179,7 @@ public class OutboxMessageTests
         const int maxRetries = 3;
 
         // Act - Exhaust all retries
-        for (var i = 0; i < maxRetries; i++)
-        {
-            message.MarkAsFailed($"Error {i + 1}");
-        }
+        for (var i = 0; i < maxRetries; i++) message.MarkAsFailed($"Error {i + 1}");
 
         // Assert
         message.RetryCount.ShouldBe(maxRetries);
@@ -430,7 +424,7 @@ public class OutboxMessageTests
         // First attempt - claim and fail
         message.ClaimForProcessing();
         message.Status.ShouldBe(OutboxMessageStatus.Processing);
-        
+
         message.MarkAsFailed("Network timeout", maxRetries);
         message.Status.ShouldBe(OutboxMessageStatus.Pending);
         message.RetryCount.ShouldBe(1);
@@ -438,7 +432,7 @@ public class OutboxMessageTests
         // Second attempt - claim and succeed
         message.ClaimForProcessing();
         message.Status.ShouldBe(OutboxMessageStatus.Processing);
-        
+
         message.MarkAsProcessed();
         message.Status.ShouldBe(OutboxMessageStatus.Processed);
     }

@@ -8,8 +8,8 @@ using NetCommerce.Catalog.Application.Categories.Queries;
 namespace NetCommerce.Api.Endpoints.Catalog;
 
 /// <summary>
-/// RESTful endpoints for Category resources.
-/// Follows best practices: nouns for resources, proper HTTP methods, and HATEOAS links.
+///     RESTful endpoints for Category resources.
+///     Follows best practices: nouns for resources, proper HTTP methods, and HATEOAS links.
 /// </summary>
 public class CategoryEndpoints : IEndpointGroup
 {
@@ -24,7 +24,7 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetAllCategories")
             .WithSummary("Get all categories")
             .WithDescription("Retrieves a hierarchical list of all product categories.")
-            .Produces<CollectionResponse<CategoryResponse>>(StatusCodes.Status200OK)
+            .Produces<CollectionResponse<CategoryResponse>>()
             .AllowAnonymous();
 
         // GET /api/v1/categories/{id} - Get category by ID
@@ -32,7 +32,7 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetCategoryById")
             .WithSummary("Get a category by ID")
             .WithDescription("Retrieves a single category resource by its unique identifier.")
-            .Produces<ResourceResponse<CategoryResponse>>(StatusCodes.Status200OK)
+            .Produces<ResourceResponse<CategoryResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -41,7 +41,7 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetCategoryBySlug")
             .WithSummary("Get a category by slug")
             .WithDescription("Retrieves a single category resource using its SEO-friendly slug identifier.")
-            .Produces<ResourceResponse<CategoryResponse>>(StatusCodes.Status200OK)
+            .Produces<ResourceResponse<CategoryResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -50,7 +50,7 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetChildCategories")
             .WithSummary("Get child categories")
             .WithDescription("Retrieves all child categories of the specified parent category.")
-            .Produces<CollectionResponse<CategoryResponse>>(StatusCodes.Status200OK)
+            .Produces<CollectionResponse<CategoryResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -94,11 +94,8 @@ public class CategoryEndpoints : IEndpointGroup
     {
         var query = new GetAllCategoriesQuery();
         var result = await mediator.Send(query, cancellationToken);
-        
-        if (!result.IsSuccess)
-        {
-            return result.ToApiResult();
-        }
+
+        if (!result.IsSuccess) return result.ToApiResult();
 
         var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories";
         var response = CollectionResponse<object>.Create(
@@ -116,7 +113,7 @@ public class CategoryEndpoints : IEndpointGroup
     {
         var query = new GetCategoryByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-        
+
         var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories/{id}";
         return result.ToResourceResult(selfUrl,
             new Link("children", $"/api/v1/categories/{id}/children", "GET"),
@@ -131,7 +128,7 @@ public class CategoryEndpoints : IEndpointGroup
     {
         var query = new GetCategoryBySlugQuery(slug);
         var result = await mediator.Send(query, cancellationToken);
-        
+
         var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories/slug/{slug}";
         return result.ToResourceResult(selfUrl);
     }
@@ -144,11 +141,8 @@ public class CategoryEndpoints : IEndpointGroup
     {
         var query = new GetChildCategoriesQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-        
-        if (!result.IsSuccess)
-        {
-            return result.ToApiResult();
-        }
+
+        if (!result.IsSuccess) return result.ToApiResult();
 
         var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories/{id}/children";
         var response = CollectionResponse<object>.Create(
@@ -166,11 +160,8 @@ public class CategoryEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var result = await mediator.Send(command, cancellationToken);
-        
-        if (!result.IsSuccess)
-        {
-            return result.ToApiResult();
-        }
+
+        if (!result.IsSuccess) return result.ToApiResult();
 
         var location = $"/api/v1/categories/{result.Value}";
         return Results.Created(location, new { id = result.Value });
@@ -183,13 +174,11 @@ public class CategoryEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         if (id != command.CategoryId)
-        {
             return Results.Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Bad Request",
                 detail: "Category ID in URL does not match the request body.",
                 type: "https://tools.ietf.org/html/rfc7231#section-6.5.1");
-        }
 
         var result = await mediator.Send(command, cancellationToken);
         return result.ToApiResult();
@@ -207,6 +196,6 @@ public class CategoryEndpoints : IEndpointGroup
 }
 
 /// <summary>
-/// Category response model (placeholder - actual implementation depends on query handlers).
+///     Category response model (placeholder - actual implementation depends on query handlers).
 /// </summary>
 public record CategoryResponse;

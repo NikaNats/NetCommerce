@@ -1,17 +1,17 @@
-using Shouldly;
 using NetCommerce.Inventory.Domain.Stock;
+using Shouldly;
 
 namespace NetCommerce.LoadTests.Scenarios;
 
 /// <summary>
-/// In-memory concurrency tests for Stock aggregate.
-/// Tests thread-safety and race condition handling without network overhead.
+///     In-memory concurrency tests for Stock aggregate.
+///     Tests thread-safety and race condition handling without network overhead.
 /// </summary>
 public class StockConcurrencyTests
 {
     /// <summary>
-    /// Simulates PS5 launch: Multiple threads trying to reserve limited stock.
-    /// Verifies no overselling occurs.
+    ///     Simulates PS5 launch: Multiple threads trying to reserve limited stock.
+    ///     Verifies no overselling occurs.
     /// </summary>
     [Fact]
     public async Task PS5Launch_ConcurrentReservations_ShouldNotOversell()
@@ -19,12 +19,12 @@ public class StockConcurrencyTests
         // Arrange - Very limited PS5 stock
         const int totalStock = 10;
         const int concurrentBuyers = 100;
-        
+
         var stock = Stock.Create(
-            productId: Guid.NewGuid(),
-            sku: "PS5-DIGITAL-2024",
-            initialQuantity: totalStock,
-            lowStockThreshold: 2);
+            Guid.NewGuid(),
+            "PS5-DIGITAL-2024",
+            totalStock,
+            2);
 
         var successfulReservations = 0;
         var failedReservations = 0;
@@ -66,24 +66,21 @@ public class StockConcurrencyTests
     }
 
     /// <summary>
-    /// Tests reservation expiry and reallocation scenario.
-    /// Some users complete purchase, others abandon cart.
+    ///     Tests reservation expiry and reallocation scenario.
+    ///     Some users complete purchase, others abandon cart.
     /// </summary>
     [Fact]
     public async Task PS5Launch_ReservationExpiry_ShouldReallocateStock()
     {
         // Arrange
         const int totalStock = 5;
-        
+
         var stock = Stock.Create(Guid.NewGuid(), "PS5", totalStock, 1);
         var lockObject = new object();
 
         // Phase 1: All 5 PS5s get reserved
         var phase1Reservations = new List<StockReservation>();
-        for (int i = 0; i < totalStock; i++)
-        {
-            phase1Reservations.Add(stock.Reserve(Guid.NewGuid(), 1));
-        }
+        for (var i = 0; i < totalStock; i++) phase1Reservations.Add(stock.Reserve(Guid.NewGuid(), 1));
 
         stock.AvailableQuantity.ShouldBe(0);
 
@@ -118,6 +115,7 @@ public class StockConcurrencyTests
                             return true;
                         }
                     }
+
                     return false;
                 }
                 catch
@@ -136,22 +134,19 @@ public class StockConcurrencyTests
     }
 
     /// <summary>
-    /// Tests mixed operations: reserves, confirms, and releases happening concurrently.
+    ///     Tests mixed operations: reserves, confirms, and releases happening concurrently.
     /// </summary>
     [Fact]
     public async Task MixedOperations_ConcurrentReserveConfirmRelease_ShouldMaintainConsistency()
     {
         // Arrange
         const int initialStock = 100;
-        var stock = Stock.Create(Guid.NewGuid(), "MIXED-TEST", initialStock, 10);
+        var stock = Stock.Create(Guid.NewGuid(), "MIXED-TEST", initialStock);
         var lockObject = new object();
         var reservations = new List<StockReservation>();
 
         // Phase 1: Create reservations
-        for (int i = 0; i < 50; i++)
-        {
-            reservations.Add(stock.Reserve(Guid.NewGuid(), 1));
-        }
+        for (var i = 0; i < 50; i++) reservations.Add(stock.Reserve(Guid.NewGuid(), 1));
 
         stock.AvailableQuantity.ShouldBe(50);
         stock.ReservedQuantity.ShouldBe(50);
@@ -165,7 +160,9 @@ public class StockConcurrencyTests
                 {
                     stock.ConfirmReservation(r.Id);
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }));
 
@@ -183,12 +180,11 @@ public class StockConcurrencyTests
             {
                 try
                 {
-                    if (stock.AvailableQuantity > 0)
-                    {
-                        stock.Reserve(Guid.NewGuid(), 1);
-                    }
+                    if (stock.AvailableQuantity > 0) stock.Reserve(Guid.NewGuid(), 1);
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }));
 
@@ -197,40 +193,38 @@ public class StockConcurrencyTests
         // Assert - Consistency checks
         // Initial: 100, Confirmed: 20 (deducted), Released: 20 (back to available)
         // Remaining active reservations: 10 (from initial 50) + new reservations
-        
+
         var expectedDeducted = 20; // Confirmed reservations
         stock.Quantity.ShouldBe(initialStock - expectedDeducted);
-        
+
         // Available + Reserved should equal Quantity
         (stock.AvailableQuantity + stock.ReservedQuantity).ShouldBeLessThanOrEqualTo(stock.Quantity);
     }
 
     /// <summary>
-    /// Tests that domain events are correctly raised even under concurrent operations.
+    ///     Tests that domain events are correctly raised even under concurrent operations.
     /// </summary>
     [Fact]
     public void ConcurrentOperations_ShouldRaiseDomainEvents()
     {
         // Arrange
-        var stock = Stock.Create(Guid.NewGuid(), "EVENTS-TEST", 50, 10);
+        var stock = Stock.Create(Guid.NewGuid(), "EVENTS-TEST", 50);
         var lockObject = new object();
 
         // Act - Multiple operations
         var reservations = new List<StockReservation>();
-        for (int i = 0; i < 10; i++)
-        {
+        for (var i = 0; i < 10; i++)
             lock (lockObject)
             {
                 reservations.Add(stock.Reserve(Guid.NewGuid(), 1));
             }
-        }
 
         // Assert - Domain events should be raised
         var domainEvents = stock.DomainEvents.ToList();
-        
+
         // Should have StockReservedDomainEvent for each reservation
         domainEvents.OfType<StockReservedDomainEvent>().Count().ShouldBe(10);
-        
+
         // Should have LowStockAlertDomainEvent when crossing threshold
         // (50 - 10 reservations = 40 available, threshold is 10, so no alert yet)
         // If we reserved 45, we'd cross the threshold

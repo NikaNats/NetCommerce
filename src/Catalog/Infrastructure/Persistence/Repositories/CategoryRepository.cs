@@ -5,8 +5,8 @@ using NetCommerce.SharedKernel.Infrastructure.Persistence;
 namespace NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Category repository implementation.
-/// Uses AsNoTracking for read-only queries to improve performance.
+///     Category repository implementation.
+///     Uses AsNoTracking for read-only queries to improve performance.
 /// </summary>
 public sealed class CategoryRepository : BaseRepository<Category, Guid>, ICategoryRepository
 {
@@ -30,7 +30,7 @@ public sealed class CategoryRepository : BaseRepository<Category, Guid>, ICatego
     }
 
     public async Task<IReadOnlyList<Category>> GetChildCategoriesAsync(
-        Guid parentId, 
+        Guid parentId,
         CancellationToken cancellationToken = default)
     {
         return await DbSet

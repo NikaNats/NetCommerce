@@ -3,18 +3,10 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Ordering.Domain.Orders;
 
 /// <summary>
-/// Shipping address value object.
+///     Shipping address value object.
 /// </summary>
 public sealed class ShippingAddress : ValueObject
 {
-    public string RecipientName { get; }
-    public string Street { get; }
-    public string City { get; }
-    public string State { get; }
-    public string Country { get; }
-    public string PostalCode { get; }
-    public string Phone { get; }
-
     private ShippingAddress(
         string recipientName,
         string street,
@@ -32,6 +24,14 @@ public sealed class ShippingAddress : ValueObject
         PostalCode = postalCode;
         Phone = phone;
     }
+
+    public string RecipientName { get; }
+    public string Street { get; }
+    public string City { get; }
+    public string State { get; }
+    public string Country { get; }
+    public string PostalCode { get; }
+    public string Phone { get; }
 
     public static ShippingAddress Create(
         string recipientName,
@@ -74,17 +74,10 @@ public sealed class ShippingAddress : ValueObject
 }
 
 /// <summary>
-/// Billing address value object.
+///     Billing address value object.
 /// </summary>
 public sealed class BillingAddress : ValueObject
 {
-    public string Name { get; }
-    public string Street { get; }
-    public string City { get; }
-    public string State { get; }
-    public string Country { get; }
-    public string PostalCode { get; }
-
     private BillingAddress(
         string name,
         string street,
@@ -100,6 +93,13 @@ public sealed class BillingAddress : ValueObject
         Country = country;
         PostalCode = postalCode;
     }
+
+    public string Name { get; }
+    public string Street { get; }
+    public string City { get; }
+    public string State { get; }
+    public string Country { get; }
+    public string PostalCode { get; }
 
     public static BillingAddress Create(
         string name,

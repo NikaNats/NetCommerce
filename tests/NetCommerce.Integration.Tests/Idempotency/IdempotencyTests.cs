@@ -1,20 +1,20 @@
+using System.Net;
+using System.Net.Http.Json;
 using Shouldly;
-using WireMock.Server;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
-using System.Net.Http.Json;
-using System.Net;
+using WireMock.Server;
 
 namespace NetCommerce.Integration.Tests.Idempotency;
 
 /// <summary>
-/// Idempotency tests using WireMock.Net to simulate external service calls.
-/// Verifies that duplicate requests with same idempotency key return cached response.
+///     Idempotency tests using WireMock.Net to simulate external service calls.
+///     Verifies that duplicate requests with same idempotency key return cached response.
 /// </summary>
 public class IdempotencyTests : IDisposable
 {
-    private readonly WireMockServer _server;
     private readonly HttpClient _client;
+    private readonly WireMockServer _server;
 
     public IdempotencyTests()
     {
@@ -25,137 +25,11 @@ public class IdempotencyTests : IDisposable
         };
     }
 
-    #region Order Creation Idempotency
-
-    [Fact]
-    public async Task CreateOrder_WithSameIdempotencyKey_ShouldReturnCachedResponse()
+    public void Dispose()
     {
-        // Arrange
-        var idempotencyKey = Guid.NewGuid().ToString();
-        var orderId = Guid.NewGuid();
-        var orderNumber = "ORD-2024-001";
-
-        // Setup WireMock to simulate order creation endpoint
-        _server
-            .Given(Request.Create()
-                .WithPath("/api/orders")
-                .WithHeader("X-Idempotency-Key", idempotencyKey)
-                .UsingPost())
-            .InScenario("IdempotentOrder")
-            .WillSetStateTo("OrderCreated")
-            .RespondWith(Response.Create()
-                .WithStatusCode(201)
-                .WithHeader("Content-Type", "application/json")
-                .WithBodyAsJson(new
-                {
-                    orderId,
-                    orderNumber,
-                    status = "Pending",
-                    createdAt = DateTime.UtcNow
-                }));
-
-        // Subsequent requests with same key return same response (cached)
-        _server
-            .Given(Request.Create()
-                .WithPath("/api/orders")
-                .WithHeader("X-Idempotency-Key", idempotencyKey)
-                .UsingPost())
-            .InScenario("IdempotentOrder")
-            .WhenStateIs("OrderCreated")
-            .RespondWith(Response.Create()
-                .WithStatusCode(200) // 200 instead of 201 indicates cached
-                .WithHeader("Content-Type", "application/json")
-                .WithHeader("X-Idempotency-Replayed", "true")
-                .WithBodyAsJson(new
-                {
-                    orderId,
-                    orderNumber,
-                    status = "Pending",
-                    createdAt = DateTime.UtcNow
-                }));
-
-        // Act - First request
-        var request1 = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
-        {
-            Content = JsonContent.Create(new { customerId = Guid.NewGuid(), items = new[] { new { productId = Guid.NewGuid(), quantity = 1 } } })
-        };
-        request1.Headers.Add("X-Idempotency-Key", idempotencyKey);
-        
-        var response1 = await _client.SendAsync(request1);
-
-        // Act - Second request (duplicate)
-        var request2 = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
-        {
-            Content = JsonContent.Create(new { customerId = Guid.NewGuid(), items = new[] { new { productId = Guid.NewGuid(), quantity = 1 } } })
-        };
-        request2.Headers.Add("X-Idempotency-Key", idempotencyKey);
-        
-        var response2 = await _client.SendAsync(request2);
-
-        // Assert
-        response1.StatusCode.ShouldBe(HttpStatusCode.Created);
-        response2.StatusCode.ShouldBe(HttpStatusCode.OK);
-        response2.Headers.Contains("X-Idempotency-Replayed").ShouldBeTrue();
-
-        var order1 = await response1.Content.ReadFromJsonAsync<OrderResponse>();
-        var order2 = await response2.Content.ReadFromJsonAsync<OrderResponse>();
-
-        // Same order ID returned for both requests
-        order1!.OrderId.ShouldBe(orderId);
-        order2!.OrderId.ShouldBe(orderId);
-        order1.OrderNumber.ShouldBe(order2.OrderNumber);
+        _client.Dispose();
+        _server.Dispose();
     }
-
-    [Fact]
-    public async Task CreateOrder_WithDifferentIdempotencyKeys_ShouldCreateSeparateOrders()
-    {
-        // Arrange
-        var key1 = Guid.NewGuid().ToString();
-        var key2 = Guid.NewGuid().ToString();
-        var orderId1 = Guid.NewGuid();
-        var orderId2 = Guid.NewGuid();
-
-        _server
-            .Given(Request.Create()
-                .WithPath("/api/orders")
-                .WithHeader("X-Idempotency-Key", key1)
-                .UsingPost())
-            .RespondWith(Response.Create()
-                .WithStatusCode(201)
-                .WithBodyAsJson(new { orderId = orderId1, orderNumber = "ORD-001" }));
-
-        _server
-            .Given(Request.Create()
-                .WithPath("/api/orders")
-                .WithHeader("X-Idempotency-Key", key2)
-                .UsingPost())
-            .RespondWith(Response.Create()
-                .WithStatusCode(201)
-                .WithBodyAsJson(new { orderId = orderId2, orderNumber = "ORD-002" }));
-
-        // Act
-        var request1 = new HttpRequestMessage(HttpMethod.Post, "/api/orders");
-        request1.Headers.Add("X-Idempotency-Key", key1);
-        request1.Content = JsonContent.Create(new { });
-
-        var request2 = new HttpRequestMessage(HttpMethod.Post, "/api/orders");
-        request2.Headers.Add("X-Idempotency-Key", key2);
-        request2.Content = JsonContent.Create(new { });
-
-        var response1 = await _client.SendAsync(request1);
-        var response2 = await _client.SendAsync(request2);
-
-        // Assert
-        response1.StatusCode.ShouldBe(HttpStatusCode.Created);
-        response2.StatusCode.ShouldBe(HttpStatusCode.Created);
-
-        var order1 = await response1.Content.ReadFromJsonAsync<OrderResponse>();
-        var order2 = await response2.Content.ReadFromJsonAsync<OrderResponse>();
-
-        order1!.OrderId.ShouldNotBe(order2!.OrderId);
-    }
-
-    #endregion
 
     #region Payment Processing Idempotency
 
@@ -337,14 +211,149 @@ public class IdempotencyTests : IDisposable
 
     #endregion
 
-    public void Dispose()
-    {
-        _client.Dispose();
-        _server.Dispose();
-    }
-
     // Response DTOs
     private record OrderResponse(Guid OrderId, string OrderNumber, string Status);
+
     private record PaymentResponse(Guid PaymentId, Guid OrderId, decimal Amount, string Status);
-    private record ReservationResponse(Guid ReservationId, Guid ProductId, int Quantity, DateTime ExpiresAt, string Status);
+
+    private record ReservationResponse(
+        Guid ReservationId,
+        Guid ProductId,
+        int Quantity,
+        DateTime ExpiresAt,
+        string Status);
+
+    #region Order Creation Idempotency
+
+    [Fact]
+    public async Task CreateOrder_WithSameIdempotencyKey_ShouldReturnCachedResponse()
+    {
+        // Arrange
+        var idempotencyKey = Guid.NewGuid().ToString();
+        var orderId = Guid.NewGuid();
+        var orderNumber = "ORD-2024-001";
+
+        // Setup WireMock to simulate order creation endpoint
+        _server
+            .Given(Request.Create()
+                .WithPath("/api/orders")
+                .WithHeader("X-Idempotency-Key", idempotencyKey)
+                .UsingPost())
+            .InScenario("IdempotentOrder")
+            .WillSetStateTo("OrderCreated")
+            .RespondWith(Response.Create()
+                .WithStatusCode(201)
+                .WithHeader("Content-Type", "application/json")
+                .WithBodyAsJson(new
+                {
+                    orderId,
+                    orderNumber,
+                    status = "Pending",
+                    createdAt = DateTime.UtcNow
+                }));
+
+        // Subsequent requests with same key return same response (cached)
+        _server
+            .Given(Request.Create()
+                .WithPath("/api/orders")
+                .WithHeader("X-Idempotency-Key", idempotencyKey)
+                .UsingPost())
+            .InScenario("IdempotentOrder")
+            .WhenStateIs("OrderCreated")
+            .RespondWith(Response.Create()
+                .WithStatusCode(200) // 200 instead of 201 indicates cached
+                .WithHeader("Content-Type", "application/json")
+                .WithHeader("X-Idempotency-Replayed", "true")
+                .WithBodyAsJson(new
+                {
+                    orderId,
+                    orderNumber,
+                    status = "Pending",
+                    createdAt = DateTime.UtcNow
+                }));
+
+        // Act - First request
+        var request1 = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
+        {
+            Content = JsonContent.Create(new
+                { customerId = Guid.NewGuid(), items = new[] { new { productId = Guid.NewGuid(), quantity = 1 } } })
+        };
+        request1.Headers.Add("X-Idempotency-Key", idempotencyKey);
+
+        var response1 = await _client.SendAsync(request1);
+
+        // Act - Second request (duplicate)
+        var request2 = new HttpRequestMessage(HttpMethod.Post, "/api/orders")
+        {
+            Content = JsonContent.Create(new
+                { customerId = Guid.NewGuid(), items = new[] { new { productId = Guid.NewGuid(), quantity = 1 } } })
+        };
+        request2.Headers.Add("X-Idempotency-Key", idempotencyKey);
+
+        var response2 = await _client.SendAsync(request2);
+
+        // Assert
+        response1.StatusCode.ShouldBe(HttpStatusCode.Created);
+        response2.StatusCode.ShouldBe(HttpStatusCode.OK);
+        response2.Headers.Contains("X-Idempotency-Replayed").ShouldBeTrue();
+
+        var order1 = await response1.Content.ReadFromJsonAsync<OrderResponse>();
+        var order2 = await response2.Content.ReadFromJsonAsync<OrderResponse>();
+
+        // Same order ID returned for both requests
+        order1!.OrderId.ShouldBe(orderId);
+        order2!.OrderId.ShouldBe(orderId);
+        order1.OrderNumber.ShouldBe(order2.OrderNumber);
+    }
+
+    [Fact]
+    public async Task CreateOrder_WithDifferentIdempotencyKeys_ShouldCreateSeparateOrders()
+    {
+        // Arrange
+        var key1 = Guid.NewGuid().ToString();
+        var key2 = Guid.NewGuid().ToString();
+        var orderId1 = Guid.NewGuid();
+        var orderId2 = Guid.NewGuid();
+
+        _server
+            .Given(Request.Create()
+                .WithPath("/api/orders")
+                .WithHeader("X-Idempotency-Key", key1)
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(201)
+                .WithBodyAsJson(new { orderId = orderId1, orderNumber = "ORD-001" }));
+
+        _server
+            .Given(Request.Create()
+                .WithPath("/api/orders")
+                .WithHeader("X-Idempotency-Key", key2)
+                .UsingPost())
+            .RespondWith(Response.Create()
+                .WithStatusCode(201)
+                .WithBodyAsJson(new { orderId = orderId2, orderNumber = "ORD-002" }));
+
+        // Act
+        var request1 = new HttpRequestMessage(HttpMethod.Post, "/api/orders");
+        request1.Headers.Add("X-Idempotency-Key", key1);
+        request1.Content = JsonContent.Create(new { });
+
+        var request2 = new HttpRequestMessage(HttpMethod.Post, "/api/orders");
+        request2.Headers.Add("X-Idempotency-Key", key2);
+        request2.Content = JsonContent.Create(new { });
+
+        var response1 = await _client.SendAsync(request1);
+        var response2 = await _client.SendAsync(request2);
+
+        // Assert
+        response1.StatusCode.ShouldBe(HttpStatusCode.Created);
+        response2.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var order1 = await response1.Content.ReadFromJsonAsync<OrderResponse>();
+        var order2 = await response2.Content.ReadFromJsonAsync<OrderResponse>();
+
+        order1!.OrderId.ShouldNotBe(order2!.OrderId);
+    }
+
+    #endregion
 }

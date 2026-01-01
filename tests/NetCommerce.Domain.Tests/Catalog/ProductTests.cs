@@ -1,12 +1,12 @@
-using Shouldly;
 using NetCommerce.Catalog.Domain.Products;
-using NetCommerce.SharedKernel.Domain;
 using NetCommerce.Domain.Tests.Fakers;
+using NetCommerce.SharedKernel.Domain;
+using Shouldly;
 
 namespace NetCommerce.Domain.Tests.Catalog;
 
 /// <summary>
-/// Unit tests for Product aggregate.
+///     Unit tests for Product aggregate.
 /// </summary>
 public class ProductTests
 {
@@ -19,7 +19,7 @@ public class ProductTests
         var name = "Test Product";
         var description = "Test Description";
         var sku = "SKU-001";
-        var price = Money.Create(99.99m, "GEL");
+        var price = Money.Create(99.99m);
         var categoryId = Guid.NewGuid();
 
         // Act
@@ -46,7 +46,7 @@ public class ProductTests
         // Assert
         var domainEvents = product.DomainEvents.ToList();
         domainEvents.ShouldContain(e => e is ProductCreatedDomainEvent);
-        
+
         var createdEvent = domainEvents.OfType<ProductCreatedDomainEvent>().Single();
         createdEvent.ProductId.ShouldBe(product.Id);
         createdEvent.Name.ShouldBe(product.Name);
@@ -111,7 +111,7 @@ public class ProductTests
     {
         // Arrange
         var product = ProductFaker.Generate();
-        var newPrice = Money.Create(199.99m, "GEL");
+        var newPrice = Money.Create(199.99m);
 
         // Act
         product.UpdatePrice(newPrice);
@@ -126,7 +126,7 @@ public class ProductTests
         // Arrange
         var product = ProductFaker.Generate();
         var oldPrice = product.Price;
-        var newPrice = Money.Create(199.99m, "GEL");
+        var newPrice = Money.Create(199.99m);
         product.ClearDomainEvents();
 
         // Act
@@ -136,7 +136,7 @@ public class ProductTests
         var priceChangedEvent = product.DomainEvents
             .OfType<ProductPriceChangedDomainEvent>()
             .Single();
-        
+
         priceChangedEvent.ProductId.ShouldBe(product.Id);
         priceChangedEvent.OldPrice.ShouldBe(oldPrice);
         priceChangedEvent.NewPrice.ShouldBe(newPrice);
@@ -229,7 +229,7 @@ public class ProductTests
         var imageKey = "images/product-1.jpg";
 
         // Act
-        product.AddImage(imageKey, displayOrder: 1, isPrimary: true);
+        product.AddImage(imageKey, 1, true);
 
         // Assert
         product.Images.ShouldHaveSingleItem();
@@ -242,10 +242,10 @@ public class ProductTests
     {
         // Arrange
         var product = ProductFaker.Generate();
-        product.AddImage("image1.jpg", 1, isPrimary: true);
+        product.AddImage("image1.jpg", 1, true);
 
         // Act
-        product.AddImage("image2.jpg", 2, isPrimary: true);
+        product.AddImage("image2.jpg", 2, true);
 
         // Assert
         product.Images.Count.ShouldBe(2);

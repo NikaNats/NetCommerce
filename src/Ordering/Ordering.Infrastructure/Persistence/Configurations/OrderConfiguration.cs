@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.Ordering.Infrastructure.Persistence.Configurations;
 
@@ -12,7 +11,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.ToTable("orders");
 
         builder.HasKey(o => o.Id);
-        
+
         builder.Property(o => o.Id)
             .HasColumnName("id")
             .ValueGeneratedNever();
@@ -113,4 +112,3 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
-

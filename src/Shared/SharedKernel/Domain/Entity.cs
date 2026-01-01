@@ -1,21 +1,30 @@
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
-/// Base class for all domain entities with identity and domain events support.
+///     Base class for all domain entities with identity and domain events support.
 /// </summary>
 public abstract class Entity<TId> : IEquatable<Entity<TId>> where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = [];
 
-    public TId Id { get; protected init; } = default!;
-    
-    public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
-
-    protected Entity() { }
+    protected Entity()
+    {
+    }
 
     protected Entity(TId id)
     {
         Id = id;
+    }
+
+    public TId Id { get; protected init; } = default!;
+
+    public IReadOnlyList<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+
+    public bool Equals(Entity<TId>? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return EqualityComparer<TId>.Default.Equals(Id, other.Id);
     }
 
     public void AddDomainEvent(IDomainEvent domainEvent)
@@ -31,13 +40,6 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>> where TId : notnull
     public void ClearDomainEvents()
     {
         _domainEvents.Clear();
-    }
-
-    public bool Equals(Entity<TId>? other)
-    {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        return EqualityComparer<TId>.Default.Equals(Id, other.Id);
     }
 
     public override bool Equals(object? obj)

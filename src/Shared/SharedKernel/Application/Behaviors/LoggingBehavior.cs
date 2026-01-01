@@ -1,11 +1,11 @@
+using System.Diagnostics;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
 
 namespace NetCommerce.SharedKernel.Application.Behaviors;
 
 /// <summary>
-/// Pipeline behavior for logging requests with correlation tracking.
+///     Pipeline behavior for logging requests with correlation tracking.
 /// </summary>
 public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -35,9 +35,9 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         try
         {
             var response = await next();
-            
+
             stopwatch.Stop();
-            
+
             _logger.LogInformation(
                 "Handled {RequestName} with CorrelationId: {CorrelationId} in {ElapsedMs}ms",
                 requestName,
@@ -49,7 +49,7 @@ public sealed class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRe
         catch (Exception ex)
         {
             stopwatch.Stop();
-            
+
             _logger.LogError(
                 ex,
                 "Error handling {RequestName} with CorrelationId: {CorrelationId} after {ElapsedMs}ms",

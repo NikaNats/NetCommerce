@@ -76,13 +76,11 @@ public class MediaEndpoints : IEndpointGroup
             cancellationToken);
 
         if (result.IsSuccess)
-        {
             return Results.Created(string.Empty, new
             {
                 Key = result.Value,
                 Url = storageService.GetPublicUrl(result.Value!)
             });
-        }
 
         return result.ToApiResult();
     }

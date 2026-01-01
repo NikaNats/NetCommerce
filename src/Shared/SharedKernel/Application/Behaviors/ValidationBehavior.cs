@@ -5,7 +5,7 @@ using NetCommerce.SharedKernel.Results;
 namespace NetCommerce.SharedKernel.Application.Behaviors;
 
 /// <summary>
-/// Pipeline behavior for validating commands and queries using FluentValidation.
+///     Pipeline behavior for validating commands and queries using FluentValidation.
 /// </summary>
 public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
@@ -23,10 +23,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
-        if (!_validators.Any())
-        {
-            return await next();
-        }
+        if (!_validators.Any()) return await next();
 
         var context = new ValidationContext<TRequest>(request);
 
@@ -41,7 +38,7 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
         if (failures.Count != 0)
         {
             var errorMessage = string.Join("; ", failures.Select(f => f.ErrorMessage));
-            
+
             // Create failure result using reflection for generic type
             return CreateValidationFailure(errorMessage);
         }
@@ -52,11 +49,8 @@ public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<
     private static TResponse CreateValidationFailure(string errorMessage)
     {
         var resultType = typeof(TResponse);
-        
-        if (resultType == typeof(Result))
-        {
-            return (TResponse)(object)Result.Failure(Error.Validation(errorMessage));
-        }
+
+        if (resultType == typeof(Result)) return (TResponse)Result.Failure(Error.Validation(errorMessage));
 
         // Handle Result<TValue>
         var genericType = resultType.GetGenericArguments()[0];

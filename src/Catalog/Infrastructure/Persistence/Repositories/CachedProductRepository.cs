@@ -5,16 +5,16 @@ using NetCommerce.Catalog.Domain.Products;
 namespace NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Decorator for IProductRepository that adds distributed caching via Redis.
-/// Implements the Decorator pattern to transparently cache product reads.
-/// Cache keys use product identifiers (ID, SKU, slug) for multi-level caching.
+///     Decorator for IProductRepository that adds distributed caching via Redis.
+///     Implements the Decorator pattern to transparently cache product reads.
+///     Cache keys use product identifiers (ID, SKU, slug) for multi-level caching.
 /// </summary>
 public sealed class CachedProductRepository : IProductRepository
 {
-    private readonly IProductRepository _innerRepository;
-    private readonly IDistributedCache _cache;
     private const string CacheKeyPrefix = "catalog:product";
     private const int CacheDurationSeconds = 3600; // 1 hour
+    private readonly IDistributedCache _cache;
+    private readonly IProductRepository _innerRepository;
 
     public CachedProductRepository(
         IProductRepository innerRepository,
@@ -25,15 +25,14 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Gets a product by ID with caching.
+    ///     Gets a product by ID with caching.
     /// </summary>
     public async Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var cacheKey = $"{CacheKeyPrefix}:id:{id}";
-        
+
         var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
         if (cached != null)
-        {
             try
             {
                 return JsonSerializer.Deserialize<Product>(cached);
@@ -43,28 +42,23 @@ public sealed class CachedProductRepository : IProductRepository
                 // If deserialization fails, proceed to fetch from repository
                 await _cache.RemoveAsync(cacheKey, cancellationToken);
             }
-        }
 
         var product = await _innerRepository.GetByIdAsync(id, cancellationToken);
-        if (product != null)
-        {
-            await CacheProductAsync(product, cancellationToken);
-        }
+        if (product != null) await CacheProductAsync(product, cancellationToken);
 
         return product;
     }
 
     /// <summary>
-    /// Gets a product by SKU with caching.
-    /// Caches both the product data and maintains a SKU→ID mapping.
+    ///     Gets a product by SKU with caching.
+    ///     Caches both the product data and maintains a SKU→ID mapping.
     /// </summary>
     public async Task<Product?> GetBySkuAsync(string sku, CancellationToken cancellationToken = default)
     {
         var skuCacheKey = $"{CacheKeyPrefix}:sku:{sku}";
-        
+
         var cached = await _cache.GetStringAsync(skuCacheKey, cancellationToken);
         if (cached != null)
-        {
             try
             {
                 return JsonSerializer.Deserialize<Product>(cached);
@@ -73,28 +67,23 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 await _cache.RemoveAsync(skuCacheKey, cancellationToken);
             }
-        }
 
         var product = await _innerRepository.GetBySkuAsync(sku, cancellationToken);
-        if (product != null)
-        {
-            await CacheProductAsync(product, cancellationToken);
-        }
+        if (product != null) await CacheProductAsync(product, cancellationToken);
 
         return product;
     }
 
     /// <summary>
-    /// Gets a product by slug with caching.
-    /// Caches both the product data and maintains a slug→ID mapping.
+    ///     Gets a product by slug with caching.
+    ///     Caches both the product data and maintains a slug→ID mapping.
     /// </summary>
     public async Task<Product?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
         var slugCacheKey = $"{CacheKeyPrefix}:slug:{slug}";
-        
+
         var cached = await _cache.GetStringAsync(slugCacheKey, cancellationToken);
         if (cached != null)
-        {
             try
             {
                 return JsonSerializer.Deserialize<Product>(cached);
@@ -103,30 +92,25 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 await _cache.RemoveAsync(slugCacheKey, cancellationToken);
             }
-        }
 
         var product = await _innerRepository.GetBySlugAsync(slug, cancellationToken);
-        if (product != null)
-        {
-            await CacheProductAsync(product, cancellationToken);
-        }
+        if (product != null) await CacheProductAsync(product, cancellationToken);
 
         return product;
     }
 
     /// <summary>
-    /// Gets products by category.
-    /// Categories may have many products; caching the entire list for efficiency.
+    ///     Gets products by category.
+    ///     Categories may have many products; caching the entire list for efficiency.
     /// </summary>
     public async Task<IReadOnlyList<Product>> GetByCategoryAsync(
         Guid categoryId,
         CancellationToken cancellationToken = default)
     {
         var cacheKey = $"{CacheKeyPrefix}:category:{categoryId}";
-        
+
         var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
         if (cached != null)
-        {
             try
             {
                 return JsonSerializer.Deserialize<IReadOnlyList<Product>>(cached) ?? new List<Product>();
@@ -135,7 +119,6 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 await _cache.RemoveAsync(cacheKey, cancellationToken);
             }
-        }
 
         var products = await _innerRepository.GetByCategoryAsync(categoryId, cancellationToken);
         if (products.Count > 0)
@@ -153,8 +136,8 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Full-text search.
-    /// Search results are cached per search term for common queries.
+    ///     Full-text search.
+    ///     Search results are cached per search term for common queries.
     /// </summary>
     public async Task<IReadOnlyList<Product>> SearchAsync(
         string searchTerm,
@@ -162,10 +145,9 @@ public sealed class CachedProductRepository : IProductRepository
     {
         var normalizedTerm = string.IsNullOrWhiteSpace(searchTerm) ? "all" : searchTerm.ToLowerInvariant();
         var cacheKey = $"{CacheKeyPrefix}:search:{normalizedTerm}";
-        
+
         var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
         if (cached != null)
-        {
             try
             {
                 return JsonSerializer.Deserialize<IReadOnlyList<Product>>(cached) ?? new List<Product>();
@@ -174,7 +156,6 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 await _cache.RemoveAsync(cacheKey, cancellationToken);
             }
-        }
 
         var products = await _innerRepository.SearchAsync(searchTerm, cancellationToken);
         if (products.Count > 0)
@@ -192,8 +173,8 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Checks if a product exists by SKU.
-    /// Does not cache the boolean result as it changes frequently.
+    ///     Checks if a product exists by SKU.
+    ///     Does not cache the boolean result as it changes frequently.
     /// </summary>
     public async Task<bool> ExistsAsync(string sku, CancellationToken cancellationToken = default)
     {
@@ -201,9 +182,9 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Retrieves all products.
-    /// Generally not cached due to potential large result sets.
-    /// If performance is critical, consider paginating instead.
+    ///     Retrieves all products.
+    ///     Generally not cached due to potential large result sets.
+    ///     If performance is critical, consider paginating instead.
     /// </summary>
     public async Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -211,25 +192,25 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Adds a new product (write operation).
-    /// Invalidates relevant caches.
+    ///     Adds a new product (write operation).
+    ///     Invalidates relevant caches.
     /// </summary>
     public async Task AddAsync(Product aggregate, CancellationToken cancellationToken = default)
     {
         await _innerRepository.AddAsync(aggregate, cancellationToken);
-        
+
         // Cache the new product after insert
         await CacheProductAsync(aggregate, cancellationToken);
     }
 
     /// <summary>
-    /// Updates an existing product (write operation).
-    /// Invalidates all related caches.
+    ///     Updates an existing product (write operation).
+    ///     Invalidates all related caches.
     /// </summary>
     public void Update(Product aggregate)
     {
         _innerRepository.Update(aggregate);
-        
+
         // Invalidate caches for this product
         // Note: We don't await here as this is a sync method.
         // In a real scenario, consider using a background job for cache invalidation.
@@ -237,19 +218,19 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Removes a product (write operation).
-    /// Invalidates all related caches.
+    ///     Removes a product (write operation).
+    ///     Invalidates all related caches.
     /// </summary>
     public void Remove(Product aggregate)
     {
         _innerRepository.Remove(aggregate);
-        
+
         // Invalidate caches for this product
         _ = InvalidateProductCachesAsync(aggregate);
     }
 
     /// <summary>
-    /// Caches a product using all its lookup keys (ID, SKU, slug).
+    ///     Caches a product using all its lookup keys (ID, SKU, slug).
     /// </summary>
     private async Task CacheProductAsync(Product product, CancellationToken cancellationToken = default)
     {
@@ -274,7 +255,7 @@ public sealed class CachedProductRepository : IProductRepository
     }
 
     /// <summary>
-    /// Invalidates all cache entries for a product.
+    ///     Invalidates all cache entries for a product.
     /// </summary>
     private async Task InvalidateProductCachesAsync(Product product)
     {
@@ -287,7 +268,6 @@ public sealed class CachedProductRepository : IProductRepository
         };
 
         foreach (var key in keys)
-        {
             try
             {
                 await _cache.RemoveAsync(key);
@@ -296,6 +276,5 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 // Log and continue; cache removal failures should not block the application
             }
-        }
     }
 }

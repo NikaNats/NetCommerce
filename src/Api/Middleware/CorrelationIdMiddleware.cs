@@ -3,8 +3,8 @@ using System.Diagnostics;
 namespace NetCommerce.Api.Middleware;
 
 /// <summary>
-/// Middleware for tracking requests with a correlation ID.
-/// Enables distributed tracing across services.
+///     Middleware for tracking requests with a correlation ID.
+///     Enables distributed tracing across services.
 /// </summary>
 public class CorrelationIdMiddleware
 {
@@ -19,7 +19,7 @@ public class CorrelationIdMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var correlationId = GetOrCreateCorrelationId(context);
-        
+
         // Add to response headers
         context.Response.OnStarting(() =>
         {
@@ -32,7 +32,7 @@ public class CorrelationIdMiddleware
 
         // Add to logging scope
         using (context.RequestServices.GetRequiredService<ILogger<CorrelationIdMiddleware>>()
-            .BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+                   .BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
         {
             await _next(context);
         }
@@ -40,7 +40,7 @@ public class CorrelationIdMiddleware
 
     private static string GetOrCreateCorrelationId(HttpContext context)
     {
-        if (context.Request.Headers.TryGetValue(CorrelationIdHeader, out var correlationId) 
+        if (context.Request.Headers.TryGetValue(CorrelationIdHeader, out var correlationId)
             && !string.IsNullOrWhiteSpace(correlationId))
         {
             var id = correlationId.ToString();
@@ -55,13 +55,13 @@ public class CorrelationIdMiddleware
 }
 
 /// <summary>
-/// Extension methods for correlation ID middleware.
+///     Extension methods for correlation ID middleware.
 /// </summary>
 public static class CorrelationIdMiddlewareExtensions
 {
     /// <summary>
-    /// Adds correlation ID middleware to the pipeline.
-    /// This should be added early in the pipeline for maximum tracing coverage.
+    ///     Adds correlation ID middleware to the pipeline.
+    ///     This should be added early in the pipeline for maximum tracing coverage.
     /// </summary>
     public static IApplicationBuilder UseCorrelationId(this IApplicationBuilder app)
     {
@@ -69,7 +69,7 @@ public static class CorrelationIdMiddlewareExtensions
     }
 
     /// <summary>
-    /// Gets the current correlation ID from the HttpContext.
+    ///     Gets the current correlation ID from the HttpContext.
     /// </summary>
     public static string? GetCorrelationId(this HttpContext context)
     {

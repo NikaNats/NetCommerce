@@ -7,12 +7,12 @@ using NetCommerce.SharedKernel.Results;
 namespace NetCommerce.Media.Infrastructure.Storage;
 
 /// <summary>
-/// S3-compatible storage service (works with AWS S3 and MinIO).
+///     S3-compatible storage service (works with AWS S3 and MinIO).
 /// </summary>
 public sealed class S3StorageService : IStorageService
 {
-    private readonly IAmazonS3 _s3Client;
     private readonly S3Options _options;
+    private readonly IAmazonS3 _s3Client;
 
     public S3StorageService(IAmazonS3 s3Client, IOptions<S3Options> options)
     {
@@ -30,7 +30,7 @@ public sealed class S3StorageService : IStorageService
         try
         {
             var key = GenerateKey(folder, fileName);
-            
+
             var request = new PutObjectRequest
             {
                 BucketName = _options.BucketName,
@@ -60,7 +60,7 @@ public sealed class S3StorageService : IStorageService
         try
         {
             var key = GenerateKey(folder, fileName);
-            
+
             var request = new GetPreSignedUrlRequest
             {
                 BucketName = _options.BucketName,
@@ -135,7 +135,7 @@ public sealed class S3StorageService : IStorageService
 public class S3Options
 {
     public const string SectionName = "Storage";
-    
+
     public string Endpoint { get; set; } = string.Empty;
     public string AccessKey { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;

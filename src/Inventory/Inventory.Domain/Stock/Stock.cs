@@ -3,48 +3,50 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Inventory.Domain.Stock;
 
 /// <summary>
-/// Stock aggregate root for inventory management.
-/// Supports soft reservations (15-minute holds).
+///     Stock aggregate root for inventory management.
+///     Supports soft reservations (15-minute holds).
 /// </summary>
 public sealed class Stock : AggregateRoot<Guid>
 {
     private readonly List<StockReservation> _reservations = [];
 
+    private Stock()
+    {
+    }
+
     public Guid ProductId { get; private set; }
     public string Sku { get; private set; } = string.Empty;
-    
+
     /// <summary>
-    /// Total quantity in stock (includes reserved).
+    ///     Total quantity in stock (includes reserved).
     /// </summary>
     public int Quantity { get; private set; }
-    
+
     /// <summary>
-    /// Low stock alert threshold.
+    ///     Low stock alert threshold.
     /// </summary>
     public int LowStockThreshold { get; private set; }
-    
+
     public string? WarehouseLocation { get; private set; }
     public DateTime LastUpdatedAt { get; private set; }
 
     public IReadOnlyList<StockReservation> Reservations => _reservations.AsReadOnly();
 
     /// <summary>
-    /// Available quantity (total minus reserved).
+    ///     Available quantity (total minus reserved).
     /// </summary>
     public int AvailableQuantity => Quantity - _reservations
         .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt > DateTime.UtcNow)
         .Sum(r => r.Quantity);
 
     /// <summary>
-    /// Reserved quantity from active reservations.
+    ///     Reserved quantity from active reservations.
     /// </summary>
     public int ReservedQuantity => _reservations
         .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt > DateTime.UtcNow)
         .Sum(r => r.Quantity);
 
     public bool IsLowStock => AvailableQuantity <= LowStockThreshold;
-
-    private Stock() { }
 
     public static Stock Create(
         Guid productId,
@@ -69,8 +71,8 @@ public sealed class Stock : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Creates a soft reservation that expires in 15 minutes.
-    /// Used during checkout to hold stock temporarily.
+    ///     Creates a soft reservation that expires in 15 minutes.
+    ///     Used during checkout to hold stock temporarily.
     /// </summary>
     public StockReservation Reserve(Guid orderId, int quantity)
     {
@@ -81,10 +83,8 @@ public sealed class Stock : AggregateRoot<Guid>
         CleanupExpiredReservations();
 
         if (quantity > AvailableQuantity)
-        {
             throw new InvalidOperationException(
                 $"Insufficient stock. Available: {AvailableQuantity}, Requested: {quantity}");
-        }
 
         var reservation = StockReservation.Create(Id, orderId, quantity);
         _reservations.Add(reservation);
@@ -93,22 +93,19 @@ public sealed class Stock : AggregateRoot<Guid>
         RaiseDomainEvent(new StockReservedDomainEvent(
             Id, ProductId, orderId, quantity, AvailableQuantity));
 
-        if (IsLowStock)
-        {
-            RaiseDomainEvent(new LowStockAlertDomainEvent(Id, ProductId, Sku, AvailableQuantity));
-        }
+        if (IsLowStock) RaiseDomainEvent(new LowStockAlertDomainEvent(Id, ProductId, Sku, AvailableQuantity));
 
         return reservation;
     }
 
     /// <summary>
-    /// Confirms a reservation and deducts from actual stock.
-    /// Called after successful payment.
+    ///     Confirms a reservation and deducts from actual stock.
+    ///     Called after successful payment.
     /// </summary>
     public void ConfirmReservation(Guid reservationId)
     {
         var reservation = _reservations.FirstOrDefault(r => r.Id == reservationId);
-        
+
         if (reservation is null)
             throw new InvalidOperationException($"Reservation {reservationId} not found");
 
@@ -124,13 +121,13 @@ public sealed class Stock : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Releases a reservation back to available stock.
-    /// Called when order is cancelled or reservation expires.
+    ///     Releases a reservation back to available stock.
+    ///     Called when order is cancelled or reservation expires.
     /// </summary>
     public void ReleaseReservation(Guid reservationId)
     {
         var reservation = _reservations.FirstOrDefault(r => r.Id == reservationId);
-        
+
         if (reservation is null)
             return;
 
@@ -142,7 +139,7 @@ public sealed class Stock : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Adds stock (receiving inventory).
+    ///     Adds stock (receiving inventory).
     /// </summary>
     public void AddStock(int quantity, string? reason = null)
     {
@@ -156,7 +153,7 @@ public sealed class Stock : AggregateRoot<Guid>
     }
 
     /// <summary>
-    /// Removes stock directly (adjustments, damage, etc.).
+    ///     Removes stock directly (adjustments, damage, etc.).
     /// </summary>
     public void RemoveStock(int quantity, string reason)
     {

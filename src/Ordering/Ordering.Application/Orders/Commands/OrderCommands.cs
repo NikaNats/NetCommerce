@@ -3,7 +3,7 @@ using NetCommerce.SharedKernel.Application;
 namespace NetCommerce.Ordering.Application.Orders.Commands;
 
 /// <summary>
-/// Command to create a new order.
+///     Command to create a new order.
 /// </summary>
 public record CreateOrderCommand(
     Guid CustomerId,
@@ -13,7 +13,7 @@ public record CreateOrderCommand(
     string PaymentMethod) : ICommand<Guid>;
 
 /// <summary>
-/// Command to add an item to an existing order.
+///     Command to add an item to an existing order.
 /// </summary>
 public record AddOrderItemCommand(
     Guid OrderId,
@@ -24,19 +24,19 @@ public record AddOrderItemCommand(
     string Currency) : ICommand;
 
 /// <summary>
-/// Command to cancel an order.
+///     Command to cancel an order.
 /// </summary>
 public record CancelOrderCommand(
     Guid OrderId,
     string Reason) : ICommand;
 
 /// <summary>
-/// Command to confirm an order (after payment).
+///     Command to confirm an order (after payment).
 /// </summary>
 public record ConfirmOrderCommand(Guid OrderId, Guid PaymentTransactionId) : ICommand;
 
 /// <summary>
-/// Command to ship an order.
+///     Command to ship an order.
 /// </summary>
 public record ShipOrderCommand(
     Guid OrderId,
@@ -44,12 +44,12 @@ public record ShipOrderCommand(
     string Carrier) : ICommand;
 
 /// <summary>
-/// Command to mark order as delivered.
+///     Command to mark order as delivered.
 /// </summary>
 public record DeliverOrderCommand(Guid OrderId) : ICommand;
 
 /// <summary>
-/// DTO for order items in commands.
+///     DTO for order items in commands.
 /// </summary>
 public record OrderItemDto(
     Guid ProductId,
@@ -59,7 +59,7 @@ public record OrderItemDto(
     string Currency);
 
 /// <summary>
-/// DTO for address in commands.
+///     DTO for address in commands.
 /// </summary>
 public record AddressDto(
     string Street,

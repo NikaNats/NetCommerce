@@ -1,7 +1,7 @@
 namespace NetCommerce.SharedKernel.Infrastructure;
 
 /// <summary>
-/// Clock abstraction for testable time operations.
+///     Clock abstraction for testable time operations.
 /// </summary>
 public interface IDateTimeProvider
 {
@@ -10,7 +10,7 @@ public interface IDateTimeProvider
 }
 
 /// <summary>
-/// Default implementation using system clock.
+///     Default implementation using system clock.
 /// </summary>
 public sealed class DateTimeProvider : IDateTimeProvider
 {

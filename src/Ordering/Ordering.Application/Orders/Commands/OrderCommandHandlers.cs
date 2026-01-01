@@ -30,7 +30,7 @@ public sealed class CreateOrderCommandHandler : ICommandHandler<CreateOrderComma
             request.ShippingAddress.PhoneNumber);
 
         var idempotencyKey = $"order-{request.CustomerId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
-        
+
         var order = Order.Create(
             request.CustomerId,
             shippingAddress,
@@ -75,11 +75,8 @@ public sealed class CancelOrderCommandHandler : ICommandHandler<CancelOrderComma
     public async Task<Result> Handle(CancelOrderCommand request, CancellationToken cancellationToken)
     {
         var order = await _orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-        
-        if (order is null)
-        {
-            return Result.Failure(Error.NotFound("Order", request.OrderId));
-        }
+
+        if (order is null) return Result.Failure(Error.NotFound("Order", request.OrderId));
 
         try
         {
@@ -111,11 +108,8 @@ public sealed class ConfirmOrderCommandHandler : ICommandHandler<ConfirmOrderCom
     public async Task<Result> Handle(ConfirmOrderCommand request, CancellationToken cancellationToken)
     {
         var order = await _orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-        
-        if (order is null)
-        {
-            return Result.Failure(Error.NotFound("Order", request.OrderId));
-        }
+
+        if (order is null) return Result.Failure(Error.NotFound("Order", request.OrderId));
 
         try
         {
@@ -147,19 +141,13 @@ public sealed class ShipOrderCommandHandler : ICommandHandler<ShipOrderCommand>
     public async Task<Result> Handle(ShipOrderCommand request, CancellationToken cancellationToken)
     {
         var order = await _orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-        
-        if (order is null)
-        {
-            return Result.Failure(Error.NotFound("Order", request.OrderId));
-        }
+
+        if (order is null) return Result.Failure(Error.NotFound("Order", request.OrderId));
 
         try
         {
             // Need to start processing first, then ship
-            if (order.Status == OrderStatus.Paid)
-            {
-                order.StartProcessing();
-            }
+            if (order.Status == OrderStatus.Paid) order.StartProcessing();
             order.MarkAsShipped(request.TrackingNumber);
             _orderRepository.Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -188,11 +176,8 @@ public sealed class DeliverOrderCommandHandler : ICommandHandler<DeliverOrderCom
     public async Task<Result> Handle(DeliverOrderCommand request, CancellationToken cancellationToken)
     {
         var order = await _orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-        
-        if (order is null)
-        {
-            return Result.Failure(Error.NotFound("Order", request.OrderId));
-        }
+
+        if (order is null) return Result.Failure(Error.NotFound("Order", request.OrderId));
 
         try
         {

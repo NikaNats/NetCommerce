@@ -5,8 +5,8 @@ using NetCommerce.Catalog.Domain.Products;
 namespace NetCommerce.Catalog.Application.Products.Mappers;
 
 /// <summary>
-/// Mapper for Product domain entities to DTOs.
-/// Centralizes mapping logic following DRY and Single Responsibility principles.
+///     Mapper for Product domain entities to DTOs.
+///     Centralizes mapping logic following DRY and Single Responsibility principles.
 /// </summary>
 public sealed class ProductMapper : IProductMapper
 {
@@ -88,8 +88,8 @@ public sealed class ProductMapper : IProductMapper
 }
 
 /// <summary>
-/// Interface for product mapping operations.
-/// Supports Dependency Inversion Principle.
+///     Interface for product mapping operations.
+///     Supports Dependency Inversion Principle.
 /// </summary>
 public interface IProductMapper
 {

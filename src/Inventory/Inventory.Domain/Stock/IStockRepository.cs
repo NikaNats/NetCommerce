@@ -3,7 +3,7 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Inventory.Domain.Stock;
 
 /// <summary>
-/// Repository interface for Stock aggregate.
+///     Repository interface for Stock aggregate.
 /// </summary>
 public interface IStockRepository : IRepository<Stock, Guid>
 {

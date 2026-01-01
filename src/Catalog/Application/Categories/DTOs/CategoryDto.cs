@@ -1,7 +1,7 @@
 namespace NetCommerce.Catalog.Application.Categories.DTOs;
 
 /// <summary>
-/// Data transfer object for category information.
+///     Data transfer object for category information.
 /// </summary>
 public record CategoryDto(
     Guid Id,

@@ -1,11 +1,10 @@
 using MediatR;
-using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.SharedKernel.Application;
 
 /// <summary>
-/// Integration event marker interface.
-/// Integration events are used for cross-module communication.
+///     Integration event marker interface.
+///     Integration events are used for cross-module communication.
 /// </summary>
 public interface IIntegrationEvent : INotification
 {
@@ -15,7 +14,7 @@ public interface IIntegrationEvent : INotification
 }
 
 /// <summary>
-/// Base implementation for integration events.
+///     Base implementation for integration events.
 /// </summary>
 public abstract record IntegrationEvent : IIntegrationEvent
 {
@@ -25,7 +24,7 @@ public abstract record IntegrationEvent : IIntegrationEvent
 }
 
 /// <summary>
-/// Handler for integration events.
+///     Handler for integration events.
 /// </summary>
 public interface IIntegrationEventHandler<TEvent> : INotificationHandler<TEvent>
     where TEvent : IIntegrationEvent;

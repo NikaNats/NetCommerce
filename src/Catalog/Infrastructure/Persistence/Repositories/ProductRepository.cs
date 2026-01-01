@@ -5,8 +5,8 @@ using NetCommerce.SharedKernel.Infrastructure.Persistence;
 namespace NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// Product repository implementation with Full-Text Search support.
-/// Uses AsNoTracking for read-only queries to improve performance.
+///     Product repository implementation with Full-Text Search support.
+///     Uses AsNoTracking for read-only queries to improve performance.
 /// </summary>
 public sealed class ProductRepository : BaseRepository<Product, Guid>, IProductRepository
 {
@@ -27,7 +27,7 @@ public sealed class ProductRepository : BaseRepository<Product, Guid>, IProductR
     }
 
     public async Task<IReadOnlyList<Product>> GetByCategoryAsync(
-        Guid categoryId, 
+        Guid categoryId,
         CancellationToken cancellationToken = default)
     {
         return await DbSet
@@ -38,26 +38,24 @@ public sealed class ProductRepository : BaseRepository<Product, Guid>, IProductR
     }
 
     /// <summary>
-    /// Full-text search using PostgreSQL tsvector.
-    /// Uses AsNoTracking since search results are read-only.
+    ///     Full-text search using PostgreSQL tsvector.
+    ///     Uses AsNoTracking since search results are read-only.
     /// </summary>
     public async Task<IReadOnlyList<Product>> SearchAsync(
-        string searchTerm, 
+        string searchTerm,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
-        {
             return await DbSet
                 .AsNoTracking()
                 .Where(p => p.Status == ProductStatus.Published)
                 .Take(20)
                 .ToListAsync(cancellationToken);
-        }
 
         // PostgreSQL Full-Text Search using EF.Functions
         return await DbSet
             .AsNoTracking()
-            .Where(p => p.Status == ProductStatus.Published && 
+            .Where(p => p.Status == ProductStatus.Published &&
                         EF.Functions.ToTsVector("english", p.Name + " " + p.Description)
                             .Matches(EF.Functions.PlainToTsQuery("english", searchTerm)))
             .OrderByDescending(p => EF.Functions.ToTsVector("english", p.Name + " " + p.Description)

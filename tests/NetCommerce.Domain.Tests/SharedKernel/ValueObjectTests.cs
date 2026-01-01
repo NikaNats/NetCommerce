@@ -1,20 +1,39 @@
-using Shouldly;
 using NetCommerce.SharedKernel.Domain;
+using Shouldly;
 
 namespace NetCommerce.Domain.Tests.SharedKernel;
 
 /// <summary>
-/// Unit tests for Money value object.
+///     Unit tests for Money value object.
 /// </summary>
 public class MoneyTests
 {
+    #region ToString Tests
+
+    [Fact]
+    public void ToString_ShouldContainCurrencyCode()
+    {
+        // Arrange
+        var money = Money.Create(1234.56m);
+
+        // Act
+        var result = money.ToString();
+
+        // Assert - just check currency code exists (formatting is locale-dependent)
+        result.ShouldContain("GEL");
+        // Amount should be present in some form
+        result.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    #endregion
+
     #region Create Tests
 
     [Fact]
     public void Create_WithValidData_ShouldCreateMoney()
     {
         // Act
-        var money = Money.Create(99.99m, "GEL");
+        var money = Money.Create(99.99m);
 
         // Assert
         money.Amount.ShouldBe(99.99m);
@@ -25,7 +44,7 @@ public class MoneyTests
     public void Create_ShouldRoundToTwoDecimals()
     {
         // Act
-        var money = Money.Create(99.999m, "GEL");
+        var money = Money.Create(99.999m);
 
         // Assert
         money.Amount.ShouldBe(100.00m);
@@ -76,8 +95,8 @@ public class MoneyTests
     public void Add_WithSameCurrency_ShouldAddAmounts()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
-        var money2 = Money.Create(30m, "GEL");
+        var money1 = Money.Create(50m);
+        var money2 = Money.Create(30m);
 
         // Act
         var result = money1.Add(money2);
@@ -91,7 +110,7 @@ public class MoneyTests
     public void Add_WithDifferentCurrency_ShouldThrowException()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
+        var money1 = Money.Create(50m);
         var money2 = Money.Create(30m, "USD");
 
         // Act & Assert
@@ -107,8 +126,8 @@ public class MoneyTests
     public void Subtract_WithSameCurrency_ShouldSubtractAmounts()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
-        var money2 = Money.Create(30m, "GEL");
+        var money1 = Money.Create(50m);
+        var money2 = Money.Create(30m);
 
         // Act
         var result = money1.Subtract(money2);
@@ -121,7 +140,7 @@ public class MoneyTests
     public void Subtract_WithDifferentCurrency_ShouldThrowException()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
+        var money1 = Money.Create(50m);
         var money2 = Money.Create(30m, "USD");
 
         // Act & Assert
@@ -136,7 +155,7 @@ public class MoneyTests
     public void Multiply_ShouldMultiplyAmount()
     {
         // Arrange
-        var money = Money.Create(10m, "GEL");
+        var money = Money.Create(10m);
 
         // Act
         var result = money.Multiply(3);
@@ -150,7 +169,7 @@ public class MoneyTests
     public void Multiply_ShouldRoundResult()
     {
         // Arrange
-        var money = Money.Create(10m, "GEL");
+        var money = Money.Create(10m);
 
         // Act
         var result = money.Multiply(0.333m);
@@ -167,8 +186,8 @@ public class MoneyTests
     public void Equals_WithSameValues_ShouldReturnTrue()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
-        var money2 = Money.Create(50m, "GEL");
+        var money1 = Money.Create(50m);
+        var money2 = Money.Create(50m);
 
         // Assert
         money1.Equals(money2).ShouldBeTrue();
@@ -179,8 +198,8 @@ public class MoneyTests
     public void Equals_WithDifferentAmounts_ShouldReturnFalse()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
-        var money2 = Money.Create(60m, "GEL");
+        var money1 = Money.Create(50m);
+        var money2 = Money.Create(60m);
 
         // Assert
         money1.Equals(money2).ShouldBeFalse();
@@ -190,7 +209,7 @@ public class MoneyTests
     public void Equals_WithDifferentCurrencies_ShouldReturnFalse()
     {
         // Arrange
-        var money1 = Money.Create(50m, "GEL");
+        var money1 = Money.Create(50m);
         var money2 = Money.Create(50m, "USD");
 
         // Assert
@@ -198,29 +217,10 @@ public class MoneyTests
     }
 
     #endregion
-
-    #region ToString Tests
-
-    [Fact]
-    public void ToString_ShouldContainCurrencyCode()
-    {
-        // Arrange
-        var money = Money.Create(1234.56m, "GEL");
-
-        // Act
-        var result = money.ToString();
-
-        // Assert - just check currency code exists (formatting is locale-dependent)
-        result.ShouldContain("GEL");
-        // Amount should be present in some form
-        result.ShouldNotBeNullOrWhiteSpace();
-    }
-
-    #endregion
 }
 
 /// <summary>
-/// Unit tests for Email value object.
+///     Unit tests for Email value object.
 /// </summary>
 public class EmailTests
 {

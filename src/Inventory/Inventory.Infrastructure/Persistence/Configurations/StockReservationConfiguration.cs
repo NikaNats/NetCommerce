@@ -1,6 +1,6 @@
-using NetCommerce.Inventory.Domain.Stock;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NetCommerce.Inventory.Domain.Stock;
 
 namespace NetCommerce.Inventory.Infrastructure.Persistence.Configurations;
 
@@ -11,7 +11,7 @@ public class StockReservationConfiguration : IEntityTypeConfiguration<StockReser
         builder.ToTable("stock_reservations");
 
         builder.HasKey(sr => sr.Id);
-        
+
         builder.Property(sr => sr.Id)
             .HasColumnName("id")
             .ValueGeneratedNever();
@@ -55,4 +55,3 @@ public class StockReservationConfiguration : IEntityTypeConfiguration<StockReser
             .HasFilter("status = 'Active'");
     }
 }
-

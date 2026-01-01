@@ -3,13 +3,13 @@ using StackExchange.Redis;
 namespace NetCommerce.SharedKernel.Infrastructure.Redis;
 
 /// <summary>
-/// Redis-based idempotency service for preventing duplicate operations.
+///     Redis-based idempotency service for preventing duplicate operations.
 /// </summary>
 public sealed class RedisIdempotencyService : IIdempotencyService
 {
-    private readonly IDatabase _database;
     private const string KeyPrefix = "idempotency:";
     private static readonly TimeSpan DefaultExpiry = TimeSpan.FromHours(24);
+    private readonly IDatabase _database;
 
     public RedisIdempotencyService(IConnectionMultiplexer connectionMultiplexer)
     {
@@ -22,14 +22,14 @@ public sealed class RedisIdempotencyService : IIdempotencyService
     }
 
     public async Task SetAsync(
-        string idempotencyKey, 
-        string result, 
-        TimeSpan? expiry = null, 
+        string idempotencyKey,
+        string result,
+        TimeSpan? expiry = null,
         CancellationToken cancellationToken = default)
     {
         await _database.StringSetAsync(
-            GetKey(idempotencyKey), 
-            result, 
+            GetKey(idempotencyKey),
+            result,
             expiry ?? DefaultExpiry);
     }
 
@@ -38,5 +38,8 @@ public sealed class RedisIdempotencyService : IIdempotencyService
         return await _database.StringGetAsync(GetKey(idempotencyKey));
     }
 
-    private static string GetKey(string idempotencyKey) => $"{KeyPrefix}{idempotencyKey}";
+    private static string GetKey(string idempotencyKey)
+    {
+        return $"{KeyPrefix}{idempotencyKey}";
+    }
 }

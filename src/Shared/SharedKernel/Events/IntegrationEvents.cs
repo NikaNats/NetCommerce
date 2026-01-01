@@ -4,11 +4,10 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.SharedKernel.Events;
 
 /// <summary>
-/// Integration events for cross-module communication.
-/// These are mirrors of domain events published in different modules.
-/// They allow modules to communicate without direct coupling.
+///     Integration events for cross-module communication.
+///     These are mirrors of domain events published in different modules.
+///     They allow modules to communicate without direct coupling.
 /// </summary>
-/// 
 public sealed record OrderPaidIntegrationEvent(
     Guid OrderId,
     string OrderNumber,
@@ -25,9 +24,9 @@ public sealed record PaymentCompletedIntegrationEvent(
     Money Amount) : IntegrationEvent;
 
 /// <summary>
-/// Raised when inventory confirmation cannot be completed after a successful payment
-/// and the originating outbox message has exhausted retries.
-/// Used to trigger compensating actions (e.g., refund) or support alerting.
+///     Raised when inventory confirmation cannot be completed after a successful payment
+///     and the originating outbox message has exhausted retries.
+///     Used to trigger compensating actions (e.g., refund) or support alerting.
 /// </summary>
 public sealed record OrderInventoryConfirmationFailedIntegrationEvent(
     Guid OrderId,

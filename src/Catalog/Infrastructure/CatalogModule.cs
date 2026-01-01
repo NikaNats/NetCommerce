@@ -1,10 +1,10 @@
 using FluentValidation;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Catalog.Application.Categories.Mappers;
+using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Mappers;
 using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Domain.Categories;
@@ -17,7 +17,7 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Catalog.Infrastructure;
 
 /// <summary>
-/// Catalog module registration.
+///     Catalog module registration.
 /// </summary>
 public static class CatalogModule
 {
@@ -27,15 +27,16 @@ public static class CatalogModule
     {
         // DbContext - uses Aspire-provided connection string "CatalogDb"
         // Using DbContext pooling for improved performance in high-scale scenarios
-        var connectionString = configuration.GetConnectionString("CatalogDb") 
-                            ?? configuration.GetConnectionString("DefaultConnection");
-        
+        var connectionString = configuration.GetConnectionString("CatalogDb")
+                               ?? configuration.GetConnectionString("DefaultConnection");
+
         services.AddDbContextPool<CatalogDbContext>(options =>
         {
-            options.UseNpgsql(connectionString, npgsqlOptions =>
-            {
-                npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", CatalogDbContext.Schema);
-            });
+            options.UseNpgsql(connectionString,
+                npgsqlOptions =>
+                {
+                    npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", CatalogDbContext.Schema);
+                });
         });
 
         // Register UnitOfWork
@@ -49,7 +50,7 @@ public static class CatalogModule
                 provider.GetRequiredService<ProductRepository>(),
                 provider.GetRequiredService<IDistributedCache>()
             ));
-        
+
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 
         // Mappers (DRY/KISS - centralized mapping logic)
@@ -61,13 +62,10 @@ public static class CatalogModule
         services.AddSingleton<ICdnUrlGenerator, CdnUrlGenerator>();
 
         // MediatR handlers from Application assembly
-        services.AddMediatR(cfg => 
-        {
-            cfg.RegisterServicesFromAssembly(typeof(Application.Products.Commands.CreateProductCommand).Assembly);
-        });
+        services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly); });
 
         // FluentValidation validators
-        services.AddValidatorsFromAssembly(typeof(Application.Products.Commands.CreateProductCommand).Assembly);
+        services.AddValidatorsFromAssembly(typeof(CreateProductCommand).Assembly);
 
         return services;
     }

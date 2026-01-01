@@ -4,7 +4,7 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
 /// <summary>
-/// Base repository implementation using Entity Framework Core.
+///     Base repository implementation using Entity Framework Core.
 /// </summary>
 public abstract class BaseRepository<TAggregate, TId> : IRepository<TAggregate, TId>
     where TAggregate : AggregateRoot<TId>

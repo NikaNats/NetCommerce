@@ -17,9 +17,9 @@ public static class InventoryModule
     {
         // Database - uses Aspire-provided connection string "InventoryDb"
         // Using DbContext pooling for improved performance in high-scale scenarios
-        var connectionString = configuration.GetConnectionString("InventoryDb") 
-                            ?? configuration.GetConnectionString("DefaultConnection");
-        
+        var connectionString = configuration.GetConnectionString("InventoryDb")
+                               ?? configuration.GetConnectionString("DefaultConnection");
+
         services.AddDbContextPool<InventoryDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
@@ -47,4 +47,3 @@ public static class InventoryModule
         return services;
     }
 }
-

@@ -10,7 +10,6 @@ public class BasketEndpoints : IEndpointGroup
     {
         var group = app.MapGroup("/api/v1/basket")
             .WithTags("Basket")
-
             .RequireAuthorization();
 
         group.MapGet("/", GetBasket)

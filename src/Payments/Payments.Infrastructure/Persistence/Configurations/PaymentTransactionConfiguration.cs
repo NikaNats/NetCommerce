@@ -11,7 +11,7 @@ public class PaymentTransactionConfiguration : IEntityTypeConfiguration<PaymentT
         builder.ToTable("payment_transactions");
 
         builder.HasKey(pt => pt.Id);
-        
+
         builder.Property(pt => pt.Id)
             .HasColumnName("id")
             .ValueGeneratedNever();
@@ -80,4 +80,3 @@ public class PaymentTransactionConfiguration : IEntityTypeConfiguration<PaymentT
             .HasColumnName("completed_at");
     }
 }
-

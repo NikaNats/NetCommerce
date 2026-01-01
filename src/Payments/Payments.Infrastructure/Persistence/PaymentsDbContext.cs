@@ -8,20 +8,19 @@ namespace NetCommerce.Payments.Infrastructure.Persistence;
 public class PaymentsDbContext : BaseDbContext
 {
     public const string Schema = "payments";
-    
-    public DbSet<PaymentTransaction> Transactions => Set<PaymentTransaction>();
 
-    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, IMediator mediator) 
+    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, IMediator mediator)
         : base(options, mediator)
     {
     }
 
+    public DbSet<PaymentTransaction> Transactions => Set<PaymentTransaction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(PaymentsDbContext).Assembly);
     }
 }
-

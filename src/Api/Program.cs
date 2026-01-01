@@ -1,9 +1,9 @@
 using System.IO.Compression;
 using Microsoft.AspNetCore.ResponseCompression;
-using NetCommerce.Api.Extensions;
-using NetCommerce.Api.Middleware;
 using NetCommerce.Api.Authentication;
 using NetCommerce.Api.Endpoints;
+using NetCommerce.Api.Extensions;
+using NetCommerce.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,10 +66,7 @@ builder.Services.AddResponseCompression(options =>
         ["application/json", "application/problem+json"]);
 });
 
-builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
-{
-    options.Level = CompressionLevel.Fastest;
-});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => { options.Level = CompressionLevel.Fastest; });
 
 builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 {
@@ -110,10 +107,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 // Idempotency is now applied selectively to mutation endpoints via .WithIdempotency() filter.
 // This prevents memory overhead from response buffering on read operations.
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseNetCommerceOpenApi();
-}
+if (app.Environment.IsDevelopment()) app.UseNetCommerceOpenApi();
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");

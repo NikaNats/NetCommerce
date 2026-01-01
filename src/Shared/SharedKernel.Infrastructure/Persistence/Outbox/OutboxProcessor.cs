@@ -10,33 +10,43 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 /// <summary>
-/// Background service that polls the outbox_messages table and publishes domain events.
-/// This ensures guaranteed delivery of domain events after the transaction commits.
-/// Uses SELECT FOR UPDATE SKIP LOCKED to prevent race conditions when multiple workers
-/// process messages concurrently.
+///     Background service that polls the outbox_messages table and publishes domain events.
+///     This ensures guaranteed delivery of domain events after the transaction commits.
+///     Uses SELECT FOR UPDATE SKIP LOCKED to prevent race conditions when multiple workers
+///     process messages concurrently.
 /// </summary>
-public class OutboxProcessor<TDbContext> : BackgroundService 
+public class OutboxProcessor<TDbContext> : BackgroundService
     where TDbContext : DbContext, IOutboxDbContext
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<OutboxProcessor<TDbContext>> _logger;
-    private readonly OutboxProcessorOptions _options;
-    private readonly string _contextName;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    private readonly string _contextName;
+    private readonly ILogger<OutboxProcessor<TDbContext>> _logger;
+    private readonly OutboxProcessorOptions _options;
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public OutboxProcessor(
+        IServiceScopeFactory scopeFactory,
+        ILogger<OutboxProcessor<TDbContext>> logger,
+        IOptions<OutboxProcessorOptions> options)
+    {
+        _scopeFactory = scopeFactory;
+        _logger = logger;
+        _options = options.Value;
+        _contextName = typeof(TDbContext).Name;
+    }
+
     /// <summary>
-    /// Gets the raw SQL query that atomically claims messages for processing using FOR UPDATE SKIP LOCKED.
-    /// This prevents race conditions when multiple workers poll the same database:
-    /// - FOR UPDATE: Locks the selected rows within the transaction
-    /// - SKIP LOCKED: Skips rows already locked by other workers instead of waiting
-    /// 
-    /// The query selects messages that are either:
-    /// 1. In Pending status and haven't exceeded max retries, OR
-    /// 2. Stuck in Processing status for longer than the timeout (abandoned by crashed workers)
+    ///     Gets the raw SQL query that atomically claims messages for processing using FOR UPDATE SKIP LOCKED.
+    ///     This prevents race conditions when multiple workers poll the same database:
+    ///     - FOR UPDATE: Locks the selected rows within the transaction
+    ///     - SKIP LOCKED: Skips rows already locked by other workers instead of waiting
+    ///     The query selects messages that are either:
+    ///     1. In Pending status and haven't exceeded max retries, OR
+    ///     2. Stuck in Processing status for longer than the timeout (abandoned by crashed workers)
     /// </summary>
     private static string GetClaimMessagesSql(string? schema)
     {
@@ -49,17 +59,6 @@ WHERE
 ORDER BY occurred_on
 LIMIT {{4}}
 FOR UPDATE SKIP LOCKED";
-    }
-
-    public OutboxProcessor(
-        IServiceScopeFactory scopeFactory,
-        ILogger<OutboxProcessor<TDbContext>> logger,
-        IOptions<OutboxProcessorOptions> options)
-    {
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-        _options = options.Value;
-        _contextName = typeof(TDbContext).Name;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -135,10 +134,7 @@ FOR UPDATE SKIP LOCKED";
             _logger.LogDebug("Claimed {Count} outbox messages for {ContextName}", messages.Count, _contextName);
 
             // Mark all claimed messages as Processing
-            foreach (var message in messages)
-            {
-                message.ClaimForProcessing();
-            }
+            foreach (var message in messages) message.ClaimForProcessing();
 
             // Save the Processing status before starting to publish events
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -162,25 +158,24 @@ FOR UPDATE SKIP LOCKED";
         CancellationToken cancellationToken)
     {
         foreach (var message in messages)
-        {
             try
             {
                 var domainEvent = DeserializeDomainEvent(message);
-                
+
                 if (domainEvent is null)
                 {
                     _logger.LogWarning(
                         "Could not deserialize outbox message {MessageId} of type {Type}",
                         message.Id, message.Type);
-                    
+
                     message.MarkAsFailed("Failed to deserialize event", _options.MaxRetries);
                     continue;
                 }
 
                 await mediator.Publish(domainEvent, cancellationToken);
-                
+
                 message.MarkAsProcessed();
-                
+
                 _logger.LogDebug(
                     "Successfully processed outbox message {MessageId} of type {Type}",
                     message.Id, message.Type);
@@ -191,12 +186,11 @@ FOR UPDATE SKIP LOCKED";
                     ex,
                     "Failed to process outbox message {MessageId} of type {Type}. Retry {Retry}/{MaxRetries}",
                     message.Id, message.Type, message.RetryCount + 1, _options.MaxRetries);
-                
+
                 var domainEvent = DeserializeDomainEvent(message);
                 message.MarkAsFailed(ex.Message, _options.MaxRetries);
 
                 if (message.Status == OutboxMessageStatus.Failed && deadLetterHandler is not null)
-                {
                     try
                     {
                         await deadLetterHandler.HandleAsync(message, domainEvent, ex, cancellationToken);
@@ -209,9 +203,7 @@ FOR UPDATE SKIP LOCKED";
                             message.Id,
                             message.Type);
                     }
-                }
             }
-        }
 
         // Save final status changes (Processed or Failed)
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -220,10 +212,10 @@ FOR UPDATE SKIP LOCKED";
     private IDomainEvent? DeserializeDomainEvent(OutboxMessage message)
     {
         var eventType = Type.GetType(message.Type);
-        
+
         if (eventType is null)
         {
-            _logger.LogWarning("Could not resolve type {Type} for outbox message {MessageId}", 
+            _logger.LogWarning("Could not resolve type {Type} for outbox message {MessageId}",
                 message.Type, message.Id);
             return null;
         }

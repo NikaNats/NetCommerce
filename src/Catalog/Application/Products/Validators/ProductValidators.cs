@@ -18,7 +18,8 @@ public sealed class CreateProductCommandValidator : AbstractValidator<CreateProd
         RuleFor(x => x.Sku)
             .NotEmpty().WithMessage("SKU is required")
             .MaximumLength(50).WithMessage("SKU must not exceed 50 characters")
-            .Matches(@"^[a-zA-Z0-9\-_]+$").WithMessage("SKU can only contain letters, numbers, hyphens, and underscores");
+            .Matches(@"^[a-zA-Z0-9\-_]+$")
+            .WithMessage("SKU can only contain letters, numbers, hyphens, and underscores");
 
         RuleFor(x => x.Price)
             .GreaterThan(0).WithMessage("Price must be greater than 0");

@@ -6,19 +6,17 @@ using NetCommerce.SharedKernel.Events;
 namespace NetCommerce.Ordering.Application.EventHandlers;
 
 /// <summary>
-/// Domain event to integration event bridge for OrderPaidDomainEvent.
-/// 
-/// This handler listens to domain events within the Ordering module
-/// and converts them to integration events that other modules can subscribe to.
-/// 
-/// Pattern: Ordering Module publishes OrderPaidDomainEvent internally
-///         -> Bridge converts to OrderPaidIntegrationEvent
-///         -> Inventory Module subscribers receive OrderPaidIntegrationEvent
+///     Domain event to integration event bridge for OrderPaidDomainEvent.
+///     This handler listens to domain events within the Ordering module
+///     and converts them to integration events that other modules can subscribe to.
+///     Pattern: Ordering Module publishes OrderPaidDomainEvent internally
+///     -> Bridge converts to OrderPaidIntegrationEvent
+///     -> Inventory Module subscribers receive OrderPaidIntegrationEvent
 /// </summary>
 public sealed class OrderPaidDomainEventToBridgeHandler : INotificationHandler<OrderPaidDomainEvent>
 {
-    private readonly IMediator _mediator;
     private readonly ILogger<OrderPaidDomainEventToBridgeHandler> _logger;
+    private readonly IMediator _mediator;
 
     public OrderPaidDomainEventToBridgeHandler(IMediator mediator, ILogger<OrderPaidDomainEventToBridgeHandler> logger)
     {
@@ -58,17 +56,17 @@ public sealed class OrderPaidDomainEventToBridgeHandler : INotificationHandler<O
 }
 
 /// <summary>
-/// Domain event to integration event bridge for OrderCreatedDomainEvent.
-/// 
-/// This handler listens to domain events within the Ordering module
-/// and converts them to integration events that Payments module can subscribe to.
+///     Domain event to integration event bridge for OrderCreatedDomainEvent.
+///     This handler listens to domain events within the Ordering module
+///     and converts them to integration events that Payments module can subscribe to.
 /// </summary>
 public sealed class OrderCreatedDomainEventToBridgeHandler : INotificationHandler<OrderCreatedDomainEvent>
 {
-    private readonly IMediator _mediator;
     private readonly ILogger<OrderCreatedDomainEventToBridgeHandler> _logger;
+    private readonly IMediator _mediator;
 
-    public OrderCreatedDomainEventToBridgeHandler(IMediator mediator, ILogger<OrderCreatedDomainEventToBridgeHandler> logger)
+    public OrderCreatedDomainEventToBridgeHandler(IMediator mediator,
+        ILogger<OrderCreatedDomainEventToBridgeHandler> logger)
     {
         _mediator = mediator;
         _logger = logger;

@@ -3,11 +3,15 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Payments.Domain.Transactions;
 
 /// <summary>
-/// Payment transaction aggregate for internal ledger.
-/// Never stores raw credit card data (PCI-DSS compliance).
+///     Payment transaction aggregate for internal ledger.
+///     Never stores raw credit card data (PCI-DSS compliance).
 /// </summary>
 public sealed class PaymentTransaction : AggregateRoot<Guid>
 {
+    private PaymentTransaction()
+    {
+    }
+
     public Guid OrderId { get; private set; }
     public Money Amount { get; private set; } = default!;
     public PaymentProvider Provider { get; private set; }
@@ -18,8 +22,6 @@ public sealed class PaymentTransaction : AggregateRoot<Guid>
     public DateTime? CompletedAt { get; private set; }
     public string? FailureReason { get; private set; }
     public string? Metadata { get; private set; }
-
-    private PaymentTransaction() { }
 
     public static PaymentTransaction Create(
         Guid orderId,

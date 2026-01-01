@@ -3,7 +3,7 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Ordering.Domain.Orders;
 
 /// <summary>
-/// Repository interface for Order aggregate.
+///     Repository interface for Order aggregate.
 /// </summary>
 public interface IOrderRepository : IRepository<Order, Guid>
 {
