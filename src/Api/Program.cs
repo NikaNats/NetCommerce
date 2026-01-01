@@ -25,7 +25,11 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Redis (Aspire will inject the connection string)
 builder.AddRedisClient("redis");
 
+// Azure Blob Storage (Aspire will inject the connection string)
+builder.AddAzureBlobServiceClient("blobs");
+
 // Seq for structured logging (Aspire will configure OTLP endpoint)
+builder.AddSeqEndpoint("seq");
 
 // ============================================================================
 // Authentication with Keycloak
@@ -113,6 +117,30 @@ app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ============================================================================
+// Automatic Database Initialization (Development only)
+// ============================================================================
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+
+    // Catalog
+    var catalogDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Catalog.Infrastructure.Persistence.CatalogDbContext>();
+    await catalogDb.Database.EnsureCreatedAsync();
+
+    // Ordering
+    var orderingDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext>();
+    await orderingDb.Database.EnsureCreatedAsync();
+
+    // Inventory
+    var inventoryDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Inventory.Infrastructure.Persistence.InventoryDbContext>();
+    await inventoryDb.Database.EnsureCreatedAsync();
+
+    // Payments
+    var paymentsDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext>();
+    await paymentsDb.Database.EnsureCreatedAsync();
+}
 
 // ============================================================================
 // Map Minimal API Endpoints
