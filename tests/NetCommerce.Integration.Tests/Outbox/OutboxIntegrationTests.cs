@@ -84,7 +84,7 @@ public class OutboxIntegrationTests : IntegrationTestBase
 
         // Verify the event type is serialized correctly
         var message = outboxMessages.First();
-        message.Type.ShouldContain("OrderCreatedDomainEvent");
+        message.Type.ShouldContain("OrderSubmittedDomainEvent");
         message.Content.ShouldNotBeNullOrEmpty();
     }
 

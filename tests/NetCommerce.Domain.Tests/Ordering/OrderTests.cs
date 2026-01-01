@@ -6,7 +6,7 @@ using Shouldly;
 namespace NetCommerce.Domain.Tests.Ordering;
 
 /// <summary>
-///     Unit tests for Order aggregate.
+///     Unit tests for Order aggregate with Grace Period pattern support.
 /// </summary>
 public class OrderTests
 {
@@ -22,13 +22,15 @@ public class OrderTests
             Guid.NewGuid().ToString());
 
         order.AddItem(Guid.NewGuid(), "PS5", Money.Create(499.99m), 1);
-        order.Status.ShouldBe(OrderStatus.Pending);
+        order.Status.ShouldBe(OrderStatus.Submitted);
 
+        // Grace period confirmation
+        order.ConfirmGracePeriod();
+        order.Status.ShouldBe(OrderStatus.AwaitingValidation);
+
+        // Payment
         order.MarkAsPaid(Guid.NewGuid());
         order.Status.ShouldBe(OrderStatus.Paid);
-
-        order.StartProcessing();
-        order.Status.ShouldBe(OrderStatus.Processing);
 
         order.MarkAsShipped("TRACK-001");
         order.Status.ShouldBe(OrderStatus.Shipped);
@@ -65,23 +67,23 @@ public class OrderTests
         order.CustomerId.ShouldBe(customerId);
         order.ShippingAddress.ShouldBe(shippingAddress);
         order.IdempotencyKey.ShouldBe(idempotencyKey);
-        order.Status.ShouldBe(OrderStatus.Pending);
+        order.Status.ShouldBe(OrderStatus.Submitted);
         order.OrderNumber.ShouldStartWith("ORD-");
         order.TotalAmount.Amount.ShouldBe(0);
     }
 
     [Fact]
-    public void Create_ShouldRaise_OrderCreatedDomainEvent()
+    public void Create_ShouldRaise_OrderSubmittedDomainEvent()
     {
         // Act
         var order = OrderFaker.Generate();
 
         // Assert
-        order.DomainEvents.ShouldContain(e => e is OrderCreatedDomainEvent);
+        order.DomainEvents.ShouldContain(e => e is OrderSubmittedDomainEvent);
 
-        var createdEvent = order.DomainEvents.OfType<OrderCreatedDomainEvent>().Single();
-        createdEvent.OrderId.ShouldBe(order.Id);
-        createdEvent.OrderNumber.ShouldBe(order.OrderNumber);
+        var submittedEvent = order.DomainEvents.OfType<OrderSubmittedDomainEvent>().Single();
+        submittedEvent.OrderId.ShouldBe(order.Id);
+        submittedEvent.OrderNumber.ShouldBe(order.OrderNumber);
     }
 
     #endregion
@@ -143,16 +145,90 @@ public class OrderTests
     }
 
     [Fact]
-    public void AddItem_WhenNotPending_ShouldThrowException()
+    public void AddItem_WhenNotSubmitted_ShouldThrowException()
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
         order.MarkAsPaid(Guid.NewGuid());
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() =>
                 order.AddItem(Guid.NewGuid(), "New Product", Money.Create(10), 1))
-            .Message.ShouldContain("non-pending");
+            .Message.ShouldContain("non-submitted");
+    }
+
+    #endregion
+
+    #region Grace Period Tests
+
+    [Fact]
+    public void ConfirmGracePeriod_WhenSubmitted_ShouldTransitionToAwaitingValidation()
+    {
+        // Arrange
+        var order = OrderFaker.GenerateWithItems();
+        order.ClearDomainEvents();
+
+        // Act
+        order.ConfirmGracePeriod();
+
+        // Assert
+        order.Status.ShouldBe(OrderStatus.AwaitingValidation);
+        order.DomainEvents.ShouldContain(e => e is OrderGracePeriodConfirmedDomainEvent);
+    }
+
+    [Fact]
+    public void ConfirmGracePeriod_ShouldRaise_OrderGracePeriodConfirmedDomainEvent()
+    {
+        // Arrange
+        var order = OrderFaker.GenerateWithItems();
+        order.ClearDomainEvents();
+
+        // Act
+        order.ConfirmGracePeriod();
+
+        // Assert
+        var confirmedEvent = order.DomainEvents.OfType<OrderGracePeriodConfirmedDomainEvent>().Single();
+        confirmedEvent.OrderId.ShouldBe(order.Id);
+        confirmedEvent.OrderNumber.ShouldBe(order.OrderNumber);
+        confirmedEvent.TotalAmount.ShouldBe(order.TotalAmount);
+    }
+
+    [Fact]
+    public void ConfirmGracePeriod_WhenNotSubmitted_ShouldBeIdempotent()
+    {
+        // Arrange
+        var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
+        order.ClearDomainEvents();
+
+        // Act - calling again should be idempotent
+        order.ConfirmGracePeriod();
+
+        // Assert
+        order.Status.ShouldBe(OrderStatus.AwaitingValidation);
+        order.DomainEvents.ShouldBeEmpty(); // No new events raised
+    }
+
+    [Fact]
+    public void IsInGracePeriod_WhenSubmitted_ShouldReturnTrue()
+    {
+        // Arrange
+        var order = OrderFaker.GenerateWithItems();
+
+        // Assert
+        order.IsInGracePeriod.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void IsInGracePeriod_WhenAwaitingValidation_ShouldReturnFalse()
+    {
+        // Arrange
+        var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
+
+        // Assert
+        order.IsInGracePeriod.ShouldBeFalse();
     }
 
     #endregion
@@ -160,10 +236,11 @@ public class OrderTests
     #region Status Workflow Tests
 
     [Fact]
-    public void MarkAsPaid_WhenPending_ShouldTransitionToPaid()
+    public void MarkAsPaid_WhenAwaitingValidation_ShouldTransitionToPaid()
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
         order.ClearDomainEvents();
 
         // Act
@@ -176,49 +253,22 @@ public class OrderTests
     }
 
     [Fact]
-    public void MarkAsPaid_WhenNotPending_ShouldThrowException()
+    public void MarkAsPaid_WhenSubmitted_ShouldThrowException()
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid(Guid.NewGuid());
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => order.MarkAsPaid(Guid.NewGuid()));
     }
 
     [Fact]
-    public void StartProcessing_WhenPaid_ShouldTransitionToProcessing()
+    public void MarkAsShipped_WhenPaid_ShouldTransitionToShipped()
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
         order.MarkAsPaid(Guid.NewGuid());
-        order.ClearDomainEvents();
-
-        // Act
-        order.StartProcessing();
-
-        // Assert
-        order.Status.ShouldBe(OrderStatus.Processing);
-        order.DomainEvents.ShouldContain(e => e is OrderProcessingStartedDomainEvent);
-    }
-
-    [Fact]
-    public void StartProcessing_WhenNotPaid_ShouldThrowException()
-    {
-        // Arrange
-        var order = OrderFaker.GenerateWithItems();
-
-        // Act & Assert
-        Should.Throw<InvalidOperationException>(() => order.StartProcessing());
-    }
-
-    [Fact]
-    public void MarkAsShipped_WhenProcessing_ShouldTransitionToShipped()
-    {
-        // Arrange
-        var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid(Guid.NewGuid());
-        order.StartProcessing();
         order.ClearDomainEvents();
 
         // Act
@@ -237,8 +287,8 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
         order.MarkAsPaid(Guid.NewGuid());
-        order.StartProcessing();
         order.MarkAsShipped();
         order.ClearDomainEvents();
 
@@ -253,10 +303,10 @@ public class OrderTests
 
     #endregion
 
-    #region Cancel Tests
+    #region Cancel Tests - Grace Period Scenarios
 
     [Fact]
-    public void Cancel_WhenPending_ShouldTransitionToCancelled()
+    public void Cancel_WhenSubmitted_ShouldTransitionToCancelled()
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
@@ -273,10 +323,42 @@ public class OrderTests
     }
 
     [Fact]
-    public void Cancel_ShouldRaise_OrderCancelledDomainEvent_WithPreviousStatus()
+    public void Cancel_DuringGracePeriod_ShouldRaise_OrderCancelledDomainEvent_WithSubmittedStatus()
+    {
+        // Arrange - Order is in Submitted status (grace period)
+        var order = OrderFaker.GenerateWithItems();
+        order.ClearDomainEvents();
+
+        // Act
+        order.Cancel("Changed my mind");
+
+        // Assert
+        var cancelledEvent = order.DomainEvents.OfType<OrderCancelledDomainEvent>().Single();
+        cancelledEvent.PreviousStatus.ShouldBe(OrderStatus.Submitted);
+    }
+
+    [Fact]
+    public void Cancel_AfterGracePeriod_ShouldRaise_OrderCancelledDomainEvent_WithAwaitingValidationStatus()
+    {
+        // Arrange - Order is past grace period
+        var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
+        order.ClearDomainEvents();
+
+        // Act
+        order.Cancel("Found a better deal");
+
+        // Assert
+        var cancelledEvent = order.DomainEvents.OfType<OrderCancelledDomainEvent>().Single();
+        cancelledEvent.PreviousStatus.ShouldBe(OrderStatus.AwaitingValidation);
+    }
+
+    [Fact]
+    public void Cancel_WhenPaid_ShouldRaise_OrderCancelledDomainEvent_WithPaidStatus()
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
         order.MarkAsPaid(Guid.NewGuid());
         order.ClearDomainEvents();
 
@@ -293,8 +375,8 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
+        order.ConfirmGracePeriod();
         order.MarkAsPaid(Guid.NewGuid());
-        order.StartProcessing();
         order.MarkAsShipped();
         order.MarkAsDelivered();
 

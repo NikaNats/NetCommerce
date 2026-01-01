@@ -80,9 +80,24 @@ public sealed class CancelOrderCommandHandler : ICommandHandler<CancelOrderComma
 
         try
         {
+            // Grace Period Cancellation Logic:
+            // - If order.IsInGracePeriod (Status == Submitted):
+            //   * Cancellation is instant and free
+            //   * Stock reservation will be released via OrderCancelledIntegrationEvent
+            //   * Payment was never taken, so no refund needed
+            // - If order is not in grace period:
+            //   * May require refund processing
+            //   * Compensating transactions may be triggered
+            
+            var wasInGracePeriod = order.IsInGracePeriod;
+            
             order.Cancel(request.Reason);
             _orderRepository.Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            
+            // The domain event handler will check previousStatus 
+            // to determine appropriate actions (release stock, process refunds, etc.)
+            
             return Result.Success();
         }
         catch (InvalidOperationException ex)
@@ -113,6 +128,8 @@ public sealed class ConfirmOrderCommandHandler : ICommandHandler<ConfirmOrderCom
 
         try
         {
+            // MarkAsPaid now accepts both AwaitingValidation and StockConfirmed statuses
+            // as part of the grace period workflow
             order.MarkAsPaid(request.PaymentTransactionId);
             _orderRepository.Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -146,8 +163,7 @@ public sealed class ShipOrderCommandHandler : ICommandHandler<ShipOrderCommand>
 
         try
         {
-            // Need to start processing first, then ship
-            if (order.Status == OrderStatus.Paid) order.StartProcessing();
+            // Simplified workflow: Paid -> Shipped (Processing status removed)
             order.MarkAsShipped(request.TrackingNumber);
             _orderRepository.Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

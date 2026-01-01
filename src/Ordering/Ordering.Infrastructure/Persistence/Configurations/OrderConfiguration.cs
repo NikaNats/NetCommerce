@@ -30,6 +30,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.HasIndex(o => o.CustomerId);
 
+        // Composite Index for the GracePeriodManagerService background worker query
+        // Critical for performance: prevents full table scans when querying orders by status and time
+        builder.HasIndex(o => new { o.Status, o.CreatedAt })
+            .HasDatabaseName("IX_Orders_Status_CreatedAt");
+
         builder.Property(o => o.Status)
             .HasColumnName("status")
             .HasConversion<string>()

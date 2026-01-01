@@ -8,15 +8,45 @@ namespace NetCommerce.SharedKernel.Events;
 ///     These are mirrors of domain events published in different modules.
 ///     They allow modules to communicate without direct coupling.
 /// </summary>
+
+/// <summary>
+///     Raised when an order is submitted.
+///     Triggers soft stock reservation in Inventory module.
+/// </summary>
+public sealed record OrderSubmittedIntegrationEvent(
+    Guid OrderId,
+    string OrderNumber,
+    Guid CustomerId) : IntegrationEvent;
+
+/// <summary>
+///     Raised when the grace period ends for an order.
+///     Triggers payment capture in Payments module.
+/// </summary>
+public sealed record OrderGracePeriodConfirmedIntegrationEvent(
+    Guid OrderId,
+    string OrderNumber,
+    Guid CustomerId,
+    Money TotalAmount) : IntegrationEvent;
+
+/// <summary>
+///     Raised when stock is confirmed for an order.
+/// </summary>
+public sealed record OrderStockConfirmedIntegrationEvent(
+    Guid OrderId) : IntegrationEvent;
+
 public sealed record OrderPaidIntegrationEvent(
     Guid OrderId,
     string OrderNumber,
     Money TotalAmount) : IntegrationEvent;
 
-public sealed record OrderCreatedIntegrationEvent(
+/// <summary>
+///     Raised when an order is cancelled.
+///     PreviousStatus indicates whether payment was taken (requires refund).
+/// </summary>
+public sealed record OrderCancelledIntegrationEvent(
     Guid OrderId,
-    string OrderNumber,
-    Guid CustomerId) : IntegrationEvent;
+    string Reason,
+    string PreviousStatus) : IntegrationEvent;
 
 public sealed record PaymentCompletedIntegrationEvent(
     Guid TransactionId,
@@ -48,3 +78,13 @@ public sealed record StockDeductedIntegrationEvent(
     Guid OrderId,
     int Quantity,
     int NewTotal) : IntegrationEvent;
+
+/// <summary>
+///     Raised when a stock reservation is released (e.g., order cancelled during grace period).
+/// </summary>
+public sealed record StockReservationReleasedIntegrationEvent(
+    Guid StockId,
+    Guid ProductId,
+    Guid OrderId,
+    int Quantity,
+    int NewAvailable) : IntegrationEvent;

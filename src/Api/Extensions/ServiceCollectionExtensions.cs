@@ -52,8 +52,7 @@ public static class ServiceCollectionExtensions
                 typeof(ReserveStockCommand).Assembly,
                 typeof(OrderPaidIntegrationEventHandler).Assembly,
                 typeof(CreateOrderCommand).Assembly,
-                typeof(PaymentCompletedIntegrationEventHandler).Assembly,
-                typeof(OrderCreatedIntegrationEventHandler).Assembly
+                typeof(PaymentCompletedIntegrationEventHandler).Assembly
             );
         });
 

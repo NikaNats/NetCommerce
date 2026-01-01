@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Ordering.Infrastructure.BackgroundJobs;
 using NetCommerce.Ordering.Infrastructure.Outbox;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
@@ -35,6 +36,10 @@ public static class OrderingModule
 
         // Dead-letter handler for compensating actions when outbox messages exhaust retries
         services.AddScoped<IOutboxDeadLetterHandler<OrderingDbContext>, OrderingOutboxDeadLetterHandler>();
+
+        // Grace Period configuration and background service
+        services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));
+        services.AddHostedService<GracePeriodManagerService>();
 
         return services;
     }

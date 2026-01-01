@@ -47,7 +47,7 @@ public sealed class Order : AggregateRoot<Guid>
             Id = Guid.NewGuid(),
             OrderNumber = GenerateOrderNumber(),
             CustomerId = customerId,
-            Status = OrderStatus.Pending,
+            Status = OrderStatus.Submitted,
             ShippingAddress = shippingAddress,
             CreatedAt = DateTime.UtcNow,
             IdempotencyKey = idempotencyKey,
@@ -55,7 +55,8 @@ public sealed class Order : AggregateRoot<Guid>
             TotalAmount = Money.Zero()
         };
 
-        order.RaiseDomainEvent(new OrderCreatedDomainEvent(order.Id, order.OrderNumber, customerId));
+        // Triggers "Soft Reservation" in Inventory module via integration event
+        order.RaiseDomainEvent(new OrderSubmittedDomainEvent(order.Id, order.OrderNumber, customerId));
 
         return order;
     }
@@ -71,8 +72,8 @@ public sealed class Order : AggregateRoot<Guid>
         int quantity,
         string? sku = null)
     {
-        if (Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Cannot add items to non-pending order");
+        if (Status != OrderStatus.Submitted)
+            throw new InvalidOperationException("Cannot add items to non-submitted order");
 
         var existingItem = _items.FirstOrDefault(i => i.ProductId == productId);
         if (existingItem != null)
@@ -101,11 +102,40 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    ///     Marks order as paid - transitions from Pending to Paid.
+    ///     Called by background worker after grace period ends.
+    ///     Transitions from Submitted to AwaitingValidation.
+    /// </summary>
+    public void ConfirmGracePeriod()
+    {
+        if (Status != OrderStatus.Submitted)
+            return; // Idempotency check - already processed or cancelled
+
+        Status = OrderStatus.AwaitingValidation;
+
+        // Triggers Payment Processing via integration event
+        RaiseDomainEvent(new OrderGracePeriodConfirmedDomainEvent(Id, OrderNumber, CustomerId, TotalAmount));
+    }
+
+    /// <summary>
+    ///     Called when stock is confirmed for the order.
+    ///     Transitions from AwaitingValidation to StockConfirmed.
+    /// </summary>
+    public void ConfirmStock()
+    {
+        if (Status != OrderStatus.AwaitingValidation)
+            throw new InvalidOperationException($"Cannot confirm stock. Current status: {Status}");
+
+        Status = OrderStatus.StockConfirmed;
+
+        RaiseDomainEvent(new OrderStockConfirmedDomainEvent(Id));
+    }
+
+    /// <summary>
+    ///     Marks order as paid - transitions from StockConfirmed to Paid.
     /// </summary>
     public void MarkAsPaid(Guid paymentTransactionId)
     {
-        if (Status != OrderStatus.Pending)
+        if (Status != OrderStatus.StockConfirmed && Status != OrderStatus.AwaitingValidation)
             throw new InvalidOperationException($"Cannot mark order as paid. Current status: {Status}");
 
         Status = OrderStatus.Paid;
@@ -116,23 +146,16 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    ///     Transitions to Processing status.
+    ///     Transitions to Shipped status directly from Paid.
+    ///     Note: Processing status removed in favor of simplified workflow.
     /// </summary>
-    public void StartProcessing()
-    {
-        if (Status != OrderStatus.Paid)
-            throw new InvalidOperationException($"Cannot start processing. Current status: {Status}");
-
-        Status = OrderStatus.Processing;
-        RaiseDomainEvent(new OrderProcessingStartedDomainEvent(Id));
-    }
 
     /// <summary>
     ///     Marks order as shipped.
     /// </summary>
     public void MarkAsShipped(string? trackingNumber = null)
     {
-        if (Status != OrderStatus.Processing)
+        if (Status != OrderStatus.Paid)
             throw new InvalidOperationException($"Cannot mark as shipped. Current status: {Status}");
 
         Status = OrderStatus.Shipped;
@@ -157,6 +180,8 @@ public sealed class Order : AggregateRoot<Guid>
 
     /// <summary>
     ///     Cancels the order.
+    ///     During grace period (Submitted status), cancellation is instant and free.
+    ///     After grace period, may require refunds and compensating transactions.
     /// </summary>
     public void Cancel(string reason)
     {
@@ -164,12 +189,22 @@ public sealed class Order : AggregateRoot<Guid>
             throw new InvalidOperationException($"Cannot cancel order. Current status: {Status}");
 
         var previousStatus = Status;
+        var wasInGracePeriod = Status == OrderStatus.Submitted;
+
         Status = OrderStatus.Cancelled;
         CancelledAt = DateTime.UtcNow;
         CancellationReason = reason;
 
+        // The event handler will check previousStatus to determine if refunds are needed
+        // If previousStatus == Submitted: release stock only, no payment was taken
+        // If previousStatus >= Paid: need to process refunds
         RaiseDomainEvent(new OrderCancelledDomainEvent(Id, reason, previousStatus));
     }
+
+    /// <summary>
+    ///     Checks if the order is still within the grace period.
+    /// </summary>
+    public bool IsInGracePeriod => Status == OrderStatus.Submitted;
 
     private void RecalculateTotal()
     {
@@ -187,14 +222,43 @@ public sealed class Order : AggregateRoot<Guid>
 }
 
 /// <summary>
-///     Order status workflow.
+///     Order status workflow with grace period support.
 /// </summary>
 public enum OrderStatus
 {
-    Pending = 0, // Order created, awaiting payment
-    Paid = 1, // Payment received
-    Processing = 2, // Order being prepared
-    Shipped = 3, // Order shipped
-    Delivered = 4, // Order delivered
-    Cancelled = 5 // Order cancelled
+    /// <summary>
+    ///     Order placed. Stock is soft reserved. Payment NOT taken.
+    ///     User can cancel freely during grace period.
+    /// </summary>
+    Submitted = 0,
+
+    /// <summary>
+    ///     Grace period is over. Ready for payment capture.
+    /// </summary>
+    AwaitingValidation = 1,
+
+    /// <summary>
+    ///     Stock confirmed for the order.
+    /// </summary>
+    StockConfirmed = 2,
+
+    /// <summary>
+    ///     Payment received.
+    /// </summary>
+    Paid = 3,
+
+    /// <summary>
+    ///     Order shipped.
+    /// </summary>
+    Shipped = 4,
+
+    /// <summary>
+    ///     Order delivered.
+    /// </summary>
+    Delivered = 5,
+
+    /// <summary>
+    ///     Order cancelled.
+    /// </summary>
+    Cancelled = 6
 }
