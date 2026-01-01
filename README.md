@@ -1,190 +1,207 @@
-# NetCommerce - E-Commerce Modular Monolith
+# NetCommerce 🛒
 
-A production-ready e-commerce platform built with .NET 10 and .NET Aspire, following Domain-Driven Design (DDD), Clean Architecture, and the "Modular Monolith First" philosophy.
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/)
+[![Aspire](https://img.shields.io/badge/Aspire-13.1-blueviolet?style=flat-square&logo=dotnet)](https://learn.microsoft.com/en-us/dotnet/aspire/)
+[![Architecture](https://img.shields.io/badge/Architecture-Modular%20Monolith-blue?style=flat-square)](https://github.com/kgrzybek/modular-monolith-with-ddd)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
-## 🏗️ Architecture Overview
+> **A production-ready E-Commerce Modular Monolith built with .NET 10 (Preview) and .NET Aspire.**
 
+NetCommerce is a reference implementation demonstrating how to build a highly scalable, maintainable, and distributed-ready application using the "Modular Monolith First" strategy. It leverages Domain-Driven Design (DDD), CQRS, Clean Architecture, and advanced distributed patterns.
+
+---
+
+## 🏗️ Architecture
+
+The system is composed of loosely coupled modules communicating via in-process **MediatR** commands/queries and **Integration Events** (using an in-memory bus that bridges domain events to other modules).
+
+### 🧩 System Overview
+
+```mermaid
+graph TD
+    User(User / Client) --> API[NetCommerce.Api]
+    
+    subgraph "Orchestration (.NET Aspire)"
+        API
+        Dashboard[Aspire Dashboard]
+    end
+
+    subgraph "Modular Monolith"
+        API --> Catalog
+        API --> Basket
+        API --> Ordering
+        API --> Inventory
+        API --> Payments
+        API --> Media
+    end
+
+    subgraph "Infrastructure"
+        Catalog --> DB_Cat[(Postgres: Catalog)]
+        Ordering --> DB_Ord[(Postgres: Ordering)]
+        Inventory --> DB_Inv[(Postgres: Inventory)]
+        Payments --> DB_Pay[(Postgres: Payments)]
+        
+        Basket --> Redis[(Redis)]
+        Inventory --> Redis
+        
+        Ordering --> Keycloak[Keycloak IAM]
+        API --> Keycloak
+        
+        Media --> Blob[Azure Blob / S3]
+        
+        API --> Seq[Seq Logging]
+    end
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    .NET Aspire Dashboard                     │
-│         (Orchestration, Monitoring, Observability)          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                      API Gateway                             │
-│      (Keycloak JWT Auth, Versioning, Health Checks)         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                    Modular Monolith                          │
-├──────────┬──────────┬──────────┬──────────┬─────────────────┤
-│ Catalog  │  Basket  │ Ordering │Inventory │    Payments     │
-│  Module  │  Module  │  Module  │  Module  │     Module      │
-└──────────┴──────────┴──────────┴──────────┴─────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                     Shared Kernel                            │
-│    (Domain Primitives, Results, Events, Abstractions)        │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌──────────┬──────────┬──────────┬──────────┬─────────────────┐
-│PostgreSQL│  Redis   │ Keycloak │  Azure   │      Seq        │
-│(Per-     │(Cache/   │  (IAM)   │  Blob    │   (Logging)     │
-│ Module)  │ Lock)    │          │ Storage  │                 │
-└──────────┴──────────┴──────────┴──────────┴─────────────────┘
-```
 
-## 📦 Modules
+### 📦 Bounded Contexts (Modules)
 
-| Module | Description | Database |
-|--------|-------------|----------|
-| **Catalog** | Products, Categories, Full-Text Search | `CatalogDb` |
-| **Basket** | Shopping Cart (Redis-based) | Redis |
-| **Ordering** | Orders, Price Snapshotting, Outbox | `OrderingDb` |
-| **Inventory** | Stock, Soft Reservations, Redlock | `InventoryDb` |
-| **Payments** | Gateway Abstraction, Ledger | `PaymentsDb` |
-| **Media** | Azure Blob Upload, CDN Links | Azure Storage |
+| Module | Responsibility | Storage Strategy | Key Patterns |
+|:---|:---|:---|:---|
+| **Catalog** | Product management, Categories, Full-Text Search. | `CatalogDb` (Postgres) | CQRS, Read/Write split, Caching Decorators |
+| **Basket** | Temporary shopping cart management. | Redis | Key-Value Store, TTL Expiry |
+| **Ordering** | Order lifecycle, validation, and history. | `OrderingDb` (Postgres) | **Transactional Outbox**, Price Snapshotting, State Machine |
+| **Inventory** | Stock tracking, reservations, low-stock alerts. | `InventoryDb` (Postgres) | **RedLock** (Distributed Lock), **Soft Reservations**, Background Cleanup Jobs |
+| **Payments** | Payment processing (Stripe), ledger, refunds. | `PaymentsDb` (Postgres) | Gateway Abstraction, Compensating Transactions, Idempotency |
+| **Media** | File uploads and CDN URL generation. | Azure Blob / S3 | Presigned URLs, Secure Uploads |
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- .NET 10 SDK
-- Docker Desktop (running)
-- Visual Studio 2022 / VS Code
+*   **.NET 10 SDK** (Preview)
+*   **Docker Desktop** (Required for Aspire containers)
+*   **Visual Studio 2022** (Preview) or **VS Code**
 
-### Running with Aspire
+### Running the Solution
 
-```bash
-dotnet run --project src/NetCommerce.AppHost
+This project uses **.NET Aspire** to orchestrate all infrastructure dependencies (Postgres, Redis, Keycloak, Seq, etc.) automatically. You do **not** need to manually run `docker-compose`.
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/nikanats-netcommerce.git
+    cd nikanats-netcommerce
+    ```
+
+2.  **Trust the development certificate:**
+    ```bash
+    dotnet dev-certs https --trust
+    ```
+
+3.  **Run the AppHost:**
+    ```bash
+    dotnet run --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
+    ```
+
+4.  **Access the Environment:**
+    *   **Aspire Dashboard:** `https://localhost:17225` (Check console output for exact port)
+    *   **Swagger UI:** `{API_URL}/swagger` (Log in using Keycloak via Swagger's Authorize button)
+    *   **Keycloak Admin:** `http://localhost:8080`
+    *   **pgAdmin:** `http://localhost:5050`
+    *   **Seq:** `http://localhost:5341`
+
+---
+
+## 🔐 Authentication & Security
+
+Identity management is handled by **Keycloak**. The solution automatically imports the `netcommerce` realm with pre-configured users and roles.
+
+### Pre-configured Test Users
+
+| Role | Username | Password | Permissions |
+|:---|:---|:---|:---|
+| **Admin** | `admin@netcommerce.com` | `Admin123!` | Full Access, Global Settings |
+| **Vendor** | `vendor@netcommerce.com` | `Vendor123!` | Manage Products, Inventory, Media |
+| **Customer**| `customer@netcommerce.com`| `Customer123!`| Browse Catalog, Basket, Checkout |
+
+> **Note:** The API enforces Role-Based Access Control (RBAC). For example, only **Vendors** can create products, and only **Customers** can place orders.
+
+---
+
+## 🛠️ Technical Implementation Details
+
+### 1. Transactional Outbox Pattern
+We use the Outbox pattern to guarantee eventual consistency between modules.
+*   **Write Side:** When an entity is saved (e.g., `Order`), domain events are serialized and saved to an `OutboxMessages` table in the *same transaction*.
+*   **Processor:** A background worker (`OutboxProcessor`) polls using `SELECT FOR UPDATE SKIP LOCKED` to process messages concurrently without race conditions.
+*   **Dead Letter:** Failed messages are retried (exp. backoff) and moved to a dead-letter state if they permanently fail.
+
+### 2. Inventory Concurrency (RedLock)
+To prevent overselling during high-concurrency events (like a PS5 launch), the Inventory module uses **RedLock** (via Redis) to serialize access to specific stock items during the reservation phase.
+```csharp
+// Example from ReserveStockCommandHandler.cs
+await using var lock = await _lockService.TryAcquireLockAsync(
+    resource: $"stock:reserve:{productId}",
+    expiryTime: TimeSpan.FromSeconds(30), ...);
 ```
 
-This starts via Aspire orchestration:
-- **PostgreSQL** with per-module databases (CatalogDb, OrderingDb, InventoryDb, PaymentsDb)
-- **pgAdmin** on port 5050
-- **Redis** with RedisInsight
-- **Keycloak** for authentication
-- **Azurite** (Azure Blob Storage emulator)
-- **Seq** for structured logging
-- **Aspire Dashboard** with OpenTelemetry
+### 3. Soft Reservations
+Stock is not deducted immediately upon adding to the cart or checkout start.
+*   **Reserve:** Creates a `StockReservation` record valid for **15 minutes**.
+*   **Confirm:** Deducts actual quantity upon successful payment.
+*   **Cleanup:** A background job (`ReservationCleanupJob`) runs every minute to release expired reservations back to the available pool.
 
-Access:
-- **Aspire Dashboard**: https://localhost:17225 (shown in console)
-- **API**: Dynamically assigned (check dashboard)
-- **Swagger**: `{API_URL}/swagger`
-- **Health Check**: `{API_URL}/health/ready`
+### 4. Idempotency
+Critical mutation endpoints (e.g., `POST /orders`, `POST /payments`) implement idempotency via the `X-Idempotency-Key` header.
+*   Requests are cached in Redis.
+*   Duplicate requests with the same key return the *original* response without re-executing logic.
 
-## 🔐 Authentication with Keycloak
+### 5. Price Snapshotting
+When an Order is created, we capture the **Applied Price** and **Applied Title** of the product at that exact moment. This ensures that future price/name changes in the Catalog module do not corrupt historical order data.
 
-JWT-based authentication via Keycloak with role-based access control.
+---
 
-### Test Users
+## 🧪 Testing Strategy
 
-| Email | Password | Role |
-|-------|----------|------|
-| admin@netcommerce.com | Admin123! | admin |
-| customer@netcommerce.com | Customer123! | customer |
-| vendor@netcommerce.com | Vendor123! | vendor |
+The solution includes a comprehensive testing pyramid:
 
-### Getting a Token
+| Project | Type | Description |
+|:---|:---|:---|
+| `NetCommerce.Domain.Tests` | **Unit** | Tests aggregates, value objects, and domain logic (e.g., `Stock.Reserve`). Uses **Bogus** for data generation. |
+| `NetCommerce.Architecture.Tests` | **Architecture** | Enforces Clean Architecture rules using **NetArchTest**. Ensures Domain layers do not depend on Infrastructure or ASP.NET Core. |
+| `NetCommerce.Integration.Tests` | **Integration** | Uses **Testcontainers** (Postgres/Redis) and **Respawn** to test repositories and EF Core commands against real databases. Includes **WireMock.Net** for payment gateway simulation. |
+| `NetCommerce.LoadTests` | **Load** | Uses **NBomber** to simulate high-traffic scenarios like "Flash Sales" and "Stock Concurrency" to verify locking mechanisms. |
 
-Use Swagger UI's "Authorize" button or request directly:
-
-```http
-POST {KEYCLOAK_URL}/realms/netcommerce/protocol/openid-connect/token
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=password&client_id=netcommerce-api&username=customer@netcommerce.com&password=Customer123!
-```
-
-## 🔑 Key Features
-
-### Non-Functional Requirements
-- ✅ **API Versioning** (`/api/v1/`)
-- ✅ **Idempotency Keys** (`X-Idempotency-Key` header)
-- ✅ **Distributed Locking** (Redis Redlock)
-- ✅ **Structured Logging** (Seq + OpenTelemetry)
-- ✅ **Health Checks** (`/health/ready`, `/health/alive`)
-- ✅ **Correlation IDs** (`X-Correlation-ID`)
-- ✅ **Optimistic Concurrency** (Row Version)
-- ✅ **Resilience** (Polly via Aspire)
-
-### Patterns Implemented
-- **CQRS** - Command Query Responsibility Segregation
-- **Result Pattern** - Explicit error handling
-- **Domain Events** - Loose coupling between aggregates
-- **Transactional Outbox** - Guaranteed event delivery
-- **Price Snapshotting** - Historical data preservation
-- **Soft Reservations** - 15-minute inventory holds
-
-## 📁 Project Structure
-
-```
-NetCommerce/
-├── src/
-│   ├── NetCommerce.AppHost/        # Aspire Orchestration
-│   │   ├── Program.cs              # Infrastructure definition
-│   │   └── realms/                 # Keycloak realm config
-│   ├── NetCommerce.ServiceDefaults/# OpenTelemetry, Health, Polly
-│   ├── Api/                        # ASP.NET Core Host
-│   │   ├── Controllers/
-│   │   ├── Middleware/
-│   │   ├── Authentication/         # Keycloak JWT setup
-│   │   └── Extensions/
-│   ├── Shared/
-│   │   ├── SharedKernel/           # Domain primitives
-│   │   └── SharedKernel.Infrastructure/
-│   ├── Catalog/
-│   │   ├── Domain/                 # Entities, Value Objects
-│   │   ├── Application/            # CQRS Handlers
-│   │   └── Infrastructure/         # EF Core, Repositories
-│   ├── Basket/
-│   ├── Ordering/
-│   ├── Inventory/
-│   ├── Payments/
-│   └── Media/
-├── NetCommerce.sln
-└── README.md
-```
-
-## 📊 Database Migrations
-
-Each module has its own database. Run migrations:
-
-```bash
-# Catalog module
-dotnet ef migrations add InitialCatalog -p src/Catalog/Infrastructure -s src/Api -c CatalogDbContext
-
-# Apply migrations
-dotnet ef database update -p src/Catalog/Infrastructure -s src/Api -c CatalogDbContext
-```
-
-## 🧪 Testing
-
+**Run all tests:**
 ```bash
 dotnet test
 ```
 
-## 📈 Scalability Roadmap
+---
 
-1. **Phase 1 (MVP)**: Modular Monolith with Aspire ✅
-2. **Phase 2 (Growth)**: RabbitMQ, Hangfire Workers
-3. **Phase 3 (Enterprise)**: Extract to Microservices, Kubernetes
+## 📂 Project Structure
 
-## 🛠️ Technology Stack
+```text
+nikanats-netcommerce/
+├── src/
+│   ├── Api/                      # API Host (Minimal APIs)
+│   ├── NetCommerce.AppHost/      # .NET Aspire Orchestrator
+│   ├── NetCommerce.ServiceDefaults/ # Aspire shared config (OpenTelemetry, etc.)
+│   ├── Shared/                   # Shared Kernel (Abstractions, Base Classes)
+│   │
+│   ├── Catalog/                  # [Module] Products & Categories
+│   ├── Basket/                   # [Module] Redis Shopping Cart
+│   ├── Ordering/                 # [Module] Order Management
+│   ├── Inventory/                # [Module] Stock & Reservations
+│   ├── Payments/                 # [Module] Stripe Integration
+│   └── Media/                    # [Module] Azure Blob/S3 Storage
+│
+└── tests/                        # Unit, Arch, Integration & Load Tests
+```
 
-- **.NET 10** - Latest framework
-- **.NET Aspire 13.1** - Cloud-native orchestration
-- **PostgreSQL** - Per-module databases
-- **Redis** - Cache, Basket, Distributed Locks
-- **Keycloak** - Identity & Access Management
-- **Azure Blob Storage** - Object storage (Azurite locally)
-- **Seq** - Structured logging & tracing
-- **OpenTelemetry** - Distributed tracing & metrics
-- **Polly** - Resilience & retry policies
-- **MediatR** - CQRS mediator
-- **FluentValidation** - Request validation
-- **EF Core** - ORM with PostgreSQL
+---
 
-## 📝 License
+## 🔮 Scalability Roadmap
 
-MIT
+The current architecture is a **Modular Monolith**. It is designed to be easily split into microservices if scaling requirements demand it.
+
+1.  **Phase 1 (Current):** Single deployment unit, modules separated by namespaces/assemblies, communicating via in-memory MediatR.
+2.  **Phase 2 (Async Messaging):** Replace in-memory event bus with **RabbitMQ** or **Azure Service Bus** (Outbox processor supports this switch easily).
+3.  **Phase 3 (Extraction):** Isolate a "hot" module (e.g., Inventory) into a separate container/service without rewriting domain logic.
+
+---
+
+## 📜 License
+
+This project is licensed under the **MIT License**.
+```
