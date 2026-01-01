@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Catalog.Application.Categories.Mappers;
@@ -41,7 +42,14 @@ public static class CatalogModule
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CatalogDbContext>());
 
         // Repositories
-        services.AddScoped<IProductRepository, ProductRepository>();
+        // Product repository with caching decorator for enterprise-scale read performance
+        services.AddScoped<ProductRepository>();
+        services.AddScoped<IProductRepository>(provider =>
+            new CachedProductRepository(
+                provider.GetRequiredService<ProductRepository>(),
+                provider.GetRequiredService<IDistributedCache>()
+            ));
+        
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 
         // Mappers (DRY/KISS - centralized mapping logic)
