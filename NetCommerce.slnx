@@ -48,6 +48,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/NetCommerce.Architecture.Tests/NetCommerce.Architecture.Tests.csproj" />
+    <Project Path="tests/NetCommerce.AppHost.Tests/NetCommerce.AppHost.Tests.csproj" />
     <Project Path="tests/NetCommerce.Domain.Tests/NetCommerce.Domain.Tests.csproj" />
     <Project Path="tests/NetCommerce.Integration.Tests/NetCommerce.Integration.Tests.csproj" />
     <Project Path="tests/NetCommerce.LoadTests/NetCommerce.LoadTests.csproj" />
