@@ -3,10 +3,14 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Catalog.Domain.Categories;
 
 /// <summary>
-/// Category aggregate root for organizing products.
+///     Category aggregate root for organizing products.
 /// </summary>
 public sealed class Category : AggregateRoot<Guid>
 {
+    private Category()
+    {
+    }
+
     public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
     public string Slug { get; private set; } = string.Empty;
@@ -14,8 +18,6 @@ public sealed class Category : AggregateRoot<Guid>
     public int DisplayOrder { get; private set; }
     public bool IsActive { get; private set; }
     public string? ImageKey { get; private set; }
-
-    private Category() { }
 
     public static Category Create(
         string name,

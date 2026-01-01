@@ -138,7 +138,7 @@ public class StockTests
     public void Reserve_WhenResultsInLowStock_ShouldRaise_LowStockAlertDomainEvent()
     {
         // Arrange
-        var stock = StockFaker.Generate(15, 10);
+        var stock = StockFaker.Generate(15);
 
         // Act
         stock.Reserve(Guid.NewGuid(), 10);
@@ -320,7 +320,7 @@ public class StockTests
     public void IsLowStock_WhenBelowThreshold_ShouldReturnTrue()
     {
         // Arrange
-        var stock = StockFaker.Generate(10, 10);
+        var stock = StockFaker.Generate(10);
 
         // Assert
         stock.IsLowStock.ShouldBeTrue();
@@ -330,7 +330,7 @@ public class StockTests
     public void IsLowStock_WhenAboveThreshold_ShouldReturnFalse()
     {
         // Arrange
-        var stock = StockFaker.Generate(100, 10);
+        var stock = StockFaker.Generate(100);
 
         // Assert
         stock.IsLowStock.ShouldBeFalse();
@@ -340,7 +340,7 @@ public class StockTests
     public void IsLowStock_ShouldConsiderReservations()
     {
         // Arrange
-        var stock = StockFaker.Generate(20, 10);
+        var stock = StockFaker.Generate(20);
         stock.IsLowStock.ShouldBeFalse();
 
         // Act

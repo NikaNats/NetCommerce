@@ -67,7 +67,7 @@ public class CheckoutFlowLoadTests
                 var reserveResponse = await Http.Send(httpClient, reserveRequest);
                 // 409 Conflict means out of stock - expected in flash sale
                 if (reserveResponse.StatusCode == "409")
-                    return Response.Ok(statusCode: "409", 0);
+                    return Response.Ok("409", 0);
                 if (reserveResponse.IsError)
                     return Response.Fail(statusCode: reserveResponse.StatusCode);
 
@@ -116,7 +116,7 @@ public class CheckoutFlowLoadTests
 
                 return paymentResponse.IsError
                     ? Response.Fail(statusCode: paymentResponse.StatusCode)
-                    : Response.Ok(statusCode: paymentResponse.StatusCode, paymentResponse.SizeBytes);
+                    : Response.Ok(paymentResponse.StatusCode, paymentResponse.SizeBytes);
             })
             .WithoutWarmUp()
             .WithLoadSimulations(
@@ -171,7 +171,7 @@ public class CheckoutFlowLoadTests
 
                 return response.IsError
                     ? Response.Fail(statusCode: response.StatusCode)
-                    : Response.Ok(statusCode: response.StatusCode, response.SizeBytes);
+                    : Response.Ok(response.StatusCode, response.SizeBytes);
             })
             .WithoutWarmUp()
             .WithLoadSimulations(
