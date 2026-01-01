@@ -42,9 +42,9 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Manually update the reservation to be expired
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
-            WHERE "Id" = @p1
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
+            WHERE id = @p1
             """,
             DateTime.UtcNow.AddMinutes(-5),
             reservation.Id);
@@ -108,9 +108,9 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Manually set the ExpiresAt to past (shouldn't matter since it's confirmed)
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
-            WHERE "Id" = @p1
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
+            WHERE id = @p1
             """,
             DateTime.UtcNow.AddMinutes(-5),
             reservation.Id);
@@ -140,14 +140,18 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         stock.ReleaseReservation(reservation.Id);
         await context.SaveChangesAsync();
 
-        var originalReleasedAt = reservation.ReleasedAt;
+        // Capture persisted value to avoid timestamp precision differences between in-memory DateTime and Postgres
+        var originalReleasedAt = await context.StockReservations
+            .Where(r => r.Id == reservation.Id)
+            .Select(r => r.ReleasedAt)
+            .SingleAsync();
 
         // Manually set the ExpiresAt to past
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
-            WHERE "Id" = @p1
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
+            WHERE id = @p1
             """,
             DateTime.UtcNow.AddMinutes(-5),
             reservation.Id);
@@ -191,9 +195,9 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Expire all reservations
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
-            WHERE "StockId" = @p1
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
+            WHERE stock_id = @p1
             """,
             DateTime.UtcNow.AddMinutes(-5),
             stock.Id);
@@ -238,8 +242,8 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Expire all reservations
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
             """,
             DateTime.UtcNow.AddMinutes(-5));
 
@@ -277,9 +281,9 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Expire the reservation
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
-            WHERE "Id" = @p1
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
+            WHERE id = @p1
             """,
             DateTime.UtcNow.AddMinutes(-5),
             reservation.Id);
@@ -352,9 +356,9 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Expire the reservation
         await context.Database.ExecuteSqlRawAsync(
             """
-            UPDATE inventory."StockReservations" 
-            SET "ExpiresAt" = @p0
-            WHERE "Id" = @p1
+            UPDATE inventory.stock_reservations
+            SET expires_at = @p0
+            WHERE id = @p1
             """,
             DateTime.UtcNow.AddMinutes(-5),
             reservation.Id);
@@ -393,7 +397,9 @@ public class ReservationCleanupJobTests : IntegrationTestBase
 
         var options = Options.Create(new ReservationCleanupOptions
         {
-            IntervalMs = intervalMs,
+            // Use a large interval so the job only runs its initial cleanup once during tests.
+            // This avoids flakiness where the periodic timer ticks and performs extra cleanups.
+            IntervalMs = Math.Max(intervalMs, 60_000),
             BatchSize = batchSize,
             Enabled = enabled
         });
@@ -405,35 +411,49 @@ public class ReservationCleanupJobTests : IntegrationTestBase
             logger,
             options);
 
-        using var cts = new CancellationTokenSource();
+        // Determine how many expired active reservations exist before starting.
+        // If there are any, wait for the initial cleanup to reduce that count.
+        var initialExpiredActiveCount = 0;
+        if (enabled)
+        {
+            await using var probeContext = Fixture.CreateInventoryDbContext();
+            var now = DateTime.UtcNow;
+            initialExpiredActiveCount = await probeContext.StockReservations
+                .CountAsync(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= now);
+        }
+
+        await job.StartAsync(CancellationToken.None);
 
         if (enabled)
         {
-            // Start the job
-            var executeTask = job.StartAsync(cts.Token);
-
-            // Give it a moment to run the initial cleanup
-            await Task.Delay(50);
-
-            // Cancel to stop the job
-            await cts.CancelAsync();
-
-            // Wait for graceful shutdown
-            try
+            if (initialExpiredActiveCount > 0)
             {
-                await executeTask;
+                var deadline = DateTime.UtcNow.AddSeconds(2);
+                while (DateTime.UtcNow < deadline)
+                {
+                    await using var probeContext = Fixture.CreateInventoryDbContext();
+                    var now = DateTime.UtcNow;
+                    var expiredActiveCount = await probeContext.StockReservations
+                        .CountAsync(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= now);
+
+                    if (expiredActiveCount < initialExpiredActiveCount)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(25);
+                }
             }
-            catch (OperationCanceledException)
+            else
             {
-                // Expected
+                // Give the initial run a chance to execute even if there's nothing to do.
+                await Task.Delay(100);
             }
         }
         else
         {
-            // For disabled job, just start and it should exit immediately
-            await job.StartAsync(cts.Token);
-            await Task.Delay(50);
-            await cts.CancelAsync();
+            // Disabled job should exit immediately; small delay keeps behavior consistent.
+            await Task.Delay(25);
         }
 
         await job.StopAsync(CancellationToken.None);

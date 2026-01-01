@@ -24,6 +24,18 @@ public sealed record PaymentCompletedIntegrationEvent(
     Guid OrderId,
     Money Amount) : IntegrationEvent;
 
+/// <summary>
+/// Raised when inventory confirmation cannot be completed after a successful payment
+/// and the originating outbox message has exhausted retries.
+/// Used to trigger compensating actions (e.g., refund) or support alerting.
+/// </summary>
+public sealed record OrderInventoryConfirmationFailedIntegrationEvent(
+    Guid OrderId,
+    Guid PaymentTransactionId,
+    Money Amount,
+    string FailureReason,
+    string? FailureDetails) : IntegrationEvent;
+
 public sealed record StockReservedIntegrationEvent(
     Guid StockId,
     Guid ProductId,

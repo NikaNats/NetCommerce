@@ -101,6 +101,7 @@ FOR UPDATE SKIP LOCKED";
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        var deadLetterHandler = scope.ServiceProvider.GetService<IOutboxDeadLetterHandler<TDbContext>>();
 
         // Use an explicit transaction to ensure FOR UPDATE SKIP LOCKED works correctly
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -144,7 +145,7 @@ FOR UPDATE SKIP LOCKED";
             await transaction.CommitAsync(cancellationToken);
 
             // Process messages outside the transaction to avoid long-running transactions
-            await ProcessClaimedMessagesAsync(dbContext, mediator, messages, cancellationToken);
+            await ProcessClaimedMessagesAsync(dbContext, mediator, deadLetterHandler, messages, cancellationToken);
         }
         catch (Exception)
         {
@@ -156,6 +157,7 @@ FOR UPDATE SKIP LOCKED";
     private async Task ProcessClaimedMessagesAsync(
         TDbContext dbContext,
         IMediator mediator,
+        IOutboxDeadLetterHandler<TDbContext>? deadLetterHandler,
         List<OutboxMessage> messages,
         CancellationToken cancellationToken)
     {
@@ -190,7 +192,24 @@ FOR UPDATE SKIP LOCKED";
                     "Failed to process outbox message {MessageId} of type {Type}. Retry {Retry}/{MaxRetries}",
                     message.Id, message.Type, message.RetryCount + 1, _options.MaxRetries);
                 
+                var domainEvent = DeserializeDomainEvent(message);
                 message.MarkAsFailed(ex.Message, _options.MaxRetries);
+
+                if (message.Status == OutboxMessageStatus.Failed && deadLetterHandler is not null)
+                {
+                    try
+                    {
+                        await deadLetterHandler.HandleAsync(message, domainEvent, ex, cancellationToken);
+                    }
+                    catch (Exception handlerEx)
+                    {
+                        _logger.LogCritical(
+                            handlerEx,
+                            "Dead-letter handler failed for outbox message {MessageId} of type {Type}",
+                            message.Id,
+                            message.Type);
+                    }
+                }
             }
         }
 

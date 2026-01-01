@@ -6,6 +6,8 @@ using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
+using NetCommerce.SharedKernel.Domain;
+using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 
 namespace NetCommerce.Inventory.Infrastructure;
 
@@ -23,6 +25,9 @@ public static class InventoryModule
                 connectionString,
                 b => b.MigrationsHistoryTable("__EFMigrationsHistory", InventoryDbContext.Schema)));
 
+        // Register UnitOfWork
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<InventoryDbContext>());
+
         // Repositories
         services.AddScoped<IStockRepository, StockRepository>();
 
@@ -35,6 +40,9 @@ public static class InventoryModule
             .ValidateOnStart();
 
         services.AddHostedService<ReservationCleanupJob>();
+
+        // Outbox Processor for guaranteed event delivery
+        services.AddOutboxProcessor<InventoryDbContext>(configuration);
 
         return services;
     }

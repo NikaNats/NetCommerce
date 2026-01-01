@@ -119,7 +119,7 @@ public sealed class ConfirmOrderCommandHandler : ICommandHandler<ConfirmOrderCom
 
         try
         {
-            order.MarkAsPaid();
+            order.MarkAsPaid(request.PaymentTransactionId);
             _orderRepository.Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Result.Success();

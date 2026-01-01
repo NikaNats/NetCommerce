@@ -18,6 +18,7 @@ public sealed class Order : AggregateRoot<Guid>
     public BillingAddress? BillingAddress { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? PaidAt { get; private set; }
+    public Guid? PaymentTransactionId { get; private set; }
     public DateTime? ShippedAt { get; private set; }
     public DateTime? DeliveredAt { get; private set; }
     public DateTime? CancelledAt { get; private set; }
@@ -100,15 +101,16 @@ public sealed class Order : AggregateRoot<Guid>
     /// <summary>
     /// Marks order as paid - transitions from Pending to Paid.
     /// </summary>
-    public void MarkAsPaid(string? paymentReference = null)
+    public void MarkAsPaid(Guid paymentTransactionId)
     {
         if (Status != OrderStatus.Pending)
             throw new InvalidOperationException($"Cannot mark order as paid. Current status: {Status}");
 
         Status = OrderStatus.Paid;
         PaidAt = DateTime.UtcNow;
+        PaymentTransactionId = paymentTransactionId;
 
-        RaiseDomainEvent(new OrderPaidDomainEvent(Id, OrderNumber, TotalAmount));
+        RaiseDomainEvent(new OrderPaidDomainEvent(Id, paymentTransactionId, OrderNumber, TotalAmount));
     }
 
     /// <summary>

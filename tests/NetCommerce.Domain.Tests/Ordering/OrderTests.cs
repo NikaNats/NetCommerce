@@ -111,7 +111,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => 
@@ -131,7 +131,7 @@ public class OrderTests
         order.ClearDomainEvents();
 
         // Act
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
 
         // Assert
         order.Status.ShouldBe(OrderStatus.Paid);
@@ -144,10 +144,10 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => order.MarkAsPaid());
+        Should.Throw<InvalidOperationException>(() => order.MarkAsPaid(Guid.NewGuid()));
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
         order.ClearDomainEvents();
 
         // Act
@@ -181,7 +181,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
         order.StartProcessing();
         order.ClearDomainEvents();
 
@@ -201,7 +201,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
         order.StartProcessing();
         order.MarkAsShipped();
         order.ClearDomainEvents();
@@ -241,7 +241,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
         order.ClearDomainEvents();
 
         // Act
@@ -257,7 +257,7 @@ public class OrderTests
     {
         // Arrange
         var order = OrderFaker.GenerateWithItems();
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
         order.StartProcessing();
         order.MarkAsShipped();
         order.MarkAsDelivered();
@@ -293,7 +293,7 @@ public class OrderTests
         order.AddItem(Guid.NewGuid(), "PS5", Money.Create(499.99m), 1);
         order.Status.ShouldBe(OrderStatus.Pending);
         
-        order.MarkAsPaid();
+        order.MarkAsPaid(Guid.NewGuid());
         order.Status.ShouldBe(OrderStatus.Paid);
         
         order.StartProcessing();

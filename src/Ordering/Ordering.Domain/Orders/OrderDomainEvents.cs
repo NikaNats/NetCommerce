@@ -11,6 +11,7 @@ public sealed record OrderCreatedDomainEvent(
 
 public sealed record OrderPaidDomainEvent(
     Guid OrderId,
+    Guid PaymentTransactionId,
     string OrderNumber,
     Money TotalAmount) : DomainEvent;
 

@@ -35,8 +35,8 @@ public sealed class PaymentCompletedIntegrationEventHandler : INotificationHandl
                 notification.TransactionId,
                 notification.OrderId);
 
-            // Send command to mark order as paid
-            var command = new ConfirmOrderCommand(notification.OrderId);
+            // Send command to mark order as paid and persist payment transaction id
+            var command = new ConfirmOrderCommand(notification.OrderId, notification.TransactionId);
             var result = await _mediator.Send(command, cancellationToken);
 
             if (!result.IsSuccess)
