@@ -30,13 +30,6 @@
     <ProjectReference Include="..\..\src\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Application\Inventory.Application.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Payments\Payments.Domain\Payments.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Payments\Payments.Application\Payments.Application.csproj" />
-    <ProjectReference Include="..\..\src\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Basket\Basket.Application\Basket.Application.csproj" />
-    <ProjectReference Include="..\..\src\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Media\Media.Application\Media.Application.csproj" />
-    <ProjectReference Include="..\..\src\Media\Media.Infrastructure\Media.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\SharedKernel\SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Api\NetCommerce.Api.csproj" />

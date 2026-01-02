@@ -18,13 +18,10 @@
     </PackageReference>
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NSubstitute" />
-    <PackageReference Include="Bogus" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Respawn" />
     <PackageReference Include="WireMock.Net" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,11 +34,7 @@
     <ProjectReference Include="..\..\src\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Application\Inventory.Application.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Payments\Payments.Domain\Payments.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Payments\Payments.Application\Payments.Application.csproj" />
     <ProjectReference Include="..\..\src\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Basket\Basket.Application\Basket.Application.csproj" />
-    <ProjectReference Include="..\..\src\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\SharedKernel\SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Api\NetCommerce.Api.csproj" />
