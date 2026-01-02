@@ -52,7 +52,8 @@ public class OutboxProcessor<TDbContext> : BackgroundService
     private static string GetClaimMessagesSql(string? schema)
     {
         var tableName = string.IsNullOrEmpty(schema) ? "outbox_messages" : $"{schema}.outbox_messages";
-        return @$"SELECT id, type, content, occurred_on, processed_on, error, retry_count, status, processing_started_at, event_id
+        return
+            @$"SELECT id, type, content, occurred_on, processed_on, error, retry_count, status, processing_started_at, event_id
 FROM {tableName}
 WHERE 
     (status = {{0}} AND retry_count < {{1}})
@@ -143,7 +144,8 @@ FOR UPDATE SKIP LOCKED";
             await transaction.CommitAsync(cancellationToken);
 
             // Process messages outside the transaction to avoid long-running transactions
-            await ProcessClaimedMessagesAsync(dbContext, mediator, deadLetterHandler, integrationEventLogService, messages, cancellationToken);
+            await ProcessClaimedMessagesAsync(dbContext, mediator, deadLetterHandler, integrationEventLogService,
+                messages, cancellationToken);
         }
         catch (Exception)
         {
@@ -181,9 +183,7 @@ FOR UPDATE SKIP LOCKED";
 
                 // Mark the integration event log as published
                 if (integrationEventLogService != null)
-                {
                     await integrationEventLogService.MarkEventAsPublishedAsync(message.EventId, cancellationToken);
-                }
 
                 _logger.LogDebug(
                     "Successfully processed outbox message {MessageId} of type {Type}",
@@ -203,12 +203,10 @@ FOR UPDATE SKIP LOCKED";
                 if (message.Status == OutboxMessageStatus.Failed)
                 {
                     if (integrationEventLogService != null)
-                    {
-                        await integrationEventLogService.MarkEventAsFailedAsync(message.EventId, ex.Message, cancellationToken);
-                    }
+                        await integrationEventLogService.MarkEventAsFailedAsync(message.EventId, ex.Message,
+                            cancellationToken);
 
                     if (deadLetterHandler is not null)
-                    {
                         try
                         {
                             await deadLetterHandler.HandleAsync(message, domainEvent, ex, cancellationToken);
@@ -221,7 +219,6 @@ FOR UPDATE SKIP LOCKED";
                                 message.Id,
                                 message.Type);
                         }
-                    }
                 }
             }
 

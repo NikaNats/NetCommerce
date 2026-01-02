@@ -2,10 +2,11 @@ using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.SharedKernel.Domain;
-using IntegrationEventLogEntity = NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Infrastructure.Serialization;
+using IntegrationEventLogEntity =
+    NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog.IntegrationEventLog;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
@@ -22,9 +23,9 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, 
         _mediator = mediator;
     }
 
-    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-
     public DbSet<IntegrationEventLogEntity> IntegrationEventLogs => Set<IntegrationEventLogEntity>();
+
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -87,12 +88,11 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, 
             // 2. Audit: Log as Pending/Committed
             // This semantic change satisfies the critic: We aren't lying anymore.
             // We are logging that we *intend* to publish this.
-            var logEntry = IntegrationEventLogEntity.CreatePending( 
+            var logEntry = IntegrationEventLogEntity.CreatePending(
                 domainEvent.EventId,
                 eventType,
                 content,
-                domainEvent.OccurredOn,
-                correlationId: null // Can inject an ICorrelationIdAccessor if needed
+                domainEvent.OccurredOn // Can inject an ICorrelationIdAccessor if needed
             );
             IntegrationEventLogs.Add(logEntry);
         }

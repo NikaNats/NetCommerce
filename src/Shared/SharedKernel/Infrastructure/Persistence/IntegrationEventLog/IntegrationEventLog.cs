@@ -190,5 +190,4 @@ public sealed class IntegrationEventLog
         ProcessedAt = DateTime.UtcNow;
         Error = null;
     }
-
 }

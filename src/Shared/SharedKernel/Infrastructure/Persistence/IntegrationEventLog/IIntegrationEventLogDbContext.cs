@@ -10,5 +10,4 @@ public interface IIntegrationEventLogDbContext
     DbSet<IntegrationEventLog> IntegrationEventLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
-
 }

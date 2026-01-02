@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -320,7 +321,8 @@ public class IntegrationEventLogTests : IntegrationTestBase
 
         // Assert - Event log should be marked as Published
         await using var verifyContext = Fixture.CreateOrderingDbContext();
-        var updatedEventLog = await verifyContext.IntegrationEventLogs.FirstAsync(e => e.EventId == initialEventLog.EventId);
+        var updatedEventLog =
+            await verifyContext.IntegrationEventLogs.FirstAsync(e => e.EventId == initialEventLog.EventId);
         updatedEventLog.Status.ShouldBe(IntegrationEventLogStatus.Published);
         updatedEventLog.TimesSent.ShouldBe(1);
     }
@@ -362,10 +364,7 @@ public class IntegrationEventLogTests : IntegrationTestBase
         var processor = new TestableOutboxProcessorWithEventLog(scopeFactory, logger, options);
 
         // Act - Process multiple times to exceed max retries
-        for (var i = 0; i < 3; i++)
-        {
-            await processor.ProcessMessagesOnceAsync(CancellationToken.None);
-        }
+        for (var i = 0; i < 3; i++) await processor.ProcessMessagesOnceAsync(CancellationToken.None);
 
         // Assert - Event log should be marked as Failed
         await using var verifyContext = Fixture.CreateOrderingDbContext();
@@ -405,10 +404,7 @@ public class IntegrationEventLogTests : IntegrationTestBase
         await using var context = Fixture.CreateOrderingDbContext();
 
         // Create multiple orders
-        for (var i = 0; i < 5; i++)
-        {
-            context.Orders.Add(CreateTestOrder(i.ToString()));
-        }
+        for (var i = 0; i < 5; i++) context.Orders.Add(CreateTestOrder(i.ToString()));
 
         // Act
         await context.SaveChangesAsync();
@@ -417,10 +413,7 @@ public class IntegrationEventLogTests : IntegrationTestBase
         var eventLogs = await context.IntegrationEventLogs.ToListAsync();
         var outboxMessages = await context.OutboxMessages.ToListAsync();
 
-        foreach (var eventLog in eventLogs)
-        {
-            outboxMessages.ShouldContain(o => o.EventId == eventLog.EventId);
-        }
+        foreach (var eventLog in eventLogs) outboxMessages.ShouldContain(o => o.EventId == eventLog.EventId);
     }
 
     #endregion
@@ -514,7 +507,7 @@ internal class TestableOutboxProcessorWithEventLog : OutboxProcessor<OrderingDbC
     {
         var method = typeof(OutboxProcessor<OrderingDbContext>)
             .GetMethod("ProcessOutboxMessagesAsync",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                BindingFlags.NonPublic | BindingFlags.Instance);
 
         if (method != null)
         {

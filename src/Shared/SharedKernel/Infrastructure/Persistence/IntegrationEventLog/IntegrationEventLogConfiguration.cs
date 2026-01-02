@@ -107,5 +107,4 @@ public class IntegrationEventLogConfiguration : IEntityTypeConfiguration<Integra
         builder.HasIndex(e => new { e.EventType, e.Direction, e.OccurredOn })
             .HasDatabaseName("ix_integration_event_logs_type_direction_occurred");
     }
-
 }

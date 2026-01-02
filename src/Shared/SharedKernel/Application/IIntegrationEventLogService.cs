@@ -1,5 +1,3 @@
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
-
 namespace NetCommerce.SharedKernel.Application;
 
 /// <summary>

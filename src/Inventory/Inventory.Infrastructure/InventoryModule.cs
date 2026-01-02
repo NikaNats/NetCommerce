@@ -39,7 +39,9 @@ public static class InventoryModule
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<InventoryDbContext>());
 
         // Register the specific repository for this module
-        services.AddScoped<IIntegrationEventLogRepository<InventoryDbContext>, IntegrationEventLogRepository<InventoryDbContext>>();
+        services
+            .AddScoped<IIntegrationEventLogRepository<InventoryDbContext>,
+                IntegrationEventLogRepository<InventoryDbContext>>();
 
         // Register the integration event log service for this module
         services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<InventoryDbContext>>();

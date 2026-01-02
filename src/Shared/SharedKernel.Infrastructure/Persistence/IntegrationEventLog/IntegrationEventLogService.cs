@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 

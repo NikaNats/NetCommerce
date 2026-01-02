@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 
 /// <summary>
@@ -16,12 +14,14 @@ public interface IIntegrationEventLogRepository<TContext>
     /// <summary>
     ///     Gets all integration event logs for a specific correlation ID.
     /// </summary>
-    Task<List<IntegrationEventLog>> GetByCorrelationIdAsync(string correlationId, CancellationToken cancellationToken = default);
+    Task<List<IntegrationEventLog>> GetByCorrelationIdAsync(string correlationId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Gets all integration event logs for a specific event type.
     /// </summary>
-    Task<List<IntegrationEventLog>> GetByEventTypeAsync(string eventType, CancellationToken cancellationToken = default);
+    Task<List<IntegrationEventLog>>
+        GetByEventTypeAsync(string eventType, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Gets integration event logs within a date range.
@@ -43,5 +43,4 @@ public interface IIntegrationEventLogRepository<TContext>
     ///     Gets all integration event logs for a specific OpenTelemetry TraceId.
     /// </summary>
     Task<List<IntegrationEventLog>> GetByTraceIdAsync(string traceId, CancellationToken cancellationToken = default);
-
 }

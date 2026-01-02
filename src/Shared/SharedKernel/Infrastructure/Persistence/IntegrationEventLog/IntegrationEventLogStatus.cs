@@ -21,9 +21,9 @@ public enum IntegrationEventLogStatus
     ///     Processing failed.
     /// </summary>
     Failed = 3,
-    
+
     /// <summary>
     ///     (Optional) Updates from the Outbox Processor if you choose to double-write.
     /// </summary>
-    Published = 4 
+    Published = 4
 }

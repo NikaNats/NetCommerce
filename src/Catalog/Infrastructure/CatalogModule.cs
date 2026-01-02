@@ -55,7 +55,9 @@ public static class CatalogModule
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CatalogDbContext>());
 
         // Register the specific repository for this module
-        services.AddScoped<IIntegrationEventLogRepository<CatalogDbContext>, IntegrationEventLogRepository<CatalogDbContext>>();
+        services
+            .AddScoped<IIntegrationEventLogRepository<CatalogDbContext>,
+                IntegrationEventLogRepository<CatalogDbContext>>();
 
         // Register the integration event log service for this module
         services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<CatalogDbContext>>();

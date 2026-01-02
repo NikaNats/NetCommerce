@@ -14,5 +14,4 @@ public enum IntegrationEventLogDirection
     ///     Event was received (incoming to this module).
     /// </summary>
     Received = 2
-
 }

@@ -39,7 +39,9 @@ public static class PaymentsModule
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<PaymentsDbContext>());
 
         // Register the specific repository for this module
-        services.AddScoped<IIntegrationEventLogRepository<PaymentsDbContext>, IntegrationEventLogRepository<PaymentsDbContext>>();
+        services
+            .AddScoped<IIntegrationEventLogRepository<PaymentsDbContext>,
+                IntegrationEventLogRepository<PaymentsDbContext>>();
 
         // Register the integration event log service for this module
         services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<PaymentsDbContext>>();

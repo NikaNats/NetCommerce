@@ -1,6 +1,3 @@
-using MediatR;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 
 /// <summary>

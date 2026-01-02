@@ -16,7 +16,6 @@ using NetCommerce.SharedKernel.Application.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Redis;
-using Scrutor;
 
 namespace NetCommerce.Api.Extensions;
 
@@ -63,7 +62,7 @@ public static class ServiceCollectionExtensions
         // MediatR Pipeline Behaviors
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-    
+
         return services;
     }
 

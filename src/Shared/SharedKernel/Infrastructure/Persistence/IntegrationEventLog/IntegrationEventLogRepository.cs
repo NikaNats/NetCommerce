@@ -15,7 +15,8 @@ public sealed class IntegrationEventLogRepository<TContext> : IIntegrationEventL
         _dbContext = dbContext;
     }
 
-    public async Task<List<IntegrationEventLog>> GetByEventIdAsync(Guid eventId, CancellationToken cancellationToken = default)
+    public async Task<List<IntegrationEventLog>> GetByEventIdAsync(Guid eventId,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.IntegrationEventLogs
             .Where(e => e.EventId == eventId)
@@ -23,7 +24,8 @@ public sealed class IntegrationEventLogRepository<TContext> : IIntegrationEventL
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<IntegrationEventLog>> GetByCorrelationIdAsync(string correlationId, CancellationToken cancellationToken = default)
+    public async Task<List<IntegrationEventLog>> GetByCorrelationIdAsync(string correlationId,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.IntegrationEventLogs
             .Where(e => e.CorrelationId == correlationId)
@@ -31,7 +33,8 @@ public sealed class IntegrationEventLogRepository<TContext> : IIntegrationEventL
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<IntegrationEventLog>> GetByEventTypeAsync(string eventType, CancellationToken cancellationToken = default)
+    public async Task<List<IntegrationEventLog>> GetByEventTypeAsync(string eventType,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.IntegrationEventLogs
             .Where(e => e.EventType == eventType)
@@ -61,12 +64,12 @@ public sealed class IntegrationEventLogRepository<TContext> : IIntegrationEventL
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<List<IntegrationEventLog>> GetByTraceIdAsync(string traceId, CancellationToken cancellationToken = default)
+    public async Task<List<IntegrationEventLog>> GetByTraceIdAsync(string traceId,
+        CancellationToken cancellationToken = default)
     {
         return await _dbContext.IntegrationEventLogs
             .Where(e => e.TraceId == traceId)
             .OrderBy(e => e.LoggedAt)
             .ToListAsync(cancellationToken);
     }
-
 }

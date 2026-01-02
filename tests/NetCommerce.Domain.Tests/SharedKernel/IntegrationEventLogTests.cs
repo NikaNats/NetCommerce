@@ -50,7 +50,7 @@ public class IntegrationEventLogTests
             "TestEvent",
             "{}",
             DateTime.UtcNow,
-            correlationId: correlationId);
+            correlationId);
 
         // Assert
         log.CorrelationId.ShouldBe(correlationId);

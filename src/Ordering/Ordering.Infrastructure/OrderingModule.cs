@@ -39,7 +39,9 @@ public static class OrderingModule
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<OrderingDbContext>());
 
         // Register the specific repository for this module
-        services.AddScoped<IIntegrationEventLogRepository<OrderingDbContext>, IntegrationEventLogRepository<OrderingDbContext>>();
+        services
+            .AddScoped<IIntegrationEventLogRepository<OrderingDbContext>,
+                IntegrationEventLogRepository<OrderingDbContext>>();
 
         // Register the integration event log service for this module
         services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<OrderingDbContext>>();
