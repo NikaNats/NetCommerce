@@ -5,14 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.BackgroundJobs;
-using NetCommerce.Ordering.Infrastructure.Outbox;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Ordering.Infrastructure;
@@ -38,22 +35,8 @@ public static class OrderingModule
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<OrderingDbContext>());
 
-        // Register the specific repository for this module
-        services
-            .AddScoped<IIntegrationEventLogRepository<OrderingDbContext>,
-                IntegrationEventLogRepository<OrderingDbContext>>();
-
-        // Register the integration event log service for this module
-        services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<OrderingDbContext>>();
-
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();
-
-        // Outbox Processor for guaranteed event delivery
-        services.AddOutboxProcessor<OrderingDbContext>(configuration);
-
-        // Dead-letter handler for compensating actions when outbox messages exhaust retries
-        services.AddScoped<IOutboxDeadLetterHandler<OrderingDbContext>, OrderingOutboxDeadLetterHandler>();
 
         // Grace Period configuration and background service
         services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));

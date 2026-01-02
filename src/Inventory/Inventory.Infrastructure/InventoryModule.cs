@@ -11,8 +11,6 @@ using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Inventory.Infrastructure;
@@ -38,14 +36,6 @@ public static class InventoryModule
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<InventoryDbContext>());
 
-        // Register the specific repository for this module
-        services
-            .AddScoped<IIntegrationEventLogRepository<InventoryDbContext>,
-                IntegrationEventLogRepository<InventoryDbContext>>();
-
-        // Register the integration event log service for this module
-        services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<InventoryDbContext>>();
-
         // Repositories
         services.AddScoped<IStockRepository, StockRepository>();
 
@@ -58,9 +48,6 @@ public static class InventoryModule
             .ValidateOnStart();
 
         services.AddHostedService<ReservationCleanupJob>();
-
-        // Outbox Processor for guaranteed event delivery
-        services.AddOutboxProcessor<InventoryDbContext>(configuration);
 
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(InventoryTransactionBehavior<,>));
 

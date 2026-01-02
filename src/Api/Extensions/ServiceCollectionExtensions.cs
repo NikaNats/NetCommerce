@@ -14,7 +14,6 @@ using NetCommerce.Ordering.Infrastructure;
 using NetCommerce.Payments.Infrastructure;
 using NetCommerce.SharedKernel.Application.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Redis;
 
 namespace NetCommerce.Api.Extensions;
@@ -41,7 +40,6 @@ public static class ServiceCollectionExtensions
 
         // Redis services from Aspire-injected IConnectionMultiplexer
         services.AddSingleton<IDistributedLockService, RedisDistributedLockService>();
-        services.AddSingleton<IIdempotencyService, RedisIdempotencyService>();
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         // MediatR with all application assemblies (includes event handlers for cross-module communication)
@@ -77,9 +75,6 @@ public static class ServiceCollectionExtensions
         services.AddInventoryModule(configuration);
         services.AddPaymentsModule(configuration);
         services.AddMediaModule(configuration);
-
-        // Decorate all INotificationHandlers with our Logging Decorator
-        services.Decorate(typeof(INotificationHandler<>), typeof(IntegrationEventLogHandlerDecorator<>));
 
         return services;
     }

@@ -1,20 +1,15 @@
-using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
-using NetCommerce.SharedKernel.Infrastructure.Serialization;
-using IntegrationEventLogEntity =
-    NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog.IntegrationEventLog;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
 /// <summary>
-///     Base DbContext with transactional outbox pattern for guaranteed event delivery.
-///     Domain events are converted to OutboxMessage entities and saved in the same transaction.
+///     Base DbContext with direct domain event dispatch.
+///     Domain events are dispatched via MediatR after SaveChangesAsync completes successfully.
+///     This simplified approach works well for modular monoliths where all handlers run in-process.
 /// </summary>
-public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, IIntegrationEventLogDbContext
+public abstract class BaseDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator _mediator;
 
@@ -23,20 +18,20 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, 
         _mediator = mediator;
     }
 
-    public DbSet<IntegrationEventLogEntity> IntegrationEventLogs => Set<IntegrationEventLogEntity>();
-
-    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         // Update audit fields
         UpdateAuditableEntities();
 
-        // Convert domain events to outbox messages (within same transaction)
-        ConvertDomainEventsToOutboxMessages();
+        // Collect domain events before saving (they'll be cleared after)
+        var domainEvents = GetDomainEvents();
 
-        // Save changes (including outbox messages)
+        // Save changes
         var result = await base.SaveChangesAsync(cancellationToken);
+
+        // Dispatch domain events after successful save
+        // This ensures events are only published if the transaction commits
+        await DispatchDomainEventsAsync(domainEvents, cancellationToken);
 
         return result;
     }
@@ -57,10 +52,9 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, 
     }
 
     /// <summary>
-    ///     Converts domain events from tracked entities to OutboxMessage entries.
-    ///     These will be saved in the same transaction as the entity changes.
+    ///     Collects and clears domain events from tracked entities.
     /// </summary>
-    private void ConvertDomainEventsToOutboxMessages()
+    private List<IDomainEvent> GetDomainEvents()
     {
         var domainEntities = ChangeTracker.Entries<IHasDomainEvents>()
             .Where(e => e.Entity.DomainEvents.Any())
@@ -71,33 +65,22 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, 
             .SelectMany(e => e.DomainEvents)
             .ToList();
 
+        domainEntities.ForEach(e => e.ClearDomainEvents());
+
+        return domainEvents;
+    }
+
+    /// <summary>
+    ///     Dispatches domain events via MediatR.
+    /// </summary>
+    private async Task DispatchDomainEventsAsync(
+        IEnumerable<IDomainEvent> domainEvents,
+        CancellationToken cancellationToken)
+    {
         foreach (var domainEvent in domainEvents)
         {
-            var content = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), JsonDefaults.Options);
-            var eventType = domainEvent.GetType().Name;
-
-            // 1. Operational: Outbox Pattern (Processed & Deleted later)
-            var outboxMessage = OutboxMessage.Create(
-                domainEvent.GetType().AssemblyQualifiedName!,
-                content,
-                domainEvent.OccurredOn,
-                domainEvent.EventId
-            );
-            OutboxMessages.Add(outboxMessage);
-
-            // 2. Audit: Log as Pending/Committed
-            // This semantic change satisfies the critic: We aren't lying anymore.
-            // We are logging that we *intend* to publish this.
-            var logEntry = IntegrationEventLogEntity.CreatePending(
-                domainEvent.EventId,
-                eventType,
-                content,
-                domainEvent.OccurredOn // Can inject an ICorrelationIdAccessor if needed
-            );
-            IntegrationEventLogs.Add(logEntry);
+            await _mediator.Publish(domainEvent, cancellationToken);
         }
-
-        domainEntities.ForEach(e => e.ClearDomainEvents());
     }
 
     private void UpdateAuditableEntities()
@@ -117,13 +100,7 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, 
     {
         base.OnModelCreating(modelBuilder);
 
-        // Apply OutboxMessage configuration
-        modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
-
-        // Apply IntegrationEventLog configuration
-        modelBuilder.ApplyConfiguration(new IntegrationEventLogConfiguration());
-
-        // Configure rowversion for all aggregate roots
+        // Configure rowversion for all aggregate roots (optimistic concurrency)
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             if (typeof(IAggregateRoot).IsAssignableFrom(entityType.ClrType))
                 modelBuilder.Entity(entityType.ClrType)

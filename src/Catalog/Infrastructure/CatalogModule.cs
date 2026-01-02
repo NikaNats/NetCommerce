@@ -8,16 +8,15 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Application.Categories.Mappers;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Mappers;
-using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
+using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Catalog.Infrastructure;
@@ -53,14 +52,6 @@ public static class CatalogModule
 
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CatalogDbContext>());
-
-        // Register the specific repository for this module
-        services
-            .AddScoped<IIntegrationEventLogRepository<CatalogDbContext>,
-                IntegrationEventLogRepository<CatalogDbContext>>();
-
-        // Register the integration event log service for this module
-        services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<CatalogDbContext>>();
 
         // Repositories
         // Product repository with caching decorator for enterprise-scale read performance

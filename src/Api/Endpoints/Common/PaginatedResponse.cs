@@ -1,8 +1,7 @@
 namespace NetCommerce.Api.Endpoints.Common;
 
 /// <summary>
-///     Standard paginated response following RESTful best practices.
-///     Includes pagination metadata and HATEOAS links.
+///     Standard paginated response with pagination metadata.
 /// </summary>
 /// <typeparam name="T">The type of items in the collection.</typeparam>
 public sealed record PaginatedResponse<T>
@@ -18,31 +17,15 @@ public sealed record PaginatedResponse<T>
     public required PaginationMetadata Pagination { get; init; }
 
     /// <summary>
-    ///     HATEOAS links for navigation.
-    /// </summary>
-    public required IReadOnlyList<Link> Links { get; init; }
-
-    /// <summary>
-    ///     Creates a paginated response with proper HATEOAS links.
+    ///     Creates a paginated response.
     /// </summary>
     public static PaginatedResponse<T> Create(
         IReadOnlyList<T> items,
         int page,
         int pageSize,
-        int totalCount,
-        string baseUrl)
+        int totalCount)
     {
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-        var links = new List<Link>
-        {
-            new("self", $"{baseUrl}?page={page}&pageSize={pageSize}", "GET"),
-            new("first", $"{baseUrl}?page=1&pageSize={pageSize}", "GET"),
-            new("last", $"{baseUrl}?page={totalPages}&pageSize={pageSize}", "GET")
-        };
-
-        if (page > 1) links.Add(new Link("prev", $"{baseUrl}?page={page - 1}&pageSize={pageSize}", "GET"));
-
-        if (page < totalPages) links.Add(new Link("next", $"{baseUrl}?page={page + 1}&pageSize={pageSize}", "GET"));
 
         return new PaginatedResponse<T>
         {
@@ -55,8 +38,7 @@ public sealed record PaginatedResponse<T>
                 TotalPages = totalPages,
                 HasPreviousPage = page > 1,
                 HasNextPage = page < totalPages
-            },
-            Links = links
+            }
         };
     }
 }
@@ -96,11 +78,3 @@ public sealed record PaginationMetadata
     /// </summary>
     public required bool HasNextPage { get; init; }
 }
-
-/// <summary>
-///     HATEOAS link for resource navigation.
-/// </summary>
-/// <param name="Rel">The relationship type (e.g., "self", "next", "prev").</param>
-/// <param name="Href">The URI for the link.</param>
-/// <param name="Method">The HTTP method to use.</param>
-public sealed record Link(string Rel, string Href, string Method);

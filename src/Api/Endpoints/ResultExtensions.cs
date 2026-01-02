@@ -1,4 +1,3 @@
-using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Api.Endpoints;
@@ -54,23 +53,6 @@ public static class ResultExtensions
                 statusUri,
                 result.Value
             });
-
-        return result.Error.ToProblemDetails();
-    }
-
-    /// <summary>
-    ///     Converts a Result&lt;T&gt; to a wrapped resource response with HATEOAS links.
-    /// </summary>
-    public static IResult ToResourceResult<T>(this Result<T> result, string selfUrl, params Link[] additionalLinks)
-        where T : class
-    {
-        if (result.IsSuccess)
-        {
-            if (result.Value is null) return Results.NoContent();
-
-            var response = ResourceResponse<T>.Create(result.Value, selfUrl, additionalLinks);
-            return Results.Ok(response);
-        }
 
         return result.Error.ToProblemDetails();
     }

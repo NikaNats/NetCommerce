@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
-using NetCommerce.Api.Middleware;
 using NetCommerce.Catalog.Application.Categories.Commands;
 using NetCommerce.Catalog.Application.Categories.Queries;
 
@@ -9,7 +8,6 @@ namespace NetCommerce.Api.Endpoints.Catalog;
 
 /// <summary>
 ///     RESTful endpoints for Category resources.
-///     Follows best practices: nouns for resources, proper HTTP methods, and HATEOAS links.
 /// </summary>
 public class CategoryEndpoints : IEndpointGroup
 {
@@ -24,7 +22,6 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetAllCategories")
             .WithSummary("Get all categories")
             .WithDescription("Retrieves a hierarchical list of all product categories.")
-            .Produces<CollectionResponse<CategoryResponse>>()
             .AllowAnonymous();
 
         // GET /api/v1/categories/{id} - Get category by ID
@@ -32,7 +29,6 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetCategoryById")
             .WithSummary("Get a category by ID")
             .WithDescription("Retrieves a single category resource by its unique identifier.")
-            .Produces<ResourceResponse<CategoryResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -41,7 +37,6 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetCategoryBySlug")
             .WithSummary("Get a category by slug")
             .WithDescription("Retrieves a single category resource using its SEO-friendly slug identifier.")
-            .Produces<ResourceResponse<CategoryResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -50,7 +45,6 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("GetChildCategories")
             .WithSummary("Get child categories")
             .WithDescription("Retrieves all child categories of the specified parent category.")
-            .Produces<CollectionResponse<CategoryResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -59,11 +53,10 @@ public class CategoryEndpoints : IEndpointGroup
             .WithName("CreateCategory")
             .WithSummary("Create a new category")
             .WithDescription("Creates a new product category. Returns 201 Created with Location header.")
-            .Produces<CategoryResponse>(StatusCodes.Status201Created)
+            .Produces(StatusCodes.Status201Created)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // PUT /api/v1/categories/{id} - Update a category
         group.MapPut("/{id:guid}", Update)
@@ -73,8 +66,7 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // DELETE /api/v1/categories/{id} - Delete a category
         group.MapDelete("/{id:guid}", Delete)
@@ -88,74 +80,50 @@ public class CategoryEndpoints : IEndpointGroup
     }
 
     private static async Task<IResult> GetAll(
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
         var query = new GetAllCategoriesQuery();
         var result = await mediator.Send(query, cancellationToken);
 
-        if (!result.IsSuccess) return result.ToApiResult();
-
-        var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories";
-        var response = CollectionResponse<object>.Create(
-            result.Value!.Cast<object>().ToList(),
-            selfUrl);
-
-        return Results.Ok(response);
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> GetById(
         Guid id,
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
         var query = new GetCategoryByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
 
-        var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories/{id}";
-        return result.ToResourceResult(selfUrl,
-            new Link("children", $"/api/v1/categories/{id}/children", "GET"),
-            new Link("products", $"/api/v1/products?categoryId={id}", "GET"));
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> GetBySlug(
         string slug,
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
         var query = new GetCategoryBySlugQuery(slug);
         var result = await mediator.Send(query, cancellationToken);
 
-        var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories/slug/{slug}";
-        return result.ToResourceResult(selfUrl);
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> GetChildren(
         Guid id,
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
         var query = new GetChildCategoriesQuery(id);
         var result = await mediator.Send(query, cancellationToken);
 
-        if (!result.IsSuccess) return result.ToApiResult();
-
-        var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/categories/{id}/children";
-        var response = CollectionResponse<object>.Create(
-            result.Value!.Cast<object>().ToList(),
-            selfUrl,
-            new Link("parent", $"/api/v1/categories/{id}", "GET"));
-
-        return Results.Ok(response);
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> Create(
         CreateCategoryCommand command,
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
@@ -194,8 +162,4 @@ public class CategoryEndpoints : IEndpointGroup
         return result.ToApiResult();
     }
 }
-
-/// <summary>
-///     Category response model (placeholder - actual implementation depends on query handlers).
-/// </summary>
 public record CategoryResponse;

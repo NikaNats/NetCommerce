@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
-using NetCommerce.Api.Middleware;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Queries;
 
@@ -9,7 +8,6 @@ namespace NetCommerce.Api.Endpoints.Catalog;
 
 /// <summary>
 ///     RESTful endpoints for Product resources.
-///     Follows best practices: nouns for resources, proper HTTP methods, and HATEOAS links.
 /// </summary>
 public class ProductEndpoints : IEndpointGroup
 {
@@ -27,7 +25,6 @@ public class ProductEndpoints : IEndpointGroup
             .WithName("GetProductById")
             .WithSummary("Get a product by its ID")
             .WithDescription("Retrieves a single product resource by its unique identifier.")
-            .Produces<ResourceResponse<ProductResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -36,7 +33,6 @@ public class ProductEndpoints : IEndpointGroup
             .WithName("GetProductBySlug")
             .WithSummary("Get a product by its URL-friendly slug")
             .WithDescription("Retrieves a single product resource using its SEO-friendly slug identifier.")
-            .Produces<ResourceResponse<ProductResponse>>()
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
@@ -46,7 +42,7 @@ public class ProductEndpoints : IEndpointGroup
             .WithSummary("Search and list products with pagination")
             .WithDescription(
                 "Returns a paginated list of products. Supports filtering by category, price range, and full-text search.")
-            .Produces<PaginatedResponse<ProductResponse>>()
+            .Produces<PaginatedResponse<object>>()
             .AllowAnonymous();
 
         // POST /api/v1/products - Create a new product
@@ -54,11 +50,10 @@ public class ProductEndpoints : IEndpointGroup
             .WithName("CreateProduct")
             .WithSummary("Create a new product")
             .WithDescription("Creates a new product resource. Returns 201 Created with Location header.")
-            .Produces<ProductResponse>(StatusCodes.Status201Created)
+            .Produces(StatusCodes.Status201Created)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // PUT /api/v1/products/{id} - Full update of a product
         group.MapPut("/{id:guid}", Update)
@@ -69,8 +64,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // PATCH /api/v1/products/{id}/price - Partial update (price only)
         group.MapPatch("/{id:guid}/price", UpdatePrice)
@@ -81,8 +75,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // POST /api/v1/products/{id}/publish - Action endpoint (state transition)
         group.MapPost("/{id:guid}/publish", Publish)
@@ -92,8 +85,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status204NoContent)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // POST /api/v1/products/{id}/images - Add sub-resource
         group.MapPost("/{id:guid}/images", AddImage)
@@ -103,8 +95,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces(StatusCodes.Status201Created)
             .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
-            .RequireAuthorization("VendorOnly")
-            .WithIdempotency();
+            .RequireAuthorization("VendorOnly");
 
         // DELETE /api/v1/products/{id} - Remove a product
         group.MapDelete("/{id:guid}", Delete)
@@ -118,34 +109,27 @@ public class ProductEndpoints : IEndpointGroup
 
     private static async Task<IResult> GetById(
         Guid id,
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
         var query = new GetProductByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
 
-        var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/products/{id}";
-        return result.ToResourceResult(selfUrl,
-            new Link("category", "/api/v1/categories/{categoryId}", "GET"),
-            new Link("images", $"/api/v1/products/{id}/images", "GET"));
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> GetBySlug(
         string slug,
-        HttpContext httpContext,
         ISender mediator,
         CancellationToken cancellationToken)
     {
         var query = new GetProductBySlugQuery(slug);
         var result = await mediator.Send(query, cancellationToken);
 
-        var selfUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/products/slug/{slug}";
-        return result.ToResourceResult(selfUrl);
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> Search(
-        HttpContext httpContext,
         ISender mediator,
         [FromQuery] string? searchTerm = null,
         [FromQuery] Guid? categoryId = null,
@@ -165,25 +149,12 @@ public class ProductEndpoints : IEndpointGroup
 
         if (!result.IsSuccess) return result.ToApiResult();
 
-        var baseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}/api/v1/products";
-
-        // Build query string for links
-        var queryParams = new List<string>();
-        if (!string.IsNullOrEmpty(searchTerm)) queryParams.Add($"searchTerm={Uri.EscapeDataString(searchTerm)}");
-        if (categoryId.HasValue) queryParams.Add($"categoryId={categoryId}");
-        if (minPrice.HasValue) queryParams.Add($"minPrice={minPrice}");
-        if (maxPrice.HasValue) queryParams.Add($"maxPrice={maxPrice}");
-
-        var queryString = queryParams.Count > 0 ? "&" + string.Join("&", queryParams) : "";
-        var fullBaseUrl = baseUrl + "?" + queryString.TrimStart('&');
-
         var paginatedResult = result.Value;
         var response = PaginatedResponse<object>.Create(
             paginatedResult!.Items.Cast<object>().ToList(),
             page,
             pageSize,
-            paginatedResult.TotalCount,
-            fullBaseUrl);
+            paginatedResult.TotalCount);
 
         return Results.Ok(response);
     }
@@ -285,8 +256,3 @@ public record UpdateProductPriceRequest(decimal Amount, string Currency);
 /// <param name="DisplayOrder">The display order (lower numbers shown first).</param>
 /// <param name="IsPrimary">Whether this is the primary product image.</param>
 public record AddProductImageRequest(string ImageKey, int DisplayOrder, bool IsPrimary);
-
-/// <summary>
-///     Product response model (placeholder - actual implementation depends on query handlers).
-/// </summary>
-public record ProductResponse;

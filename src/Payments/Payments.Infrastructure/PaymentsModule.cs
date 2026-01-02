@@ -11,8 +11,6 @@ using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
-using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Payments.Infrastructure;
@@ -38,23 +36,12 @@ public static class PaymentsModule
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<PaymentsDbContext>());
 
-        // Register the specific repository for this module
-        services
-            .AddScoped<IIntegrationEventLogRepository<PaymentsDbContext>,
-                IntegrationEventLogRepository<PaymentsDbContext>>();
-
-        // Register the integration event log service for this module
-        services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<PaymentsDbContext>>();
-
         // Repositories
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 
         // Payment Gateway - Stripe by default
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
-
-        // Outbox Processor for guaranteed event delivery
-        services.AddOutboxProcessor<PaymentsDbContext>(configuration);
 
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PaymentsTransactionBehavior<,>));
 

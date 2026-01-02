@@ -1,4 +1,3 @@
-using NetCommerce.Api.Middleware;
 using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Api.Endpoints.Media;
@@ -19,8 +18,7 @@ public class MediaEndpoints : IEndpointGroup
             .WithName("UploadMedia")
             .WithSummary("Upload a file directly (for smaller files)")
             .RequireAuthorization("VendorOnly")
-            .DisableAntiforgery()
-            .WithIdempotency();
+            .DisableAntiforgery();
 
         group.MapDelete("/", Delete)
             .WithName("DeleteMedia")
