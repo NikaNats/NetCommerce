@@ -29,16 +29,14 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
+        _postgresContainer = new PostgreSqlBuilder("postgres:17")
             .WithDatabase("netcommerce_test")
             .WithUsername("test")
             .WithPassword("test")
             .Build();
 
         // Start Redis container
-        _redisContainer = new RedisBuilder()
-            .WithImage("redis:7-alpine")
+        _redisContainer = new RedisBuilder("redis:8-alpine")
             .Build();
 
         await Task.WhenAll(
