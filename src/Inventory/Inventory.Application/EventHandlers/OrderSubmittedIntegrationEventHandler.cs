@@ -1,6 +1,5 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
-using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.SharedKernel.Events;
 
 namespace NetCommerce.Inventory.Application.EventHandlers;

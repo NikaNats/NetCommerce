@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -10,7 +9,8 @@ namespace NetCommerce.Api.Authentication;
 /// <summary>
 ///     Configures JWT Bearer options for Keycloak authentication.
 /// </summary>
-public class JwtBearerOptionsSetup(IOptions<AuthOptions> authOptions, IHostEnvironment environment) : IConfigureNamedOptions<JwtBearerOptions>
+public class JwtBearerOptionsSetup(IOptions<AuthOptions> authOptions, IHostEnvironment environment)
+    : IConfigureNamedOptions<JwtBearerOptions>
 {
     public void Configure(string? name, JwtBearerOptions options)
     {

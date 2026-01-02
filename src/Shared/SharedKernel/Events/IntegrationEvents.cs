@@ -8,7 +8,6 @@ namespace NetCommerce.SharedKernel.Events;
 ///     These are mirrors of domain events published in different modules.
 ///     They allow modules to communicate without direct coupling.
 /// </summary>
-
 /// <summary>
 ///     Raised when an order is submitted.
 ///     Triggers soft stock reservation in Inventory module.

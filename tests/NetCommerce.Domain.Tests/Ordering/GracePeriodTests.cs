@@ -1,3 +1,4 @@
+using NetCommerce.Domain.Tests.Fakers;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Domain;
 using Shouldly;
@@ -15,18 +16,18 @@ public class GracePeriodOptionsTests
     {
         // The default values are defined in the infrastructure layer
         // This test validates the expected business rules
-        
+
         // Expected defaults:
         // - Enabled: true
         // - GracePeriodMinutes: 5
         // - CheckIntervalSeconds: 60
         // - BatchSize: 100
-        
+
         // These values represent the business requirement:
         // - 5 minute grace period gives customers time to cancel
         // - Checking every 60 seconds balances responsiveness with performance
         // - Batch size of 100 prevents memory issues
-        
+
         true.ShouldBeTrue(); // Placeholder assertion
     }
 }
@@ -86,7 +87,7 @@ public class GracePeriodWorkflowTests
         // Assert
         order.Status.ShouldBe(OrderStatus.AwaitingValidation);
         order.IsInGracePeriod.ShouldBeFalse();
-        
+
         var confirmedEvent = order.DomainEvents.OfType<OrderGracePeriodConfirmedDomainEvent>().Single();
         confirmedEvent.OrderId.ShouldBe(order.Id);
         confirmedEvent.TotalAmount.ShouldBe(order.TotalAmount);
@@ -98,29 +99,29 @@ public class GracePeriodWorkflowTests
         // Step 1: User places order
         var order = CreateOrderWithItems();
         order.Status.ShouldBe(OrderStatus.Submitted);
-        
+
         var submittedEvent = order.DomainEvents.OfType<OrderSubmittedDomainEvent>().Single();
         submittedEvent.ShouldNotBeNull(); // Inventory will reserve stock
-        
+
         // Step 2: Grace period passes (simulated by service)
         order.ClearDomainEvents();
         order.ConfirmGracePeriod();
         order.Status.ShouldBe(OrderStatus.AwaitingValidation);
-        
+
         var gracePeriodEvent = order.DomainEvents.OfType<OrderGracePeriodConfirmedDomainEvent>().Single();
         gracePeriodEvent.ShouldNotBeNull(); // Payment will be captured
-        
+
         // Step 3: Payment is processed
         order.ClearDomainEvents();
         var paymentId = Guid.NewGuid();
         order.MarkAsPaid(paymentId);
         order.Status.ShouldBe(OrderStatus.Paid);
         order.PaymentTransactionId.ShouldBe(paymentId);
-        
+
         // Step 4: Order is shipped
         order.MarkAsShipped("TRACK-12345");
         order.Status.ShouldBe(OrderStatus.Shipped);
-        
+
         // Step 5: Order is delivered
         order.MarkAsDelivered();
         order.Status.ShouldBe(OrderStatus.Delivered);
@@ -133,16 +134,16 @@ public class GracePeriodWorkflowTests
         var order = CreateOrderWithItems();
         var submittedEvent = order.DomainEvents.OfType<OrderSubmittedDomainEvent>().Single();
         submittedEvent.ShouldNotBeNull();
-        
+
         // Act - User cancels before grace period ends
         order.ClearDomainEvents();
         order.Cancel("Buyer's remorse");
-        
+
         // Assert
         order.Status.ShouldBe(OrderStatus.Cancelled);
         order.PaidAt.ShouldBeNull(); // NO PAYMENT WAS TAKEN!
         order.PaymentTransactionId.ShouldBeNull();
-        
+
         var cancelledEvent = order.DomainEvents.OfType<OrderCancelledDomainEvent>().Single();
         cancelledEvent.PreviousStatus.ShouldBe(OrderStatus.Submitted);
         // Inventory will release stock, Payment was never involved
@@ -169,15 +170,15 @@ public class GracePeriodWorkflowTests
     {
         var order = Order.Create(
             Guid.NewGuid(),
-            NetCommerce.Domain.Tests.Fakers.ShippingAddressFaker.Generate(),
+            ShippingAddressFaker.Generate(),
             Guid.NewGuid().ToString());
-        
+
         order.AddItem(
             Guid.NewGuid(),
             "Test Product",
             Money.Create(99.99m),
             2);
-        
+
         return order;
     }
 }

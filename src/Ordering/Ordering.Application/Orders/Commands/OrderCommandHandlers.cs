@@ -88,16 +88,16 @@ public sealed class CancelOrderCommandHandler : ICommandHandler<CancelOrderComma
             // - If order is not in grace period:
             //   * May require refund processing
             //   * Compensating transactions may be triggered
-            
+
             var wasInGracePeriod = order.IsInGracePeriod;
-            
+
             order.Cancel(request.Reason);
             _orderRepository.Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            
+
             // The domain event handler will check previousStatus 
             // to determine appropriate actions (release stock, process refunds, etc.)
-            
+
             return Result.Success();
         }
         catch (InvalidOperationException ex)

@@ -36,6 +36,11 @@ public sealed class Order : AggregateRoot<Guid>
 
     public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
 
+    /// <summary>
+    ///     Checks if the order is still within the grace period.
+    /// </summary>
+    public bool IsInGracePeriod => Status == OrderStatus.Submitted;
+
     public static Order Create(
         Guid customerId,
         ShippingAddress shippingAddress,
@@ -149,7 +154,6 @@ public sealed class Order : AggregateRoot<Guid>
     ///     Transitions to Shipped status directly from Paid.
     ///     Note: Processing status removed in favor of simplified workflow.
     /// </summary>
-
     /// <summary>
     ///     Marks order as shipped.
     /// </summary>
@@ -200,11 +204,6 @@ public sealed class Order : AggregateRoot<Guid>
         // If previousStatus >= Paid: need to process refunds
         RaiseDomainEvent(new OrderCancelledDomainEvent(Id, reason, previousStatus));
     }
-
-    /// <summary>
-    ///     Checks if the order is still within the grace period.
-    /// </summary>
-    public bool IsInGracePeriod => Status == OrderStatus.Submitted;
 
     private void RecalculateTotal()
     {

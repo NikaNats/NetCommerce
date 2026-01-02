@@ -1,15 +1,15 @@
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NetCommerce.Inventory.Application.Stock.Mappers;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Domain;
-using MediatR;
-using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Results;
@@ -59,13 +59,13 @@ public static class InventoryModule
     }
 }
 
-internal class InventoryTransactionBehavior<TRequest, TResponse> 
+internal class InventoryTransactionBehavior<TRequest, TResponse>
     : ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>
     where TRequest : ICommand<TResponse>
 {
     public InventoryTransactionBehavior(
-        InventoryDbContext dbContext, 
-        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>> logger) 
+        InventoryDbContext dbContext,
+        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>> logger)
         : base(dbContext, logger)
     {
     }

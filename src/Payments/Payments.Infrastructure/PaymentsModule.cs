@@ -1,15 +1,15 @@
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Domain;
-using MediatR;
-using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Results;
@@ -53,13 +53,13 @@ public static class PaymentsModule
     }
 }
 
-internal class PaymentsTransactionBehavior<TRequest, TResponse> 
+internal class PaymentsTransactionBehavior<TRequest, TResponse>
     : ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>
     where TRequest : ICommand<TResponse>
 {
     public PaymentsTransactionBehavior(
-        PaymentsDbContext dbContext, 
-        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>> logger) 
+        PaymentsDbContext dbContext,
+        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>> logger)
         : base(dbContext, logger)
     {
     }

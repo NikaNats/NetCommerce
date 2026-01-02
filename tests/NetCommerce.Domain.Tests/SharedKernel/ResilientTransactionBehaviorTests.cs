@@ -1,35 +1,35 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NetCommerce.SharedKernel.Application;
+using NetCommerce.Catalog.Application.TestCommands;
+using NetCommerce.Catalog.Infrastructure;
+using NetCommerce.Ordering.Application.TestCommands;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Results;
 using NSubstitute;
 using Shouldly;
-using Xunit;
 
 namespace NetCommerce.Domain.Tests.SharedKernel;
-
-using NetCommerce.Catalog.Application.TestCommands;
-using NetCommerce.Catalog.Infrastructure;
-using NetCommerce.Ordering.Application.TestCommands;
 
 #region ResilientTransactionBehavior Tests
 
 public class ResilientTransactionBehaviorTests
 {
     private readonly TestCatalogDbContext _dbContext;
-    private readonly ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>> _logger;
+
+    private readonly ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>
+        _logger;
 
     public ResilientTransactionBehaviorTests()
     {
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        
+
         _dbContext = new TestCatalogDbContext(options);
-        _logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        _logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
     }
 
     [Fact]
@@ -38,23 +38,26 @@ public class ResilientTransactionBehaviorTests
         // Arrange
         // Request: Ordering, Context: Catalog
         // We want to verify that the behavior does NOT run transaction logic (Strategy, ChangeTracker Clear, Logging)
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>(_dbContext, logger);
-        
+
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>(_dbContext,
+                logger);
+
         var next = Substitute.For<RequestHandlerDelegate<Result<Guid>>>();
         next.Invoke().Returns(Result.Success(Guid.NewGuid()));
 
         // Track an entity to see if it gets cleared
         _dbContext.Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
-        
+
         // Act
         await behavior.Handle(new TestOrderingCommand(), _ => next(), CancellationToken.None);
 
         // Assert
         // Should call next
         await next.Received(1).Invoke();
-        
+
         // Should NOT have cleared tracker (ChangeTracker.Clear happens inside strategy)
         _dbContext.ChangeTracker.Entries().Count().ShouldBeGreaterThan(0);
 
@@ -66,19 +69,22 @@ public class ResilientTransactionBehaviorTests
     public async Task Handle_Should_Execute_Logic_When_Modules_Match()
     {
         // Arrange
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(_dbContext, _logger);
-        
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(_dbContext,
+                _logger);
+
         // Pre-seed tracker
-        _dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
+        _dbContext.Set<ResilientTransactionTestEntity>()
+            .Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
         _dbContext.ChangeTracker.Entries().Count().ShouldBe(1);
 
-        Task<Result<Guid>> Next() 
+        Task<Result<Guid>> Next()
         {
             return Task.FromResult(Result.Success(Guid.NewGuid()));
         }
 
         // Act
-        try 
+        try
         {
             await behavior.Handle(new TestCatalogCommand(), _ => Next(), CancellationToken.None);
         }
@@ -90,7 +96,7 @@ public class ResilientTransactionBehaviorTests
         // Assert
         // If the behavior logic ran, ChangeTracker.Clear() should have been called.
         // Since we seeded 1 entity, count should now be 0.
-        _dbContext.ChangeTracker.Entries().Count().ShouldBe(0, 
+        _dbContext.ChangeTracker.Entries().Count().ShouldBe(0,
             "ChangeTracker should be cleared when behavior logic runs (even if transaction fails in InMemory).");
     }
 
@@ -102,15 +108,18 @@ public class ResilientTransactionBehaviorTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
-        
+
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
         var nextCallCount = 0;
+
         Task<Result<Guid>> Next()
         {
             nextCallCount++;
@@ -119,17 +128,17 @@ public class ResilientTransactionBehaviorTests
 
         // Start a transaction before calling the behavior
         await using var outerTransaction = await dbContext.Database.BeginTransactionAsync();
-        
+
         // Act
         var result = await behavior.Handle(new TestCatalogCommand(), _ => Next(), CancellationToken.None);
 
         // Assert
         result.IsSuccess.ShouldBeTrue();
         nextCallCount.ShouldBe(1, "Next should be called exactly once when transaction already active");
-        
+
         // Verify no new transaction was started (no "Begin transaction" log)
         logger.ReceivedCalls()
-            .Any(c => c.GetMethodInfo().Name == nameof(ILogger.Log) && 
+            .Any(c => c.GetMethodInfo().Name == nameof(ILogger.Log) &&
                       c.GetArguments().Any(a => a?.ToString()?.Contains("Begin transaction") ?? false))
             .ShouldBeFalse("Should not log 'Begin transaction' when transaction already exists");
     }
@@ -141,19 +150,23 @@ public class ResilientTransactionBehaviorTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
 
         var failureError = Error.Validation("Test failure");
+
         Task<Result<Guid>> Next()
         {
             // Add an entity that should NOT be saved due to failure
-            dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
+            dbContext.Set<ResilientTransactionTestEntity>()
+                .Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
             return Task.FromResult(Result.Failure<Guid>(failureError));
         }
 
@@ -163,7 +176,7 @@ public class ResilientTransactionBehaviorTests
         // Assert
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldBe(failureError);
-        
+
         // Entity should NOT be persisted (transaction rolled back)
         dbContext.ChangeTracker.Clear();
         var count = await dbContext.Set<ResilientTransactionTestEntity>().CountAsync();
@@ -177,15 +190,18 @@ public class ResilientTransactionBehaviorTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
 
         var entityId = Guid.NewGuid();
+
         Task<Result<Guid>> Next()
         {
             dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = entityId });
@@ -198,7 +214,7 @@ public class ResilientTransactionBehaviorTests
         // Assert
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(entityId);
-        
+
         // Entity should be persisted
         dbContext.ChangeTracker.Clear();
         var persistedEntity = await dbContext.Set<ResilientTransactionTestEntity>().FindAsync(entityId);
@@ -212,15 +228,20 @@ public class ResilientTransactionBehaviorTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
 
-        Task<Result<Guid>> Next() => Task.FromResult(Result.Success(Guid.NewGuid()));
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
+        Task<Result<Guid>> Next()
+        {
+            return Task.FromResult(Result.Success(Guid.NewGuid()));
+        }
 
         // Act
         await behavior.Handle(new TestCatalogCommand(), _ => Next(), CancellationToken.None);
@@ -236,15 +257,20 @@ public class ResilientTransactionBehaviorTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
 
-        Task<Result<Guid>> Next() => Task.FromResult(Result.Failure<Guid>(Error.Validation("Test")));
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
+        Task<Result<Guid>> Next()
+        {
+            return Task.FromResult(Result.Failure<Guid>(Error.Validation("Test")));
+        }
 
         // Act
         await behavior.Handle(new TestCatalogCommand(), _ => Next(), CancellationToken.None);
@@ -260,15 +286,18 @@ public class ResilientTransactionBehaviorTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
 
         var entityId = Guid.NewGuid();
+
         Task<Result<Guid>> Next()
         {
             dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = entityId });
@@ -306,11 +335,11 @@ public class ResilientTransactionTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
+
         var resilientTransaction = ResilientTransaction.New(dbContext);
         var entityId = Guid.NewGuid();
 
@@ -334,11 +363,11 @@ public class ResilientTransactionTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
+
         var resilientTransaction = ResilientTransaction.New(dbContext);
         var entityId = Guid.NewGuid();
 
@@ -347,7 +376,8 @@ public class ResilientTransactionTests
         {
             await resilientTransaction.ExecuteAsync(async () =>
             {
-                dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = entityId });
+                dbContext.Set<ResilientTransactionTestEntity>()
+                    .Add(new ResilientTransactionTestEntity { Id = entityId });
                 await dbContext.SaveChangesAsync();
                 throw new InvalidOperationException("Test exception");
             });
@@ -366,13 +396,13 @@ public class ResilientTransactionTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
+
         var resilientTransaction = ResilientTransaction.New(dbContext);
-        
+
         // Pre-track an entity
         dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
         var preTrackedCount = dbContext.ChangeTracker.Entries().Count();
@@ -407,15 +437,18 @@ public class ModuleMatcherTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
         await dbContext.Database.OpenConnectionAsync();
         await dbContext.Database.EnsureCreatedAsync();
-        
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
-        
+
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
         var wasNextCalled = false;
+
         Task<Result<Guid>> Next()
         {
             wasNextCalled = true;
@@ -436,14 +469,17 @@ public class ModuleMatcherTests
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
-        
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestOrderingCommand, Result<Guid>, TestCatalogDbContext>(dbContext,
+                logger);
+
         // Pre-track an entity
         dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
-        
+
         var next = Substitute.For<RequestHandlerDelegate<Result<Guid>>>();
         next.Invoke().Returns(Result.Success(Guid.NewGuid()));
 
@@ -452,7 +488,8 @@ public class ModuleMatcherTests
 
         // Assert - Behavior logic did NOT run (ChangeTracker NOT cleared)
         await next.Received(1).Invoke();
-        dbContext.ChangeTracker.Entries().Count().ShouldBeGreaterThan(0, "ChangeTracker NOT cleared indicates behavior skipped");
+        dbContext.ChangeTracker.Entries().Count()
+            .ShouldBeGreaterThan(0, "ChangeTracker NOT cleared indicates behavior skipped");
     }
 
     [Fact]
@@ -461,19 +498,24 @@ public class ModuleMatcherTests
         // This test verifies the StringComparison.OrdinalIgnoreCase in ModuleMatcher
         // Using TestCatalogCommand (Catalog) with TestCatalogDbContext (Catalog)
         // Both should match even if casing differs internally
-        
+
         var options = new DbContextOptionsBuilder<TestCatalogDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        
+
         using var dbContext = new TestCatalogDbContext(options);
-        var logger = Substitute.For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
-        var behavior = new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
-        
+        var logger = Substitute
+            .For<ILogger<ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>>>();
+        var behavior =
+            new ResilientTransactionBehavior<TestCatalogCommand, Result<Guid>, TestCatalogDbContext>(dbContext, logger);
+
         dbContext.Set<ResilientTransactionTestEntity>().Add(new ResilientTransactionTestEntity { Id = Guid.NewGuid() });
         var initialCount = dbContext.ChangeTracker.Entries().Count();
 
-        Task<Result<Guid>> Next() => Task.FromResult(Result.Success(Guid.NewGuid()));
+        Task<Result<Guid>> Next()
+        {
+            return Task.FromResult(Result.Success(Guid.NewGuid()));
+        }
 
         // Act
         try

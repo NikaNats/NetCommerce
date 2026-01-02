@@ -11,7 +11,6 @@ using NetCommerce.Media.Infrastructure;
 using NetCommerce.Ordering.Application.EventHandlers;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Infrastructure;
-using NetCommerce.Payments.Application.EventHandlers;
 using NetCommerce.Payments.Infrastructure;
 using NetCommerce.SharedKernel.Application.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure;

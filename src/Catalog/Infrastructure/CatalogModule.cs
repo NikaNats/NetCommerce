@@ -1,4 +1,5 @@
 using FluentValidation;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
@@ -14,7 +15,6 @@ using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.SharedKernel.Application;
-using MediatR;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Results;
@@ -44,9 +44,9 @@ public static class CatalogModule
 
                     // Enable Connection Resiliency
                     npgsqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: 5,
-                        maxRetryDelay: TimeSpan.FromSeconds(30),
-                        errorCodesToAdd: null);
+                        5,
+                        TimeSpan.FromSeconds(30),
+                        null);
                 });
         });
 
@@ -73,10 +73,7 @@ public static class CatalogModule
         services.AddSingleton<ICdnUrlGenerator, CdnUrlGenerator>();
 
         // MediatR handlers from Application assembly
-        services.AddMediatR(cfg =>
-        { 
-            cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly);
-        });
+        services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly); });
 
         // Register Resilient Transaction Behavior
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CatalogTransactionBehavior<,>));

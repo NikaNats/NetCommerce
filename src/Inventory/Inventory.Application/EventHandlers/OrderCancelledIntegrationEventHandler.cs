@@ -47,19 +47,15 @@ public sealed class OrderCancelledIntegrationEventHandler : INotificationHandler
             // await _mediator.Send(command, cancellationToken);
 
             if (wasInGracePeriod)
-            {
                 _logger.LogInformation(
                     "Order {OrderId} was cancelled during grace period. " +
                     "Stock reservation released. No payment refund needed.",
                     notification.OrderId);
-            }
             else
-            {
                 _logger.LogInformation(
                     "Order {OrderId} was cancelled after grace period. " +
                     "Stock reservation released. Payment refund may be required.",
                     notification.OrderId);
-            }
         }
         catch (Exception ex)
         {

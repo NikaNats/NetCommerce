@@ -11,7 +11,7 @@ namespace NetCommerce.Payments.Application.EventHandlers;
 ///     processed AFTER the user has had time to cancel without fees.
 ///     Architecture: Ordering -> [Integration Event] -> Payments
 /// </summary>
-public sealed class OrderGracePeriodConfirmedIntegrationEventHandler 
+public sealed class OrderGracePeriodConfirmedIntegrationEventHandler
     : INotificationHandler<OrderGracePeriodConfirmedIntegrationEvent>
 {
     private readonly ILogger<OrderGracePeriodConfirmedIntegrationEventHandler> _logger;
@@ -26,7 +26,7 @@ public sealed class OrderGracePeriodConfirmedIntegrationEventHandler
     }
 
     public async Task Handle(
-        OrderGracePeriodConfirmedIntegrationEvent notification, 
+        OrderGracePeriodConfirmedIntegrationEvent notification,
         CancellationToken cancellationToken)
     {
         try

@@ -105,7 +105,6 @@ public sealed class GracePeriodManagerService : BackgroundService
         var errorCount = 0;
 
         foreach (var order in ordersToProcess)
-        {
             try
             {
                 order.ConfirmGracePeriod();
@@ -124,7 +123,6 @@ public sealed class GracePeriodManagerService : BackgroundService
                     "Failed to confirm grace period for Order {OrderId}.",
                     order.Id);
             }
-        }
 
         // Save all changes in a single transaction
         // This also dispatches domain events via the outbox pattern

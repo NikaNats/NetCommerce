@@ -69,7 +69,7 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
         var savedOrder = await context.Orders.FindAsync(order.Id);
         savedOrder.ShouldNotBeNull();
         savedOrder.Status.ShouldBe(OrderStatus.Submitted); // Still in grace period
-        
+
         savedOrder.Cancel("Changed my mind");
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
@@ -181,10 +181,7 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
             .Where(o => o.Status == OrderStatus.Submitted)
             .ToListAsync();
 
-        foreach (var order in ordersToProcess)
-        {
-            order.ConfirmGracePeriod();
-        }
+        foreach (var order in ordersToProcess) order.ConfirmGracePeriod();
 
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
@@ -213,7 +210,7 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
         order.AddItem(
             Guid.NewGuid(),
             "Test Product",
-            Money.Create(99.99m, "GEL"), // Use GEL to match Money.Zero() default
+            Money.Create(99.99m), // Use GEL to match Money.Zero() default
             2);
 
         return order;

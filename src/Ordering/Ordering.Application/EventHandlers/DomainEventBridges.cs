@@ -15,7 +15,7 @@ public sealed class OrderSubmittedDomainEventToBridgeHandler : INotificationHand
     private readonly IMediator _mediator;
 
     public OrderSubmittedDomainEventToBridgeHandler(
-        IMediator mediator, 
+        IMediator mediator,
         ILogger<OrderSubmittedDomainEventToBridgeHandler> logger)
     {
         _mediator = mediator;
@@ -57,14 +57,14 @@ public sealed class OrderSubmittedDomainEventToBridgeHandler : INotificationHand
 ///     Domain event to integration event bridge for OrderGracePeriodConfirmedDomainEvent.
 ///     Triggers payment capture after grace period ends.
 /// </summary>
-public sealed class OrderGracePeriodConfirmedDomainEventToBridgeHandler 
+public sealed class OrderGracePeriodConfirmedDomainEventToBridgeHandler
     : INotificationHandler<OrderGracePeriodConfirmedDomainEvent>
 {
     private readonly ILogger<OrderGracePeriodConfirmedDomainEventToBridgeHandler> _logger;
     private readonly IMediator _mediator;
 
     public OrderGracePeriodConfirmedDomainEventToBridgeHandler(
-        IMediator mediator, 
+        IMediator mediator,
         ILogger<OrderGracePeriodConfirmedDomainEventToBridgeHandler> logger)
     {
         _mediator = mediator;
@@ -114,7 +114,7 @@ public sealed class OrderCancelledDomainEventToBridgeHandler : INotificationHand
     private readonly IMediator _mediator;
 
     public OrderCancelledDomainEventToBridgeHandler(
-        IMediator mediator, 
+        IMediator mediator,
         ILogger<OrderCancelledDomainEventToBridgeHandler> logger)
     {
         _mediator = mediator;
@@ -126,7 +126,7 @@ public sealed class OrderCancelledDomainEventToBridgeHandler : INotificationHand
         try
         {
             var wasInGracePeriod = notification.PreviousStatus == OrderStatus.Submitted;
-            
+
             _logger.LogInformation(
                 "Bridging OrderCancelledDomainEvent to OrderCancelledIntegrationEvent for OrderId: {OrderId}. " +
                 "Previous status: {PreviousStatus}, Was in grace period: {WasInGracePeriod}",

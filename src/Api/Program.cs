@@ -4,6 +4,10 @@ using NetCommerce.Api.Authentication;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Api.Extensions;
 using NetCommerce.Api.Middleware;
+using NetCommerce.Catalog.Infrastructure.Persistence;
+using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Ordering.Infrastructure.Persistence;
+using NetCommerce.Payments.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -126,19 +130,19 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
 
     // Catalog
-    var catalogDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Catalog.Infrastructure.Persistence.CatalogDbContext>();
+    var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
     await catalogDb.Database.EnsureCreatedAsync();
 
     // Ordering
-    var orderingDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext>();
+    var orderingDb = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
     await orderingDb.Database.EnsureCreatedAsync();
 
     // Inventory
-    var inventoryDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Inventory.Infrastructure.Persistence.InventoryDbContext>();
+    var inventoryDb = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
     await inventoryDb.Database.EnsureCreatedAsync();
 
     // Payments
-    var paymentsDb = scope.ServiceProvider.GetRequiredService<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext>();
+    var paymentsDb = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
     await paymentsDb.Database.EnsureCreatedAsync();
 }
 

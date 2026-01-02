@@ -1,5 +1,5 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
@@ -12,12 +12,15 @@ public sealed class ResilientTransaction
         _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
-    public static ResilientTransaction New(DbContext context) => new(context);
+    public static ResilientTransaction New(DbContext context)
+    {
+        return new ResilientTransaction(context);
+    }
 
     /// <summary>
-    /// Executes a delegate inside a resilient transaction.
-    /// If a transient failure occurs during the transaction commit, 
-    /// the entire block (including the business logic) is re-executed.
+    ///     Executes a delegate inside a resilient transaction.
+    ///     If a transient failure occurs during the transaction commit,
+    ///     the entire block (including the business logic) is re-executed.
     /// </summary>
     public async Task ExecuteAsync(Func<Task> action)
     {
@@ -30,9 +33,9 @@ public sealed class ResilientTransaction
             _context.ChangeTracker.Clear();
 
             // IMPORTANT: We must open the transaction manually inside the strategy
-            await using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
-            
-            try 
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+
+            try
             {
                 await action();
                 await transaction.CommitAsync();
