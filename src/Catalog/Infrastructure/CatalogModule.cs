@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Application.Categories.Mappers;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Mappers;
@@ -12,7 +13,11 @@ using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.Catalog.Infrastructure.Services;
+using NetCommerce.SharedKernel.Application;
+using MediatR;
 using NetCommerce.SharedKernel.Domain;
+using NetCommerce.SharedKernel.Infrastructure.Behaviors;
+using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Catalog.Infrastructure;
 
@@ -36,6 +41,12 @@ public static class CatalogModule
                 npgsqlOptions =>
                 {
                     npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", CatalogDbContext.Schema);
+
+                    // Enable Connection Resiliency
+                    npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorCodesToAdd: null);
                 });
         });
 
@@ -62,11 +73,29 @@ public static class CatalogModule
         services.AddSingleton<ICdnUrlGenerator, CdnUrlGenerator>();
 
         // MediatR handlers from Application assembly
-        services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly); });
+        services.AddMediatR(cfg =>
+        { 
+            cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly);
+        });
+
+        // Register Resilient Transaction Behavior
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CatalogTransactionBehavior<,>));
 
         // FluentValidation validators
         services.AddValidatorsFromAssembly(typeof(CreateProductCommand).Assembly);
 
         return services;
+    }
+}
+
+internal class CatalogTransactionBehavior<TRequest, TResponse>
+    : ResilientTransactionBehavior<TRequest, Result<TResponse>, CatalogDbContext>
+    where TRequest : ICommand<TResponse>
+{
+    public CatalogTransactionBehavior(
+        CatalogDbContext dbContext,
+        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, CatalogDbContext>> logger)
+        : base(dbContext, logger)
+    {
     }
 }

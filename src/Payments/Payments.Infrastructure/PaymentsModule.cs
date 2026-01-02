@@ -7,7 +7,12 @@ using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Domain;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Payments.Infrastructure;
 
@@ -23,7 +28,11 @@ public static class PaymentsModule
         services.AddDbContextPool<PaymentsDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
-                b => b.MigrationsHistoryTable("__EFMigrationsHistory", PaymentsDbContext.Schema)));
+                b =>
+                {
+                    b.MigrationsHistoryTable("__EFMigrationsHistory", PaymentsDbContext.Schema);
+                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                }));
 
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<PaymentsDbContext>());
@@ -38,6 +47,20 @@ public static class PaymentsModule
         // Outbox Processor for guaranteed event delivery
         services.AddOutboxProcessor<PaymentsDbContext>(configuration);
 
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PaymentsTransactionBehavior<,>));
+
         return services;
+    }
+}
+
+internal class PaymentsTransactionBehavior<TRequest, TResponse> 
+    : ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>
+    where TRequest : ICommand<TResponse>
+{
+    public PaymentsTransactionBehavior(
+        PaymentsDbContext dbContext, 
+        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>> logger) 
+        : base(dbContext, logger)
+    {
     }
 }

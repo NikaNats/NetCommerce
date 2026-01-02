@@ -7,7 +7,12 @@ using NetCommerce.Ordering.Infrastructure.Outbox;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Domain;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Ordering.Infrastructure;
 
@@ -23,7 +28,11 @@ public static class OrderingModule
         services.AddDbContextPool<OrderingDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
-                b => b.MigrationsHistoryTable("__EFMigrationsHistory", OrderingDbContext.Schema)));
+                b =>
+                {
+                    b.MigrationsHistoryTable("__EFMigrationsHistory", OrderingDbContext.Schema);
+                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                }));
 
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<OrderingDbContext>());
@@ -41,6 +50,20 @@ public static class OrderingModule
         services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));
         services.AddHostedService<GracePeriodManagerService>();
 
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(OrderingTransactionBehavior<,>));
+
         return services;
+    }
+}
+
+internal class OrderingTransactionBehavior<TRequest, TResponse>
+    : ResilientTransactionBehavior<TRequest, Result<TResponse>, OrderingDbContext>
+    where TRequest : ICommand<TResponse>
+{
+    public OrderingTransactionBehavior(
+        OrderingDbContext dbContext,
+        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, OrderingDbContext>> logger)
+        : base(dbContext, logger)
+    {
     }
 }

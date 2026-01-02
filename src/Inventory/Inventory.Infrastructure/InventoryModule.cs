@@ -7,7 +7,12 @@ using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Domain;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Infrastructure.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Inventory.Infrastructure;
 
@@ -23,7 +28,11 @@ public static class InventoryModule
         services.AddDbContextPool<InventoryDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
-                b => b.MigrationsHistoryTable("__EFMigrationsHistory", InventoryDbContext.Schema)));
+                b =>
+                {
+                    b.MigrationsHistoryTable("__EFMigrationsHistory", InventoryDbContext.Schema);
+                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                }));
 
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<InventoryDbContext>());
@@ -44,6 +53,20 @@ public static class InventoryModule
         // Outbox Processor for guaranteed event delivery
         services.AddOutboxProcessor<InventoryDbContext>(configuration);
 
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(InventoryTransactionBehavior<,>));
+
         return services;
+    }
+}
+
+internal class InventoryTransactionBehavior<TRequest, TResponse> 
+    : ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>
+    where TRequest : ICommand<TResponse>
+{
+    public InventoryTransactionBehavior(
+        InventoryDbContext dbContext, 
+        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>> logger) 
+        : base(dbContext, logger)
+    {
     }
 }
