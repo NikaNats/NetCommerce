@@ -1,0 +1,110 @@
+# ============================================================
+# SOTA .NET EditorConfig (2024-2025 Edition)
+# Baseline: dotnet/runtime | Focus: Perf, AOT, C# 12/13
+# ============================================================
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{csproj,vbproj,props,targets,config,nuspec}]
+indent_size = 2
+
+[*.{json,yaml,yml}]
+indent_size = 2
+
+[*.cs]
+###############################
+# Analyzer Categories (CA/IDE)#
+###############################
+# Default all analyzers to warning
+dotnet_analyzer_diagnostic.severity = warning
+
+# Category specific overrides
+dotnet_analyzer_diagnostic.category-Security.severity = error
+dotnet_analyzer_diagnostic.category-Reliability.severity = warning
+dotnet_analyzer_diagnostic.category-Performance.severity = warning
+dotnet_analyzer_diagnostic.category-Design.severity = warning
+dotnet_analyzer_diagnostic.category-Style.severity = warning
+dotnet_analyzer_diagnostic.category-CodeQuality.severity = warning
+
+# Critical Individual Rules (High Impact)
+dotnet_diagnostic.CA2007.severity = none           # CA2007: ConfigureAwait is noise in modern .NET
+dotnet_diagnostic.CA2016.severity = warning        # Forward CancellationToken
+dotnet_diagnostic.CA1848.severity = warning        # Use LoggerMessage pattern (Perf)
+dotnet_diagnostic.CA1856.severity = error          # ConstantExpected misuse
+dotnet_diagnostic.CA2264.severity = warning        # ThrowIfNull on non-nullable values
+dotnet_diagnostic.CA2252.severity = error          # Preview features must be opted in
+
+# Trimming / Native AOT readiness
+dotnet_diagnostic.IL2026.severity = warning        # RequiresUnreferencedCode
+dotnet_diagnostic.IL3050.severity = warning        # RequiresDynamicCode
+
+###############################
+# Naming (dotnet/runtime)     #
+###############################
+# Constants -> PascalCase
+dotnet_naming_rule.constants_pascal.severity = warning
+dotnet_naming_rule.constants_pascal.symbols = constants
+dotnet_naming_rule.constants_pascal.style = pascal_case_style
+dotnet_naming_symbols.constants.applicable_kinds = field
+dotnet_naming_symbols.constants.required_modifiers = const
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+# Static fields -> s_camelCase
+dotnet_naming_rule.static_fields_prefix.severity = warning
+dotnet_naming_rule.static_fields_prefix.symbols = static_fields
+dotnet_naming_rule.static_fields_prefix.style = s_prefix_camel
+dotnet_naming_symbols.static_fields.applicable_kinds = field
+dotnet_naming_symbols.static_fields.required_modifiers = static
+dotnet_naming_symbols.static_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_style.s_prefix_camel.required_prefix = s_
+dotnet_naming_style.s_prefix_camel.capitalization = camel_case
+
+# Private/internal fields -> _camelCase
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, internal
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+###############################
+# Modern C# Styles            #
+###############################
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_prefer_primary_constructors = true:warning
+csharp_style_prefer_switch_expression = true:warning
+csharp_style_prefer_pattern_matching = true:warning
+dotnet_style_prefer_collection_expression = when_types_loosely_match:warning
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+csharp_prefer_simple_using_statement = true:warning
+
+# var usage (Clean but safe)
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+###############################
+# Formatting (Allman)         #
+###############################
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+
+csharp_indent_block_contents = true
+csharp_indent_braces = false
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+
+csharp_space_around_binary_operators = before_and_after
+csharp_space_after_keywords_in_control_flow_statements = true

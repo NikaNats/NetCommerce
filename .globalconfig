@@ -1,0 +1,162 @@
+############################################################################
+# .NET 10 AUTHORITATIVE GLOBAL CONFIGURATION (2025)
+# Optimized for: Stability, Security, and Cloud-Native Performance
+############################################################################
+
+is_global = true
+global_level = 100
+
+# Philosophy: Treat resource leaks, security flaws, and performance anti-patterns as build errors.
+dotnet_analyzer_diagnostic.severity = default
+generated_code = true
+
+#############################################
+# 1. STABILITY & RESOURCE MANAGEMENT
+#############################################
+
+# CA2000: Dispose objects before losing scope (The "Leak" Rule)
+dotnet_diagnostic.CA2000.severity = error
+
+# CA1001, CA1063, CA2213, CA2215: IDisposable lifecycle integrity
+dotnet_diagnostic.CA1001.severity = warning
+dotnet_diagnostic.CA1063.severity = warning
+dotnet_diagnostic.CA2213.severity = warning
+dotnet_diagnostic.CA2215.severity = warning
+
+# CA2011: Do not assign property within its setter (Prevents StackOverflow)
+dotnet_diagnostic.CA2011.severity = error
+
+# CA2245 & CA2246: Prevent self-assignment and field access on same instance
+dotnet_diagnostic.CA2245.severity = error
+dotnet_diagnostic.CA2246.severity = error
+
+# CA2012: Ensure ValueTasks are awaited exactly once
+dotnet_diagnostic.CA2012.severity = error
+
+# CA2214: Do not call overridable methods in constructors
+dotnet_diagnostic.CA2214.severity = warning
+
+#############################################
+# 2. NULL SAFETY (CRITICAL)
+#############################################
+
+# Since CA1062 is disabled, we rely on NRT warnings to prevent NullReferenceExceptions.
+# These are elevated to ERROR to ensure compile-time safety.
+dotnet_diagnostic.CS8600.severity = error
+dotnet_diagnostic.CS8601.severity = error
+dotnet_diagnostic.CS8602.severity = error
+dotnet_diagnostic.CS8603.severity = error
+dotnet_diagnostic.CS8604.severity = error
+
+#############################################
+# 3. PERFORMANCE & MODERN .NET (SIMD & ALLOC)
+#############################################
+
+# CA1865-CA1867: Use char overloads for string methods (Up to 30% speed boost)
+dotnet_diagnostic.CA1865.severity = warning
+dotnet_diagnostic.CA1866.severity = warning
+dotnet_diagnostic.CA1867.severity = warning
+
+# CA1870: Use SearchValues for optimized searching (.NET 8/9/10+)
+dotnet_diagnostic.CA1870.severity = warning
+
+# CA1864: StringBuilder performance (Use Append(char) instead of Append(string))
+dotnet_diagnostic.CA1864.severity = suggestion
+
+# CA1851: Possible multiple enumerations of IEnumerable
+dotnet_diagnostic.CA1851.severity = warning
+
+# CA1869: Cache and reuse JsonSerializerOptions
+dotnet_diagnostic.CA1869.severity = warning
+
+# CA1846: Prefer AsSpan over Substring (Zero-alloc slicing)
+dotnet_diagnostic.CA1846.severity = warning
+
+# CA1862: Use StringComparison over ToLower/ToUpper (Zero-alloc comparison)
+dotnet_diagnostic.CA1862.severity = warning
+
+#############################################
+# 4. ASYNC & CLOUD-NATIVE DESIGN
+#############################################
+
+# CA2016: Forward CancellationToken to async methods (Avoids wasted compute)
+dotnet_diagnostic.CA2016.severity = error
+
+# CA1068: CancellationToken must be the last parameter (API consistency)
+dotnet_diagnostic.CA1068.severity = warning
+
+# CA2007: Use ConfigureAwait(false) in libraries (Prevents deadlocks in non-ASP.NET)
+dotnet_diagnostic.CA2007.severity = suggestion
+
+#############################################
+# 5. SECURITY & HARDENING (EXTREME PRIORITY)
+#############################################
+
+# Enforce all Security category rules as Errors
+dotnet_analyzer_diagnostic.category-Security.severity = error
+
+# CA5397: Do not use deprecated SSL/TLS protocols
+dotnet_diagnostic.CA5397.severity = error
+
+# CA2100 & CA3001: SQL Injection Protection
+dotnet_diagnostic.CA2100.severity = error
+dotnet_diagnostic.CA3001.severity = error
+
+# CA2300/CA2326: Insecure Deserialization
+dotnet_diagnostic.CA2300.severity = error
+dotnet_diagnostic.CA2326.severity = error
+
+# CA5351: Do not use broken crypto (MD5 / SHA1)
+dotnet_diagnostic.CA5351.severity = error
+
+# CA5394: Insecure Randomness (Do not use System.Random for tokens)
+dotnet_diagnostic.CA5394.severity = warning
+
+#############################################
+# 6. DATA INTEGRITY & EXCEPTIONS
+#############################################
+
+# CA2201: Do not throw reserved exception types (e.g. System.Exception, System.ApplicationException)
+dotnet_diagnostic.CA2201.severity = warning
+
+# CA1305, CA1309, CA1310: Globalization & String Speed
+dotnet_diagnostic.CA1305.severity = warning
+dotnet_diagnostic.CA1309.severity = warning
+dotnet_diagnostic.CA1310.severity = warning
+
+# CA2242: Test for NaN correctly
+dotnet_diagnostic.CA2242.severity = error
+
+#############################################
+# 7. MODERN C# STYLE & NAMING
+#############################################
+
+# Naming Rules
+dotnet_diagnostic.IDE1006.severity = warning
+dotnet_diagnostic.CA1715.severity = warning # Interface 'I' prefix
+dotnet_diagnostic.CA1707.severity = warning # No underscores
+
+# Patterns
+dotnet_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_prefer_readonly_struct = true:warning
+dotnet_style_null_propagation = true:warning
+dotnet_style_prefer_collection_expression = when_types_loosely_match:warning
+
+#############################################
+# 8. PORTABILITY & CLOUD SAFETY
+#############################################
+
+# CA1416: Validate platform compatibility (Linux/Docker safety)
+dotnet_diagnostic.CA1416.severity = error
+
+# IL3000/IL3001: Native AOT & Single-File compatibility
+dotnet_diagnostic.IL3000.severity = error
+dotnet_diagnostic.IL3001.severity = error
+
+#############################################
+# 9. EXPLICITLY DISABLED (NOISE CONTROL)
+#############################################
+
+dotnet_diagnostic.CA1014.severity = none  # CLSCompliant is legacy
+dotnet_diagnostic.CA1040.severity = none  # Empty marker interfaces are valid
+dotnet_diagnostic.CA1062.severity = none  # Handled by NRT (CS8600-CS8604)

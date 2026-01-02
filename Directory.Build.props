@@ -1,10 +1,138 @@
 <Project>
+  <!--
+    ***************************************************************************
+    SECTION 1: RECURSIVE HIERARCHY
+    Enables monorepo support by searching for parent props files in upper
+    levels of the directory tree.
+    ***************************************************************************
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"
+          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../')))" />
+
   <PropertyGroup>
+    <!--
+      SECTION 2: MODERN ARTIFACTS LAYOUT (.NET 8/9/10+)
+      Redirects all 'bin' and 'obj' folders to a central 'artifacts' folder.
+      This prevents project tree pollution and simplifies CI/CD cleanup/caching.
+    -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      SECTION 3: SDK & LANGUAGE STANDARDS
+      Targeting the latest .NET 10 ecosystem while maintaining strict type safety.
+    -->
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>preview</LangVersion>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      SECTION 4: AGGRESSIVE CODE ANALYSIS (ZERO-WARNING POLICY)
+      Treats code quality as a hard requirement for a successful build.
+    -->
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <AnalysisMode>All</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+    <!-- Promote warnings to errors in Release/CI to ensure maximum code health -->
+    <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release' Or '$(CI)' == 'true'">true</TreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+
+    <!-- Suppress Noise:
+         CS1591 (Missing XML Docs),
+         CA1014 (CLSCompliant is legacy),
+         NETSDK1210 (Artifacts API notice) -->
+    <NoWarn>$(NoWarn);CS1591;CA1014;NETSDK1210</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    SECTION 5: OPTIONAL CLOUD-NATIVE & NATIVE AOT HARDENING
+    Strict validation is only triggered if a project opts into AOT.
+  -->
+  <PropertyGroup>
+    <!-- Single-file safety is beneficial for all modern cloud apps -->
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PublishAot)' == 'true' Or '$(IsAotCompatible)' == 'true'">
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable Condition="'$(OutputType)' != 'Library'">true</IsTrimmable>
+
+    <!-- Fail build if AOT-incompatible code (Reflection/Dynamic) is used -->
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+
+    <!-- Ensure debug builds don't hide potential AOT issues -->
+    <SuppressTrimAnalysisWarnings Condition="'$(Configuration)' == 'Debug'">false</SuppressTrimAnalysisWarnings>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      SECTION 6: REPRODUCIBLE BUILDS & DEVOPS
+      Ensures the binary built on a dev machine matches the one built in CI.
+    -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' Or '$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Debugging: Embed PDB symbols directly into the DLL to simplify diagnostics -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DebugType>embedded</DebugType>
+
+    <!-- NuGet Security: Fix versions via lock files for consistent environments -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      SECTION 7: PERFORMANCE & SECURITY
+      OS-level hardening and MSBuild performance optimizations.
+    -->
+    <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+    <MSBuildCopyContentTransitively>true</MSBuildCopyContentTransitively>
+
+    <!-- Security: Block known vulnerabilities during build -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+    <NuGetAuditMode>all</NuGetAuditMode>
+
+    <!-- Security: Disable insecure legacy formatters and enable Control Flow Guard -->
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+    <ControlFlowGuard>Guard</ControlFlowGuard>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      SECTION 8: ORGANIZATIONAL METADATA
+      Generic info for NuGet and Assembly metadata.
+    -->
+    <Authors>Your Organization Name</Authors>
+    <Company>Your Company</Company>
+    <Copyright>Copyright © $([System.DateTime]::UtcNow.ToString('yyyy')) $(Company)</Copyright>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      SECTION 9: GLOBAL ANALYZERS
+      Standardizes reliability and concurrency checks across all projects.
+    -->
+    <PackageReference Include="DotNet.ReproducibleBuilds" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Developer Feedback: Prints a high-visibility status message during build -->
+  <Target Name="CustomBuildStatus" BeforeTargets="Build">
+    <Message Importance="high" Text="[PIPELINE] Project: $(MSBuildProjectName) | AOT: $(IsAotCompatible) | Runtime: $(TargetFramework)" />
+  </Target>
 </Project>

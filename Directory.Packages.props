@@ -7,7 +7,7 @@
     <PackageVersion Include="MediatR" Version="14.0.0" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
-    <PackageVersion Include="Scrutor" Version="6.0.1" />
+    <PackageVersion Include="Scrutor" Version="7.0.0" />
   </ItemGroup>
   <ItemGroup Label="Entity Framework Core">
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.1" />
@@ -53,7 +53,7 @@
     <PackageVersion Include="RedLock.net" Version="2.3.2" />
   </ItemGroup>
   <ItemGroup Label="Cloud Storage">
-    <PackageVersion Include="AWSSDK.S3" Version="4.0.16.1" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.16.2" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.26.0" />
   </ItemGroup>
   <ItemGroup Label="Payments">
@@ -89,8 +89,13 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.10.0" />
     <PackageVersion Include="Testcontainers.Redis" Version="4.10.0" />
     <PackageVersion Include="Respawn" Version="7.0.0" />
-    <PackageVersion Include="WireMock.Net" Version="1.21.0" />
+    <PackageVersion Include="WireMock.Net" Version="1.22.0" />
     <PackageVersion Include="NBomber" Version="6.1.2" />
     <PackageVersion Include="NBomber.Http" Version="6.1.0" />
+  </ItemGroup>
+  <ItemGroup Label="Analyzers">
+    <PackageVersion Include="DotNet.ReproducibleBuilds" Version="1.2.39" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.101" />
+    <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.14.15" />
   </ItemGroup>
 </Project>
