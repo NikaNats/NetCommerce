@@ -14,7 +14,9 @@ using NetCommerce.Ordering.Infrastructure;
 using NetCommerce.Payments.Infrastructure;
 using NetCommerce.SharedKernel.Application.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure;
+using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Redis;
+using Scrutor;
 
 namespace NetCommerce.Api.Extensions;
 
@@ -61,7 +63,7 @@ public static class ServiceCollectionExtensions
         // MediatR Pipeline Behaviors
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-
+    
         return services;
     }
 
@@ -76,6 +78,9 @@ public static class ServiceCollectionExtensions
         services.AddInventoryModule(configuration);
         services.AddPaymentsModule(configuration);
         services.AddMediaModule(configuration);
+
+        // Decorate all INotificationHandlers with our Logging Decorator
+        services.Decorate(typeof(INotificationHandler<>), typeof(IntegrationEventLogHandlerDecorator<>));
 
         return services;
     }

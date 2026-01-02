@@ -17,6 +17,7 @@ using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
+using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Catalog.Infrastructure;
@@ -52,6 +53,12 @@ public static class CatalogModule
 
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CatalogDbContext>());
+
+        // Register the specific repository for this module
+        services.AddScoped<IIntegrationEventLogRepository<CatalogDbContext>, IntegrationEventLogRepository<CatalogDbContext>>();
+
+        // Register the integration event log service for this module
+        services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<CatalogDbContext>>();
 
         // Repositories
         // Product repository with caching decorator for enterprise-scale read performance

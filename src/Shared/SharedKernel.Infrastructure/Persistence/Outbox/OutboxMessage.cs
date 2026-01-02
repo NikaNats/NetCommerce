@@ -12,6 +12,7 @@ public sealed class OutboxMessage
     }
 
     public Guid Id { get; private set; }
+    public Guid EventId { get; private set; }
     public string Type { get; private set; } = string.Empty;
     public string Content { get; private set; } = string.Empty;
     public DateTime OccurredOn { get; private set; }
@@ -31,11 +32,12 @@ public sealed class OutboxMessage
     /// </summary>
     public DateTime? ProcessingStartedAt { get; private set; }
 
-    public static OutboxMessage Create(string type, string content, DateTime occurredOn)
+    public static OutboxMessage Create(string type, string content, DateTime occurredOn, Guid eventId)
     {
         return new OutboxMessage
         {
             Id = Guid.NewGuid(),
+            EventId = eventId,
             Type = type,
             Content = content,
             OccurredOn = occurredOn,

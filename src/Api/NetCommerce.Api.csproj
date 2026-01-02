@@ -28,6 +28,9 @@
     <!-- MediatR -->
     <PackageReference Include="MediatR" />
     
+    <!-- Scrutor for decorator pattern -->
+    <PackageReference Include="Scrutor" />
+    
     <!-- Problem Details -->
     <PackageReference Include="Hellang.Middleware.ProblemDetails" />
   </ItemGroup>

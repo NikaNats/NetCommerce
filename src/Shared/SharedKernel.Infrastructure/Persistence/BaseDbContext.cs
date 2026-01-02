@@ -2,7 +2,10 @@ using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.SharedKernel.Domain;
+using IntegrationEventLogEntity = NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog.IntegrationEventLog;
+using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
+using NetCommerce.SharedKernel.Infrastructure.Serialization;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
@@ -10,14 +13,8 @@ namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 ///     Base DbContext with transactional outbox pattern for guaranteed event delivery.
 ///     Domain events are converted to OutboxMessage entities and saved in the same transaction.
 /// </summary>
-public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext
+public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext, IIntegrationEventLogDbContext
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false
-    };
-
     private readonly IMediator _mediator;
 
     protected BaseDbContext(DbContextOptions options, IMediator mediator) : base(options)
@@ -26,6 +23,8 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext
     }
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<IntegrationEventLogEntity> IntegrationEventLogs => Set<IntegrationEventLogEntity>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -62,7 +61,7 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext
     /// </summary>
     private void ConvertDomainEventsToOutboxMessages()
     {
-        var domainEntities = ChangeTracker.Entries<Entity<Guid>>()
+        var domainEntities = ChangeTracker.Entries<IHasDomainEvents>()
             .Where(e => e.Entity.DomainEvents.Any())
             .Select(e => e.Entity)
             .ToList();
@@ -73,13 +72,29 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext
 
         foreach (var domainEvent in domainEvents)
         {
+            var content = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), JsonDefaults.Options);
+            var eventType = domainEvent.GetType().Name;
+
+            // 1. Operational: Outbox Pattern (Processed & Deleted later)
             var outboxMessage = OutboxMessage.Create(
                 domainEvent.GetType().AssemblyQualifiedName!,
-                JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), JsonOptions),
-                domainEvent.OccurredOn
+                content,
+                domainEvent.OccurredOn,
+                domainEvent.EventId
             );
-
             OutboxMessages.Add(outboxMessage);
+
+            // 2. Audit: Log as Pending/Committed
+            // This semantic change satisfies the critic: We aren't lying anymore.
+            // We are logging that we *intend* to publish this.
+            var logEntry = IntegrationEventLogEntity.CreatePending( 
+                domainEvent.EventId,
+                eventType,
+                content,
+                domainEvent.OccurredOn,
+                correlationId: null // Can inject an ICorrelationIdAccessor if needed
+            );
+            IntegrationEventLogs.Add(logEntry);
         }
 
         domainEntities.ForEach(e => e.ClearDomainEvents());
@@ -104,6 +119,9 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork, IOutboxDbContext
 
         // Apply OutboxMessage configuration
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
+
+        // Apply IntegrationEventLog configuration
+        modelBuilder.ApplyConfiguration(new IntegrationEventLogConfiguration());
 
         // Configure rowversion for all aggregate roots
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())

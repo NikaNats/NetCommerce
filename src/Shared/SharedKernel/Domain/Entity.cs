@@ -1,9 +1,18 @@
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
-///     Base class for all domain entities with identity and domain events support.
+///     Interface for entities that have domain events.
 /// </summary>
-public abstract class Entity<TId> : IEquatable<Entity<TId>> where TId : notnull
+public interface IHasDomainEvents
+{
+    IReadOnlyList<IDomainEvent> DomainEvents { get; }
+    void ClearDomainEvents();
+}
+
+/// <summary>
+    ///     Base class for all domain entities with identity and domain events support.
+    /// </summary>
+public abstract class Entity<TId> : IEquatable<Entity<TId>>, IHasDomainEvents where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = [];
 

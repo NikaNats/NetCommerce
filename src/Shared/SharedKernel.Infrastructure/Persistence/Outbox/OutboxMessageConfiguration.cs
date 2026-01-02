@@ -15,6 +15,10 @@ public class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage
             .HasColumnName("id")
             .ValueGeneratedNever();
 
+        builder.Property(o => o.EventId)
+            .HasColumnName("event_id")
+            .IsRequired();
+
         builder.Property(o => o.Type)
             .HasColumnName("type")
             .HasMaxLength(500)

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
@@ -51,7 +52,7 @@ public class OutboxProcessor<TDbContext> : BackgroundService
     private static string GetClaimMessagesSql(string? schema)
     {
         var tableName = string.IsNullOrEmpty(schema) ? "outbox_messages" : $"{schema}.outbox_messages";
-        return @$"SELECT id, type, content, occurred_on, processed_on, error, retry_count, status, processing_started_at
+        return @$"SELECT id, type, content, occurred_on, processed_on, error, retry_count, status, processing_started_at, event_id
 FROM {tableName}
 WHERE 
     (status = {{0}} AND retry_count < {{1}})
@@ -101,6 +102,7 @@ FOR UPDATE SKIP LOCKED";
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var deadLetterHandler = scope.ServiceProvider.GetService<IOutboxDeadLetterHandler<TDbContext>>();
+        var integrationEventLogService = scope.ServiceProvider.GetService<IIntegrationEventLogService>();
 
         // Use an explicit transaction to ensure FOR UPDATE SKIP LOCKED works correctly
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -141,7 +143,7 @@ FOR UPDATE SKIP LOCKED";
             await transaction.CommitAsync(cancellationToken);
 
             // Process messages outside the transaction to avoid long-running transactions
-            await ProcessClaimedMessagesAsync(dbContext, mediator, deadLetterHandler, messages, cancellationToken);
+            await ProcessClaimedMessagesAsync(dbContext, mediator, deadLetterHandler, integrationEventLogService, messages, cancellationToken);
         }
         catch (Exception)
         {
@@ -154,6 +156,7 @@ FOR UPDATE SKIP LOCKED";
         TDbContext dbContext,
         IMediator mediator,
         IOutboxDeadLetterHandler<TDbContext>? deadLetterHandler,
+        IIntegrationEventLogService? integrationEventLogService,
         List<OutboxMessage> messages,
         CancellationToken cancellationToken)
     {
@@ -176,6 +179,12 @@ FOR UPDATE SKIP LOCKED";
 
                 message.MarkAsProcessed();
 
+                // Mark the integration event log as published
+                if (integrationEventLogService != null)
+                {
+                    await integrationEventLogService.MarkEventAsPublishedAsync(message.EventId, cancellationToken);
+                }
+
                 _logger.LogDebug(
                     "Successfully processed outbox message {MessageId} of type {Type}",
                     message.Id, message.Type);
@@ -190,19 +199,30 @@ FOR UPDATE SKIP LOCKED";
                 var domainEvent = DeserializeDomainEvent(message);
                 message.MarkAsFailed(ex.Message, _options.MaxRetries);
 
-                if (message.Status == OutboxMessageStatus.Failed && deadLetterHandler is not null)
-                    try
+                // Mark the integration event log as failed when max retries exceeded
+                if (message.Status == OutboxMessageStatus.Failed)
+                {
+                    if (integrationEventLogService != null)
                     {
-                        await deadLetterHandler.HandleAsync(message, domainEvent, ex, cancellationToken);
+                        await integrationEventLogService.MarkEventAsFailedAsync(message.EventId, ex.Message, cancellationToken);
                     }
-                    catch (Exception handlerEx)
+
+                    if (deadLetterHandler is not null)
                     {
-                        _logger.LogCritical(
-                            handlerEx,
-                            "Dead-letter handler failed for outbox message {MessageId} of type {Type}",
-                            message.Id,
-                            message.Type);
+                        try
+                        {
+                            await deadLetterHandler.HandleAsync(message, domainEvent, ex, cancellationToken);
+                        }
+                        catch (Exception handlerEx)
+                        {
+                            _logger.LogCritical(
+                                handlerEx,
+                                "Dead-letter handler failed for outbox message {MessageId} of type {Type}",
+                                message.Id,
+                                message.Type);
+                        }
                     }
+                }
             }
 
         // Save final status changes (Processed or Failed)

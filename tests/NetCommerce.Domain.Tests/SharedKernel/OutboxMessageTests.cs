@@ -23,7 +23,7 @@ public class OutboxMessageTests
     public void CanRetry_ShouldReturnCorrectValue(int retryCount, int maxRetries, bool expectedCanRetry)
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         for (var i = 0; i < retryCount; i++) message.MarkAsFailed($"Error {i + 1}");
 
         // Act
@@ -45,7 +45,7 @@ public class OutboxMessageTests
         const string content = """{"orderId":"123","customerId":"456"}""";
 
         // Act
-        var message = OutboxMessage.Create(type, content, _testOccurredOn);
+        var message = OutboxMessage.Create(type, content, _testOccurredOn, Guid.NewGuid());
 
         // Assert
         message.Id.ShouldNotBe(Guid.Empty);
@@ -65,8 +65,8 @@ public class OutboxMessageTests
         const string content = "{}";
 
         // Act
-        var message1 = OutboxMessage.Create(type, content, _testOccurredOn);
-        var message2 = OutboxMessage.Create(type, content, _testOccurredOn);
+        var message1 = OutboxMessage.Create(type, content, _testOccurredOn, Guid.NewGuid());
+        var message2 = OutboxMessage.Create(type, content, _testOccurredOn, Guid.NewGuid());
 
         // Assert
         message1.Id.ShouldNotBe(message2.Id);
@@ -80,7 +80,7 @@ public class OutboxMessageTests
     public void MarkAsProcessed_ShouldSetProcessedOnToCurrentUtcTime()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         var beforeMark = DateTime.UtcNow;
 
         // Act
@@ -97,7 +97,7 @@ public class OutboxMessageTests
     public void MarkAsProcessed_ShouldClearError()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.MarkAsFailed("Some error");
 
         // Act
@@ -116,7 +116,7 @@ public class OutboxMessageTests
     public void MarkAsFailed_ShouldSetErrorAndIncrementRetryCount()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         const string errorMessage = "Connection timeout";
 
         // Act
@@ -132,7 +132,7 @@ public class OutboxMessageTests
     public void MarkAsFailed_MultipleTimes_ShouldIncrementRetryCount()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
 
         // Act
         message.MarkAsFailed("Error 1");
@@ -152,7 +152,7 @@ public class OutboxMessageTests
     public void MessageLifecycle_FailThenSucceed_ShouldWorkCorrectly()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
 
         // Act - First attempt fails
         message.MarkAsFailed("Network error");
@@ -175,7 +175,7 @@ public class OutboxMessageTests
     public void MessageLifecycle_ExhaustRetries_ShouldNotAllowMoreRetries()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         const int maxRetries = 3;
 
         // Act - Exhaust all retries
@@ -195,7 +195,7 @@ public class OutboxMessageTests
     public void ClaimForProcessing_ShouldSetStatusToProcessing()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.Status.ShouldBe(OutboxMessageStatus.Pending);
 
         // Act
@@ -209,7 +209,7 @@ public class OutboxMessageTests
     public void ClaimForProcessing_ShouldSetProcessingStartedAt()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         var beforeClaim = DateTime.UtcNow;
 
         // Act
@@ -230,7 +230,7 @@ public class OutboxMessageTests
     public void ReleaseClaim_WhenProcessing_ShouldReturnToPending()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
         message.Status.ShouldBe(OutboxMessageStatus.Processing);
 
@@ -246,7 +246,7 @@ public class OutboxMessageTests
     public void ReleaseClaim_WhenNotProcessing_ShouldNotChangeStatus()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.Status.ShouldBe(OutboxMessageStatus.Pending);
 
         // Act
@@ -260,7 +260,7 @@ public class OutboxMessageTests
     public void ReleaseClaim_WhenProcessed_ShouldNotChangeStatus()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
         message.MarkAsProcessed();
         message.Status.ShouldBe(OutboxMessageStatus.Processed);
@@ -280,7 +280,7 @@ public class OutboxMessageTests
     public void IsStuck_WhenNotProcessing_ShouldReturnFalse()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
 
         // Act
         var isStuck = message.IsStuck(TimeSpan.FromMinutes(5));
@@ -293,7 +293,7 @@ public class OutboxMessageTests
     public void IsStuck_WhenProcessingWithinTimeout_ShouldReturnFalse()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
 
         // Act - Check immediately (well within timeout)
@@ -307,7 +307,7 @@ public class OutboxMessageTests
     public void IsStuck_WhenProcessingBeyondTimeout_ShouldReturnTrue()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
 
         // Act - Check with a zero timeout (any processing time exceeds it)
@@ -325,7 +325,7 @@ public class OutboxMessageTests
     public void Create_ShouldInitializeWithPendingStatus()
     {
         // Arrange & Act
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
 
         // Assert
         message.Status.ShouldBe(OutboxMessageStatus.Pending);
@@ -336,7 +336,7 @@ public class OutboxMessageTests
     public void MarkAsProcessed_ShouldSetStatusToProcessed()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
 
         // Act
@@ -350,7 +350,7 @@ public class OutboxMessageTests
     public void MarkAsFailed_WithMaxRetriesExceeded_ShouldSetStatusToFailed()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         const int maxRetries = 2;
 
         // Act - Fail twice to exceed max retries
@@ -366,7 +366,7 @@ public class OutboxMessageTests
     public void MarkAsFailed_WithRetriesRemaining_ShouldSetStatusToPending()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
         const int maxRetries = 3;
 
@@ -383,7 +383,7 @@ public class OutboxMessageTests
     public void MarkAsFailed_ShouldClearProcessingStartedAt()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         message.ClaimForProcessing();
         message.ProcessingStartedAt.ShouldNotBeNull();
 
@@ -398,7 +398,7 @@ public class OutboxMessageTests
     public void FullLifecycle_ClaimProcessRelease_ShouldTransitionCorrectly()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
 
         // Assert initial state
         message.Status.ShouldBe(OutboxMessageStatus.Pending);
@@ -418,7 +418,7 @@ public class OutboxMessageTests
     public void FullLifecycle_ClaimFailRetry_ShouldTransitionCorrectly()
     {
         // Arrange
-        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn);
+        var message = OutboxMessage.Create("TestType", "{}", _testOccurredOn, Guid.NewGuid());
         const int maxRetries = 3;
 
         // First attempt - claim and fail

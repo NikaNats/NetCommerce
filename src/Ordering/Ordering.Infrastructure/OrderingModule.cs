@@ -11,6 +11,7 @@ using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Behaviors;
+using NetCommerce.SharedKernel.Infrastructure.Persistence.IntegrationEventLog;
 using NetCommerce.SharedKernel.Infrastructure.Persistence.Outbox;
 using NetCommerce.SharedKernel.Results;
 
@@ -36,6 +37,12 @@ public static class OrderingModule
 
         // Register UnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<OrderingDbContext>());
+
+        // Register the specific repository for this module
+        services.AddScoped<IIntegrationEventLogRepository<OrderingDbContext>, IntegrationEventLogRepository<OrderingDbContext>>();
+
+        // Register the integration event log service for this module
+        services.AddScoped<IIntegrationEventLogService, IntegrationEventLogService<OrderingDbContext>>();
 
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();
