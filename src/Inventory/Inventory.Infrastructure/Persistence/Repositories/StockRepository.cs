@@ -24,6 +24,22 @@ public class StockRepository : BaseRepository<Stock, Guid>, IStockRepository
             .FirstOrDefaultAsync(s => s.ProductId == productId, cancellationToken);
     }
 
+    /// <summary>
+    ///     Gets stock by product ID with pessimistic locking (FOR UPDATE).
+    ///     This uses PostgreSQL's row-level locking to prevent concurrent modifications.
+    /// </summary>
+    public async Task<Stock?> GetByProductIdForUpdateAsync(Guid productId, CancellationToken cancellationToken = default)
+    {
+        // Use raw SQL with FOR UPDATE to acquire a row-level lock
+        // This ensures serialized access to the stock row within the transaction
+        var stock = await _context.Stocks
+            .FromSqlInterpolated($"SELECT * FROM inventory.stocks WHERE product_id = {productId} FOR UPDATE")
+            .Include(s => s.Reservations.Where(r => r.Status == ReservationStatus.Active))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return stock;
+    }
+
     public async Task<Stock?> GetBySkuAsync(string sku, CancellationToken cancellationToken = default)
     {
         return await DbSet

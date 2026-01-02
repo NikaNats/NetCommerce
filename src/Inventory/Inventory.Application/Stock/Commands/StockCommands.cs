@@ -1,7 +1,6 @@
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Inventory.Application.Stock.Commands;
@@ -53,7 +52,7 @@ public sealed class CreateStockCommandHandler : ICommandHandler<CreateStockComma
 
 /// <summary>
 ///     Command to reserve stock for an order.
-///     Uses distributed locking to prevent overselling.
+///     Uses database-level pessimistic locking (FOR UPDATE) to prevent overselling.
 /// </summary>
 public record ReserveStockCommand(
     Guid ProductId,
@@ -62,20 +61,14 @@ public record ReserveStockCommand(
 
 public sealed class ReserveStockCommandHandler : ICommandHandler<ReserveStockCommand, Guid>
 {
-    private static readonly TimeSpan LockExpiry = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan LockWait = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan LockRetry = TimeSpan.FromMilliseconds(500);
-    private readonly IDistributedLockService _lockService;
     private readonly IStockRepository _stockRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public ReserveStockCommandHandler(
         IStockRepository stockRepository,
-        IDistributedLockService lockService,
         IUnitOfWork unitOfWork)
     {
         _stockRepository = stockRepository;
-        _lockService = lockService;
         _unitOfWork = unitOfWork;
     }
 
@@ -83,21 +76,9 @@ public sealed class ReserveStockCommandHandler : ICommandHandler<ReserveStockCom
         ReserveStockCommand request,
         CancellationToken cancellationToken)
     {
-        var lockResource = $"stock:reserve:{request.ProductId}";
-
-        // Acquire distributed lock using Redis Redlock
-        await using var distributedLock = await _lockService.TryAcquireLockAsync(
-            lockResource,
-            LockExpiry,
-            LockWait,
-            LockRetry,
-            cancellationToken);
-
-        if (distributedLock is null || !distributedLock.IsAcquired)
-            return Result.Failure<Guid>(
-                Error.Conflict("Unable to acquire lock. The product is being processed by another request."));
-
-        var stock = await _stockRepository.GetByProductIdAsync(request.ProductId, cancellationToken);
+        // Use pessimistic locking (SELECT FOR UPDATE) to prevent concurrent modifications
+        // The lock is held until the transaction commits, ensuring serialized access
+        var stock = await _stockRepository.GetByProductIdForUpdateAsync(request.ProductId, cancellationToken);
 
         if (stock is null)
             return Result.Failure<Guid>(

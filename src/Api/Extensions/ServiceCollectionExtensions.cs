@@ -14,7 +14,6 @@ using NetCommerce.Ordering.Infrastructure;
 using NetCommerce.Payments.Infrastructure;
 using NetCommerce.SharedKernel.Application.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure;
-using NetCommerce.SharedKernel.Infrastructure.Redis;
 
 namespace NetCommerce.Api.Extensions;
 
@@ -38,8 +37,7 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        // Redis services from Aspire-injected IConnectionMultiplexer
-        services.AddSingleton<IDistributedLockService, RedisDistributedLockService>();
+        // Date/Time provider for testability
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         // MediatR with all application assemblies (includes event handlers for cross-module communication)
