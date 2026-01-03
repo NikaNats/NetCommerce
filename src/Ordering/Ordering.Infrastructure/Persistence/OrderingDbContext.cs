@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;
@@ -9,8 +8,8 @@ public class OrderingDbContext : BaseDbContext
 {
     public const string Schema = "ordering";
 
-    public OrderingDbContext(DbContextOptions<OrderingDbContext> options, IMediator mediator)
-        : base(options, mediator)
+    public OrderingDbContext(DbContextOptions<OrderingDbContext> options)
+        : base(options)
     {
     }
 

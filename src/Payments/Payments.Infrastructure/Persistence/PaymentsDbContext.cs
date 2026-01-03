@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;
@@ -9,8 +8,8 @@ public class PaymentsDbContext : BaseDbContext
 {
     public const string Schema = "payments";
 
-    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, IMediator mediator)
-        : base(options, mediator)
+    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options)
+        : base(options)
     {
     }
 

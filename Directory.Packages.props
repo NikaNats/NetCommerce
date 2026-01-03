@@ -4,7 +4,11 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup Label="Core">
-    <PackageVersion Include="MediatR" Version="14.0.0" />
+    <!-- Wolverine - Next Generation .NET Mediator and Message Bus -->
+    <PackageVersion Include="WolverineFx" Version="5.9.2" />
+    <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="5.9.2" />
+    <PackageVersion Include="WolverineFx.Postgresql" Version="5.9.2" />
+    <PackageVersion Include="WolverineFx.FluentValidation" Version="5.9.2" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <PackageVersion Include="Scrutor" Version="7.0.0" />

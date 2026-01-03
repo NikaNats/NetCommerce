@@ -1,8 +1,10 @@
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Categories.Commands;
+using NetCommerce.Catalog.Application.Categories.DTOs;
 using NetCommerce.Catalog.Application.Categories.Queries;
+using NetCommerce.SharedKernel.Results;
+using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Catalog;
 
@@ -80,54 +82,54 @@ public class CategoryEndpoints : IEndpointGroup
     }
 
     private static async Task<IResult> GetAll(
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetAllCategoriesQuery();
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<IReadOnlyList<CategoryDto>>>(query, cancellationToken);
 
         return result.ToApiResult();
     }
 
     private static async Task<IResult> GetById(
         Guid id,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetCategoryByIdQuery(id);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<CategoryDto>>(query, cancellationToken);
 
         return result.ToApiResult();
     }
 
     private static async Task<IResult> GetBySlug(
         string slug,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetCategoryBySlugQuery(slug);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<CategoryDto>>(query, cancellationToken);
 
         return result.ToApiResult();
     }
 
     private static async Task<IResult> GetChildren(
         Guid id,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetChildCategoriesQuery(id);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<IReadOnlyList<CategoryDto>>>(query, cancellationToken);
 
         return result.ToApiResult();
     }
 
     private static async Task<IResult> Create(
         CreateCategoryCommand command,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result<Guid>>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
@@ -138,7 +140,7 @@ public class CategoryEndpoints : IEndpointGroup
     private static async Task<IResult> Update(
         Guid id,
         UpdateCategoryCommand command,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         if (id != command.CategoryId)
@@ -148,17 +150,17 @@ public class CategoryEndpoints : IEndpointGroup
                 detail: "Category ID in URL does not match the request body.",
                 type: "https://tools.ietf.org/html/rfc7231#section-6.5.1");
 
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> Delete(
         Guid id,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new DeleteCategoryCommand(id);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 }

@@ -1,18 +1,11 @@
 using FluentValidation;
-using MediatR;
 using NetCommerce.Basket.Infrastructure;
-using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Validators;
 using NetCommerce.Catalog.Infrastructure;
-using NetCommerce.Inventory.Application.EventHandlers;
-using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure;
 using NetCommerce.Media.Infrastructure;
-using NetCommerce.Ordering.Application.EventHandlers;
-using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Infrastructure;
 using NetCommerce.Payments.Infrastructure;
-using NetCommerce.SharedKernel.Application.Behaviors;
 using NetCommerce.SharedKernel.Infrastructure;
 
 namespace NetCommerce.Api.Extensions;
@@ -40,24 +33,8 @@ public static class ServiceCollectionExtensions
         // Date/Time provider for testability
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
-        // MediatR with all application assemblies (includes event handlers for cross-module communication)
-        services.AddMediatR(cfg =>
-        {
-            cfg.RegisterServicesFromAssemblies(
-                typeof(CreateProductCommand).Assembly,
-                typeof(ReserveStockCommand).Assembly,
-                typeof(OrderPaidIntegrationEventHandler).Assembly,
-                typeof(CreateOrderCommand).Assembly,
-                typeof(PaymentCompletedIntegrationEventHandler).Assembly
-            );
-        });
-
-        // FluentValidation
+        // FluentValidation - Wolverine uses this via WolverineFx.FluentValidation middleware
         services.AddValidatorsFromAssemblyContaining<CreateProductCommandValidator>();
-
-        // MediatR Pipeline Behaviors
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
         return services;
     }

@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;
@@ -9,8 +8,8 @@ public class InventoryDbContext : BaseDbContext
 {
     public const string Schema = "inventory";
 
-    public InventoryDbContext(DbContextOptions<InventoryDbContext> options, IMediator mediator)
-        : base(options, mediator)
+    public InventoryDbContext(DbContextOptions<InventoryDbContext> options)
+        : base(options)
     {
     }
 

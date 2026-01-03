@@ -1,23 +1,16 @@
-using FluentValidation;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Application.Categories.Mappers;
-using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.Mappers;
+using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
-using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Infrastructure.Services;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Catalog.Infrastructure;
 
@@ -30,7 +23,7 @@ public static class CatalogModule
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // DbContext - uses Aspire-provided connection string "CatalogDb"
+        // Database - uses Aspire-provided connection string "CatalogDb"
         // Using DbContext pooling for improved performance in high-scale scenarios
         var connectionString = configuration.GetConnectionString("CatalogDb")
                                ?? configuration.GetConnectionString("DefaultConnection");
@@ -59,8 +52,7 @@ public static class CatalogModule
         services.AddScoped<IProductRepository>(provider =>
             new CachedProductRepository(
                 provider.GetRequiredService<ProductRepository>(),
-                provider.GetRequiredService<IDistributedCache>()
-            ));
+                provider.GetRequiredService<IDistributedCache>()));
 
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 
@@ -72,27 +64,9 @@ public static class CatalogModule
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddSingleton<ICdnUrlGenerator, CdnUrlGenerator>();
 
-        // MediatR handlers from Application assembly
-        services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(CreateProductCommand).Assembly); });
-
-        // Register Resilient Transaction Behavior
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(CatalogTransactionBehavior<,>));
-
-        // FluentValidation validators
-        services.AddValidatorsFromAssembly(typeof(CreateProductCommand).Assembly);
+        // Note: Wolverine handles transactional outbox automatically via its middleware.
+        // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
 
         return services;
-    }
-}
-
-internal class CatalogTransactionBehavior<TRequest, TResponse>
-    : ResilientTransactionBehavior<TRequest, Result<TResponse>, CatalogDbContext>
-    where TRequest : ICommand<TResponse>
-{
-    public CatalogTransactionBehavior(
-        CatalogDbContext dbContext,
-        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, CatalogDbContext>> logger)
-        : base(dbContext, logger)
-    {
     }
 }

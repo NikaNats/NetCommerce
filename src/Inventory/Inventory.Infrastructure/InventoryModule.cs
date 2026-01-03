@@ -1,17 +1,12 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NetCommerce.Inventory.Application.Stock.Mappers;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Inventory.Infrastructure;
 
@@ -49,20 +44,9 @@ public static class InventoryModule
 
         services.AddHostedService<ReservationCleanupJob>();
 
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(InventoryTransactionBehavior<,>));
+        // Note: Wolverine handles transactional outbox automatically via its middleware.
+        // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
 
         return services;
-    }
-}
-
-internal class InventoryTransactionBehavior<TRequest, TResponse>
-    : ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>
-    where TRequest : ICommand<TResponse>
-{
-    public InventoryTransactionBehavior(
-        InventoryDbContext dbContext,
-        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, InventoryDbContext>> logger)
-        : base(dbContext, logger)
-    {
     }
 }

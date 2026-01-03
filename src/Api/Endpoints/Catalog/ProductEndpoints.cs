@@ -1,8 +1,11 @@
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Products.Commands;
+using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Queries;
+using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Results;
+using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Catalog;
 
@@ -109,28 +112,28 @@ public class ProductEndpoints : IEndpointGroup
 
     private static async Task<IResult> GetById(
         Guid id,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetProductByIdQuery(id);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<ProductDto>>(query, cancellationToken);
 
         return result.ToApiResult();
     }
 
     private static async Task<IResult> GetBySlug(
         string slug,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetProductBySlugQuery(slug);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<ProductDto>>(query, cancellationToken);
 
         return result.ToApiResult();
     }
 
     private static async Task<IResult> Search(
-        ISender mediator,
+        IMessageBus bus,
         [FromQuery] string? searchTerm = null,
         [FromQuery] Guid? categoryId = null,
         [FromQuery] decimal? minPrice = null,
@@ -145,7 +148,7 @@ public class ProductEndpoints : IEndpointGroup
         if (pageSize > MaxPageSize) pageSize = MaxPageSize;
 
         var query = new SearchProductsQuery(searchTerm, categoryId, minPrice, maxPrice, page, pageSize);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<PagedResult<ProductDto>>>(query, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
@@ -162,10 +165,10 @@ public class ProductEndpoints : IEndpointGroup
     private static async Task<IResult> Create(
         CreateProductCommand command,
         HttpContext httpContext,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<SharedKernel.Results.Result<Guid>>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
@@ -178,7 +181,7 @@ public class ProductEndpoints : IEndpointGroup
     private static async Task<IResult> Update(
         Guid id,
         UpdateProductCommand command,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         if (id != command.ProductId)
@@ -188,28 +191,28 @@ public class ProductEndpoints : IEndpointGroup
                 detail: "Product ID in URL does not match the request body.",
                 type: "https://tools.ietf.org/html/rfc7231#section-6.5.1");
 
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> UpdatePrice(
         Guid id,
         UpdateProductPriceRequest request,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new UpdateProductPriceCommand(id, request.Amount, request.Currency);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> Publish(
         Guid id,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new PublishProductCommand(id);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
@@ -217,11 +220,11 @@ public class ProductEndpoints : IEndpointGroup
         Guid id,
         AddProductImageRequest request,
         HttpContext httpContext,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new AddProductImageCommand(id, request.ImageKey, request.DisplayOrder, request.IsPrimary);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
@@ -232,12 +235,12 @@ public class ProductEndpoints : IEndpointGroup
 
     private static async Task<IResult> Delete(
         Guid id,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         // Using ArchiveProductCommand for soft delete (RESTful best practice)
         var command = new ArchiveProductCommand(id);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 }

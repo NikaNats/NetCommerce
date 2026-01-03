@@ -1,4 +1,3 @@
-using MediatR;
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.SharedKernel.Application;
@@ -6,22 +5,12 @@ namespace NetCommerce.SharedKernel.Application;
 /// <summary>
 ///     CQRS Command marker interface.
 ///     Commands represent write operations that change state.
+///     Wolverine discovers handlers by convention - no base interface required.
 /// </summary>
-public interface ICommand : IRequest<Result>;
+public interface ICommand;
 
 /// <summary>
 ///     CQRS Command with response value.
+///     The TResponse type is used by Wolverine's cascading messages.
 /// </summary>
-public interface ICommand<TResponse> : IRequest<Result<TResponse>>;
-
-/// <summary>
-///     Command handler interface.
-/// </summary>
-public interface ICommandHandler<TCommand> : IRequestHandler<TCommand, Result>
-    where TCommand : ICommand;
-
-/// <summary>
-///     Command handler with response interface.
-/// </summary>
-public interface ICommandHandler<TCommand, TResponse> : IRequestHandler<TCommand, Result<TResponse>>
-    where TCommand : ICommand<TResponse>;
+public interface ICommand<TResponse> : ICommand;

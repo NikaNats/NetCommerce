@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -80,9 +79,6 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Register DbContext factory
         services.AddDbContextPool<InventoryDbContext>(options =>
             options.UseNpgsql(Fixture.PostgresConnectionString));
-
-        // Register IMediator mock
-        services.AddScoped(_ => Substitute.For<IMediator>());
 
         var serviceProvider = services.BuildServiceProvider();
 

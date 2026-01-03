@@ -4,10 +4,15 @@ using NetCommerce.Api.Authentication;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Api.Extensions;
 using NetCommerce.Api.Middleware;
+using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
+using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Infrastructure.Persistence;
+using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
+using NetCommerce.SharedKernel.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +20,19 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Aspire Service Defaults (OpenTelemetry, Health Checks, Service Discovery, Polly)
 // ============================================================================
 builder.AddServiceDefaults();
+
+// ============================================================================
+// Wolverine Message Bus with Transactional Outbox
+// Replaces MediatR with durable, at-least-once message delivery
+// ============================================================================
+builder.Host.UseWolverineMessaging(
+    builder.Configuration,
+    // Handler discovery assemblies (all modules)
+    typeof(CreateProductCommand),          // Catalog
+    typeof(ReserveStockCommand),           // Inventory
+    typeof(CreateOrderCommand),            // Ordering
+    typeof(RefundPaymentTransactionCommand)// Payments
+);
 
 // ============================================================================
 // Problem Details for consistent error responses

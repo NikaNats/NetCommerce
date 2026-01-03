@@ -1,20 +1,18 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Payments.Infrastructure;
 
+/// <summary>
+///     Payments module registration.
+/// </summary>
 public static class PaymentsModule
 {
     public static IServiceCollection AddPaymentsModule(this IServiceCollection services, IConfiguration configuration)
@@ -43,20 +41,9 @@ public static class PaymentsModule
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
 
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(PaymentsTransactionBehavior<,>));
+        // Note: Wolverine handles transactional outbox automatically via its middleware.
+        // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
 
         return services;
-    }
-}
-
-internal class PaymentsTransactionBehavior<TRequest, TResponse>
-    : ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>
-    where TRequest : ICommand<TResponse>
-{
-    public PaymentsTransactionBehavior(
-        PaymentsDbContext dbContext,
-        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, PaymentsDbContext>> logger)
-        : base(dbContext, logger)
-    {
     }
 }

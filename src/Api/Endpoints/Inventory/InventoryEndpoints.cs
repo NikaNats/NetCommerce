@@ -1,6 +1,7 @@
-using MediatR;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Application.Stock.Queries;
+using NetCommerce.SharedKernel.Results;
+using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Inventory;
 
@@ -49,71 +50,71 @@ public class InventoryEndpoints : IEndpointGroup
 
     private static async Task<IResult> GetByProductId(
         Guid productId,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetStockByProductIdQuery(productId);
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<StockDto>>(query, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> GetLowStockItems(
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var query = new GetLowStockItemsQuery();
-        var result = await mediator.Send(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<IReadOnlyList<StockDto>>>(query, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> CreateStock(
         CreateStockCommand command,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result<Guid>>(command, cancellationToken);
         return result.ToCreatedResult();
     }
 
     private static async Task<IResult> UpdateQuantity(
         Guid stockId,
         UpdateStockQuantityRequest request,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new UpdateStockQuantityCommand(stockId, request.QuantityDelta, request.Reason);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> ReserveStock(
         ReserveStockCommand command,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result<Guid>>(command, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> ConfirmReservation(
         Guid productId,
         Guid reservationId,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new ConfirmReservationCommand(productId, reservationId);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
     private static async Task<IResult> ReleaseReservation(
         Guid productId,
         Guid reservationId,
-        ISender mediator,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
         var command = new ReleaseReservationCommand(productId, reservationId);
-        var result = await mediator.Send(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 }

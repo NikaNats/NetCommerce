@@ -1,19 +1,17 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.BackgroundJobs;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Behaviors;
-using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Ordering.Infrastructure;
 
+/// <summary>
+///     Ordering module registration.
+/// </summary>
 public static class OrderingModule
 {
     public static IServiceCollection AddOrderingModule(this IServiceCollection services, IConfiguration configuration)
@@ -42,20 +40,9 @@ public static class OrderingModule
         services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));
         services.AddHostedService<GracePeriodManagerService>();
 
-        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(OrderingTransactionBehavior<,>));
+        // Note: Wolverine handles transactional outbox automatically via its middleware.
+        // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
 
         return services;
-    }
-}
-
-internal class OrderingTransactionBehavior<TRequest, TResponse>
-    : ResilientTransactionBehavior<TRequest, Result<TResponse>, OrderingDbContext>
-    where TRequest : ICommand<TResponse>
-{
-    public OrderingTransactionBehavior(
-        OrderingDbContext dbContext,
-        ILogger<ResilientTransactionBehavior<TRequest, Result<TResponse>, OrderingDbContext>> logger)
-        : base(dbContext, logger)
-    {
     }
 }

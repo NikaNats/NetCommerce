@@ -1,62 +1,42 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Events;
+using Wolverine.Attributes;
 
 namespace NetCommerce.Inventory.Application.EventHandlers;
 
 /// <summary>
-///     Integration event handler for OrderPaidIntegrationEvent.
-///     When an order is marked as paid in the Ordering module,
-///     this handler confirms stock reservations in the Inventory module.
-///     This bridges the Ordering and Inventory modules without direct coupling.
+///     Wolverine handler for OrderPaidIntegrationEvent.
+///     When an order is marked as paid, this handler confirms stock reservations.
 ///     Architecture: Ordering -> [Integration Event] -> Inventory
 /// </summary>
-public sealed class OrderPaidIntegrationEventHandler : INotificationHandler<OrderPaidIntegrationEvent>
+[WolverineHandler]
+public static class OrderPaidHandler
 {
-    private readonly ILogger<OrderPaidIntegrationEventHandler> _logger;
-    private readonly ISender _mediator;
-
-    public OrderPaidIntegrationEventHandler(ISender mediator, ILogger<OrderPaidIntegrationEventHandler> logger)
+    /// <summary>
+    ///     Handles order payment confirmation by confirming stock reservations.
+    ///     In a complete implementation, this would return ConfirmReservationCommand(s)
+    ///     as cascading messages for each order item.
+    /// </summary>
+    public static void Handle(
+        OrderPaidIntegrationEvent integrationEvent,
+        ILogger<OrderPaidIntegrationEvent> logger)
     {
-        _mediator = mediator;
-        _logger = logger;
-    }
+        logger.LogInformation(
+            "Processing OrderPaidIntegrationEvent for OrderId: {OrderId}, OrderNumber: {OrderNumber}",
+            integrationEvent.OrderId,
+            integrationEvent.OrderNumber);
 
-    public async Task Handle(OrderPaidIntegrationEvent notification, CancellationToken cancellationToken)
-    {
-        try
-        {
-            _logger.LogInformation(
-                "Processing OrderPaidIntegrationEvent for OrderId: {OrderId}, OrderNumber: {OrderNumber}",
-                notification.OrderId,
-                notification.OrderNumber);
+        // In a real system, you would:
+        // 1. Get order items with reservation IDs from the event
+        // 2. Return ConfirmReservationCommand for each item as cascading messages
+        //
+        // Example:
+        // return integrationEvent.Items.Select(item =>
+        //     new ConfirmReservationCommand(item.ProductId, item.ReservationId))
+        //     .ToArray();
 
-            // Note: In a real system, you would:
-            // 1. Query the Ordering module (via SharedKernel service) to get order line items
-            // 2. For each line item, confirm the corresponding stock reservation
-            // 
-            // For now, this is a placeholder that shows the pattern.
-            // The actual order items would contain ProductId and ReservationId.
-            //
-            // Example (pseudo-code):
-            // var orderItems = await _orderQueryService.GetOrderItemsAsync(notification.OrderId);
-            // foreach (var item in orderItems)
-            // {
-            //     var command = new ConfirmReservationCommand(item.ProductId, item.ReservationId);
-            //     await _mediator.Send(command, cancellationToken);
-            // }
-
-            _logger.LogInformation(
-                "Successfully processed OrderPaidIntegrationEvent for OrderId: {OrderId}",
-                notification.OrderId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Error handling OrderPaidIntegrationEvent for OrderId: {OrderId}",
-                notification.OrderId);
-            throw;
-        }
+        logger.LogInformation(
+            "Stock reservation confirmation initiated for OrderId: {OrderId}",
+            integrationEvent.OrderId);
     }
 }

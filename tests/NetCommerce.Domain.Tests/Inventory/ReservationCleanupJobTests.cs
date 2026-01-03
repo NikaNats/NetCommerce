@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -31,9 +30,6 @@ public class ReservationCleanupJobTests
         // Use in-memory database with shared name
         services.AddDbContext<InventoryDbContext>(options =>
             options.UseInMemoryDatabase(dbName));
-
-        // Register IMediator mock
-        services.AddScoped(_ => Substitute.For<IMediator>());
 
         return services.BuildServiceProvider();
     }

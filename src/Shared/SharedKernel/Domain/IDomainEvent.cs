@@ -1,12 +1,11 @@
-using MediatR;
-
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
 ///     Marker interface for domain events.
 ///     Domain events are dispatched after aggregate changes are persisted.
+///     Wolverine handles these via its transactional outbox pattern.
 /// </summary>
-public interface IDomainEvent : INotification
+public interface IDomainEvent
 {
     /// <summary>
     ///     Unique identifier for this event instance.

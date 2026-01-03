@@ -5,7 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MediatR" />
+    <PackageReference Include="WolverineFx" />
     <PackageReference Include="FluentValidation" />
   </ItemGroup>
 

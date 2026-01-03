@@ -1,12 +1,11 @@
-using MediatR;
-
 namespace NetCommerce.SharedKernel.Application;
 
 /// <summary>
 ///     Integration event marker interface.
 ///     Integration events are used for cross-module communication.
+///     Wolverine handles these via durable local queues with outbox support.
 /// </summary>
-public interface IIntegrationEvent : INotification
+public interface IIntegrationEvent
 {
     Guid EventId { get; }
     DateTime OccurredOn { get; }
@@ -22,9 +21,3 @@ public abstract record IntegrationEvent : IIntegrationEvent
     public DateTime OccurredOn { get; init; } = DateTime.UtcNow;
     public string EventType => GetType().Name;
 }
-
-/// <summary>
-///     Handler for integration events.
-/// </summary>
-public interface IIntegrationEventHandler<TEvent> : INotificationHandler<TEvent>
-    where TEvent : IIntegrationEvent;

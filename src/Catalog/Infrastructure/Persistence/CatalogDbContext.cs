@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.Catalog.Domain.Products;
@@ -13,8 +12,8 @@ public sealed class CatalogDbContext : BaseDbContext
 {
     public const string Schema = "catalog";
 
-    public CatalogDbContext(DbContextOptions<CatalogDbContext> options, IMediator mediator)
-        : base(options, mediator)
+    public CatalogDbContext(DbContextOptions<CatalogDbContext> options)
+        : base(options)
     {
     }
 

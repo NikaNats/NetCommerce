@@ -1,54 +1,37 @@
-using MediatR;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.SharedKernel.Events;
+using Wolverine.Attributes;
 
 namespace NetCommerce.Payments.Application.EventHandlers;
 
 /// <summary>
-///     Compensating action handler: when inventory confirmation cannot be completed after payment,
-///     attempt to refund the captured payment.
+///     Wolverine handler for OrderInventoryConfirmationFailedIntegrationEvent.
+///     Compensating action: when inventory confirmation fails after payment,
+///     this handler returns a refund command as a cascading message.
 /// </summary>
-public sealed class OrderInventoryConfirmationFailedIntegrationEventHandler
-    : INotificationHandler<OrderInventoryConfirmationFailedIntegrationEvent>
+[WolverineHandler]
+public static class OrderInventoryConfirmationFailedHandler
 {
-    private readonly ILogger<OrderInventoryConfirmationFailedIntegrationEventHandler> _logger;
-    private readonly ISender _sender;
-
-    public OrderInventoryConfirmationFailedIntegrationEventHandler(
-        ISender sender,
-        ILogger<OrderInventoryConfirmationFailedIntegrationEventHandler> logger)
+    /// <summary>
+    ///     Handles inventory confirmation failure by returning a refund command.
+    ///     Wolverine will execute the refund command as a cascading message.
+    /// </summary>
+    public static RefundPaymentTransactionCommand Handle(
+        OrderInventoryConfirmationFailedIntegrationEvent integrationEvent,
+        ILogger<OrderInventoryConfirmationFailedIntegrationEvent> logger)
     {
-        _sender = sender;
-        _logger = logger;
-    }
+        logger.LogCritical(
+            "Received OrderInventoryConfirmationFailedIntegrationEvent. Initiating refund. " +
+            "OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}",
+            integrationEvent.OrderId,
+            integrationEvent.PaymentTransactionId);
 
-    public async Task Handle(OrderInventoryConfirmationFailedIntegrationEvent notification,
-        CancellationToken cancellationToken)
-    {
-        _logger.LogCritical(
-            "Received OrderInventoryConfirmationFailedIntegrationEvent. Attempting refund. OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}",
-            notification.OrderId,
-            notification.PaymentTransactionId);
-
-        var refundResult = await _sender.Send(
-            new RefundPaymentTransactionCommand(
-                notification.PaymentTransactionId,
-                notification.Amount,
-                notification.FailureReason),
-            cancellationToken);
-
-        if (!refundResult.IsSuccess)
-            _logger.LogCritical(
-                "Refund failed after inventory confirmation failure. OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}, Error: {Error}, Details: {Details}",
-                notification.OrderId,
-                notification.PaymentTransactionId,
-                refundResult.Error?.Description,
-                notification.FailureDetails);
-        else
-            _logger.LogInformation(
-                "Refund succeeded after inventory confirmation failure. OrderId: {OrderId}, PaymentTransactionId: {PaymentTransactionId}",
-                notification.OrderId,
-                notification.PaymentTransactionId);
+        // Return refund command as cascading message
+        // Wolverine will execute this command after this handler completes
+        return new RefundPaymentTransactionCommand(
+            integrationEvent.PaymentTransactionId,
+            integrationEvent.Amount,
+            integrationEvent.FailureReason);
     }
 }

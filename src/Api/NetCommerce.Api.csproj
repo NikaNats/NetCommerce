@@ -25,8 +25,11 @@
     <!-- FluentValidation -->
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     
-    <!-- MediatR -->
-    <PackageReference Include="MediatR" />
+    <!-- Wolverine Message Bus -->
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+    <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.FluentValidation" />
     
     <!-- Scrutor for decorator pattern -->
     <PackageReference Include="Scrutor" />

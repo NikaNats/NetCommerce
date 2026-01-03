@@ -1,30 +1,44 @@
-using MediatR;
+#nullable enable
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Infrastructure.Persistence;
+using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using Npgsql;
-using NSubstitute;
 using Respawn;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
+using Wolverine;
+using Wolverine.Postgresql;
+using Wolverine.Tracking;
 
 namespace NetCommerce.Integration.Tests.Fixtures;
 
 /// <summary>
 ///     Shared fixture for integration tests using Testcontainers.
 ///     Provides PostgreSQL and Redis containers with Respawn for database cleanup.
+///     Configured with Wolverine for message tracking and transactional outbox testing.
 /// </summary>
 public sealed class IntegrationTestFixture : IAsyncLifetime
 {
     private PostgreSqlContainer _postgresContainer = null!;
     private RedisContainer _redisContainer = null!;
     private Respawner _respawner = null!;
+    private IHost? _host;
 
     public string PostgresConnectionString => _postgresContainer.GetConnectionString();
     public string RedisConnectionString => _redisContainer.GetConnectionString();
+    
+    /// <summary>
+    ///     Gets the configured host with Wolverine for tracked session testing.
+    /// </summary>
+    public IHost Host => _host ?? throw new InvalidOperationException("Host not initialized");
 
     public async Task InitializeAsync()
     {
@@ -43,6 +57,9 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             _postgresContainer.StartAsync(),
             _redisContainer.StartAsync());
 
+        // Build host with Wolverine configured
+        _host = await BuildTestHostAsync();
+
         // Create schemas and migrate
         await InitializeDatabaseAsync();
 
@@ -53,15 +70,58 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         _respawner = await Respawner.CreateAsync(connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.Postgres,
-            SchemasToInclude = ["catalog", "inventory", "ordering", "public"],
+            SchemasToInclude = ["catalog", "inventory", "ordering", "payments", "wolverine", "public"],
             TablesToIgnore = ["__EFMigrationsHistory"]
         });
     }
 
     public async Task DisposeAsync()
     {
+        if (_host != null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+        }
         await _postgresContainer.DisposeAsync();
         await _redisContainer.DisposeAsync();
+    }
+
+    /// <summary>
+    ///     Builds a test host with Wolverine configured for tracking sessions.
+    /// </summary>
+    private async Task<IHost> BuildTestHostAsync()
+    {
+        var builder = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Configure Wolverine for testing
+                opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
+                opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
+                
+                // Use PostgreSQL persistence with outbox
+                opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
+                
+                // Auto-apply transactions for handlers
+                opts.Policies.AutoApplyTransactions();
+                
+                // Use durable local queue for reliability
+                opts.LocalQueue("local")
+                    .UseDurableInbox();
+            })
+            .ConfigureServices(services =>
+            {
+                // Register DbContexts
+                services.AddDbContext<CatalogDbContext>(options =>
+                    options.UseNpgsql(PostgresConnectionString));
+                services.AddDbContext<InventoryDbContext>(options =>
+                    options.UseNpgsql(PostgresConnectionString));
+                services.AddDbContext<OrderingDbContext>(options =>
+                    options.UseNpgsql(PostgresConnectionString));
+            });
+
+        var host = builder.Build();
+        await host.StartAsync();
+        return host;
     }
 
     // DbContext factories
@@ -71,7 +131,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             .UseNpgsql(PostgresConnectionString)
             .Options;
 
-        return new CatalogDbContext(options, Substitute.For<IMediator>());
+        return new CatalogDbContext(options);
     }
 
     public InventoryDbContext CreateInventoryDbContext()
@@ -80,7 +140,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             .UseNpgsql(PostgresConnectionString)
             .Options;
 
-        return new InventoryDbContext(options, Substitute.For<IMediator>());
+        return new InventoryDbContext(options);
     }
 
     public OrderingDbContext CreateOrderingDbContext()
@@ -89,22 +149,16 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             .UseNpgsql(PostgresConnectionString)
             .Options;
 
-        return new OrderingDbContext(options, Substitute.For<IMediator>());
+        return new OrderingDbContext(options);
     }
 
     private async Task InitializeDatabaseAsync()
     {
         // Create database and schemas
-        // Note: EnsureCreatedAsync() only works for the first context because after
-        // the database exists, subsequent calls skip schema creation.
-        // We need to use GetService<IRelationalDatabaseCreator>().CreateTables() instead.
-
-        // Initialize Catalog schema
         await using var catalogContext = CreateCatalogDbContext();
         await catalogContext.Database.EnsureCreatedAsync();
 
         // Initialize Inventory schema
-        // Database already exists, so we need to create tables directly
         await using var inventoryContext = CreateInventoryDbContext();
         var inventoryCreator = inventoryContext.GetService<IRelationalDatabaseCreator>();
         await inventoryCreator.CreateTablesAsync();
@@ -125,6 +179,11 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await connection.OpenAsync();
         await _respawner.ResetAsync(connection);
     }
+    
+    /// <summary>
+    ///     Starts a Wolverine tracked session for testing message flows.
+    /// </summary>
+    public TrackedSessionConfiguration StartTrackedSession() => Host.TrackActivity();
 }
 
 /// <summary>
