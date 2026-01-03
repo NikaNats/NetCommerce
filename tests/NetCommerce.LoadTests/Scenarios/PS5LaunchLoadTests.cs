@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
+using NetCommerce.LoadTests.Assertions;
 using Shouldly;
 
 namespace NetCommerce.LoadTests.Scenarios;
@@ -21,6 +22,15 @@ namespace NetCommerce.LoadTests.Scenarios;
 ///     - BEFORE (with FOR UPDATE): High DB timeout errors, 500ms+ latency
 ///     - AFTER (with Partitioning): 0% errors, linear latency scaling
 ///     </para>
+///
+///     <para>
+///     Saga Leak Detection:
+///     After each load test, we assert that active.sagas counter returns to zero.
+///     A non-zero count indicates orphaned saga instances that could cause:
+///     - Memory leaks
+///     - Database connection leaks
+///     - Incorrect business state
+///     </para>
 /// </summary>
 public class PS5LaunchLoadTests
 {
@@ -35,7 +45,7 @@ public class PS5LaunchLoadTests
     ///     - Expected: Linear latency scaling, zero deadlocks
     /// </remarks>
     [Fact(Skip = "Run manually - requires running API")]
-    public void PS5Launch_HighDemandReservation_WithPartitionedMessaging_ShouldHandleConcurrency()
+    public async Task PS5Launch_HighDemandReservation_WithPartitionedMessaging_ShouldHandleConcurrency()
     {
         // Configuration
         const int totalStock = 100;
@@ -109,6 +119,10 @@ public class PS5LaunchLoadTests
         // Response time under load should be reasonable (< 500ms p99)
         // With partitioning, latency scales linearly with queue depth
         scenarioStats.Ok.Latency.Percent99.ShouldBeLessThan(500);
+
+        // SAGA LEAK DETECTION: Ensure all sagas completed
+        // A non-zero count indicates orphaned saga instances
+        await stats.AssertNoSagaLeaksAsync(apiBaseUrl);
     }
 
     /// <summary>

@@ -10,22 +10,26 @@ namespace NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 
 /// <summary>
 ///     Background service that periodically cleans up expired stock reservations.
-///     Runs on a configurable interval to release reservations where ExpiresAt < Now and Status== Active.
+///     Runs on a configurable interval to release reservations where ExpiresAt &lt; Now and Status == Active.
+///     Uses TimeProvider for deterministic time operations and testability.
 /// </summary>
 public class ReservationCleanupJob : BackgroundService
 {
     private readonly ILogger<ReservationCleanupJob> _logger;
     private readonly ReservationCleanupOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly TimeProvider _timeProvider;
 
     public ReservationCleanupJob(
         IServiceScopeFactory scopeFactory,
         ILogger<ReservationCleanupJob> logger,
-        IOptions<ReservationCleanupOptions> options)
+        IOptions<ReservationCleanupOptions> options,
+        TimeProvider? timeProvider = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _options = options.Value;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -55,7 +59,8 @@ public class ReservationCleanupJob : BackgroundService
             _logger.LogError(ex, "Error during reservation cleanup");
         }
 
-        using var timer = new PeriodicTimer(interval);
+        // Use TimeProvider for PeriodicTimer to enable deterministic testing
+        using var timer = new PeriodicTimer(interval, _timeProvider);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
             try
@@ -80,7 +85,7 @@ public class ReservationCleanupJob : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
 
         // Find expired active reservations (limited by BatchSize)
         var expiredReservations = await context.StockReservations

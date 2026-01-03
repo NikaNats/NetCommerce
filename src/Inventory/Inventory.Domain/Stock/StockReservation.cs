@@ -5,6 +5,7 @@ namespace NetCommerce.Inventory.Domain.Stock;
 /// <summary>
 ///     Stock reservation entity for soft reservations.
 ///     Expires after 15 minutes if not confirmed.
+///     Uses TimeProvider for deterministic time operations.
 /// </summary>
 public sealed class StockReservation : Entity<Guid>
 {
@@ -27,9 +28,10 @@ public sealed class StockReservation : Entity<Guid>
         Guid stockId,
         Guid orderId,
         int quantity,
-        TimeSpan? duration = null)
+        TimeSpan? duration = null,
+        TimeProvider? timeProvider = null)
     {
-        var now = DateTime.UtcNow;
+        var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return new StockReservation
         {
             Id = Guid.NewGuid(),
@@ -42,22 +44,22 @@ public sealed class StockReservation : Entity<Guid>
         };
     }
 
-    internal void Confirm()
+    internal void Confirm(TimeProvider? timeProvider = null)
     {
         Status = ReservationStatus.Confirmed;
-        ConfirmedAt = DateTime.UtcNow;
+        ConfirmedAt = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
     }
 
-    internal void Release()
+    internal void Release(TimeProvider? timeProvider = null)
     {
         Status = ReservationStatus.Released;
-        ReleasedAt = DateTime.UtcNow;
+        ReleasedAt = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
     }
 
-    internal void Expire()
+    internal void Expire(TimeProvider? timeProvider = null)
     {
         Status = ReservationStatus.Expired;
-        ReleasedAt = DateTime.UtcNow;
+        ReleasedAt = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
     }
 }
 

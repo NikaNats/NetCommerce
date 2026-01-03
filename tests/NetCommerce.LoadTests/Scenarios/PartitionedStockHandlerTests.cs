@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.Handlers;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.LoadTests.Fixtures;
 using NetCommerce.SharedKernel.Events;
 using NSubstitute;
 using Shouldly;
@@ -12,31 +13,40 @@ namespace NetCommerce.LoadTests.Scenarios;
 /// <summary>
 ///     Unit tests for Partitioned Sequential Messaging handlers.
 ///     Tests the inventory handlers that use message partitioning for high-contention scenarios.
+///     Uses real PostgreSQL (via Testcontainers) to accurately test row-level locking and transactions.
 /// </summary>
-public class PartitionedStockHandlerTests : IDisposable
+/// <remarks>
+///     IMPORTANT: Using InMemoryDatabase for concurrency tests produces false positives since
+///     it doesn't properly simulate row-level locking and transaction isolation.
+///     Real PostgreSQL ensures tests catch actual concurrency issues.
+/// </remarks>
+[Collection(nameof(PostgresTestCollection))]
+[Trait("Category", "RequiresDocker")]
+public class PartitionedStockHandlerTests : IAsyncLifetime
 {
-    private readonly InventoryDbContext _dbContext;
+    private readonly PostgresTestFixture _fixture;
+    private InventoryDbContext _dbContext = null!;
     private readonly ILogger<PartitionedReserveInventoryHandler> _reserveLogger;
     private readonly ILogger<PartitionedConfirmInventoryHandler> _confirmLogger;
     private readonly ILogger<PartitionedReleaseInventoryHandler> _releaseLogger;
 
-    public PartitionedStockHandlerTests()
+    public PartitionedStockHandlerTests(PostgresTestFixture fixture)
     {
-        // Create in-memory database for testing
-        var options = new DbContextOptionsBuilder<InventoryDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        _dbContext = new InventoryDbContext(options);
-
+        _fixture = fixture;
         _reserveLogger = Substitute.For<ILogger<PartitionedReserveInventoryHandler>>();
         _confirmLogger = Substitute.For<ILogger<PartitionedConfirmInventoryHandler>>();
         _releaseLogger = Substitute.For<ILogger<PartitionedReleaseInventoryHandler>>();
     }
 
-    public void Dispose()
+    public async Task InitializeAsync()
     {
-        _dbContext.Dispose();
+        await _fixture.ResetAsync();
+        _dbContext = _fixture.CreateInventoryDbContext();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _dbContext.DisposeAsync();
     }
 
     #region ReserveInventoryCommand Tests

@@ -15,6 +15,7 @@ using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using Npgsql;
 using Respawn;
+using Respawn.Graph;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 using Wolverine;
@@ -67,14 +68,25 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await InitializeDatabaseAsync();
 
         // Initialize Respawner for database cleanup
+        // Explicitly include wolverine schema to ensure outbox envelopes are cleared between tests
         await using var connection = new NpgsqlConnection(PostgresConnectionString);
         await connection.OpenAsync();
 
         _respawner = await Respawner.CreateAsync(connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.Postgres,
+            // Include wolverine schema for outbox tables (wolverine_incoming_envelopes, wolverine_outgoing_envelopes)
+            // This prevents test contamination from messages persisted during previous test runs
             SchemasToInclude = ["catalog", "inventory", "ordering", "payments", "wolverine", "public"],
-            TablesToIgnore = ["__EFMigrationsHistory"]
+            // Never truncate migration history
+            TablesToIgnore = ["__EFMigrationsHistory"],
+            // Explicitly include wolverine envelope tables to prevent outbox leakage
+            TablesToInclude =
+            [
+                new Table("wolverine", "wolverine_incoming_envelopes"),
+                new Table("wolverine", "wolverine_outgoing_envelopes"),
+                new Table("wolverine", "wolverine_dead_letters")
+            ]
         });
     }
 

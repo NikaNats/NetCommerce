@@ -256,4 +256,62 @@ public class ForbiddenDependencyTests
     }
 
     #endregion
+
+    #region No MediatR Dependencies (Migration to Wolverine)
+
+    /// <summary>
+    ///     Ensures complete migration from MediatR to Wolverine.
+    ///     MediatR should not be referenced in any assembly after migration.
+    /// </summary>
+    [Fact]
+    public void AllAssemblies_ShouldNotDependOn_MediatR()
+    {
+        foreach (var assembly in AllAssemblies)
+        {
+            var result = Types.InAssembly(assembly)
+                .Should()
+                .NotHaveDependencyOnAny(
+                    "MediatR",
+                    "MediatR.Contracts")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"Assembly {assembly.GetName().Name} should not depend on MediatR. " +
+                $"Complete migration to Wolverine is required. " +
+                $"Failing types: {string.Join(", ", result.FailingTypeNames ?? [])}");
+        }
+    }
+
+    /// <summary>
+    ///     Ensures no MediatR handler interfaces are used.
+    ///     All handlers should use Wolverine conventions instead.
+    /// </summary>
+    [Fact]
+    public void ApplicationHandlers_ShouldNotImplement_MediatRInterfaces()
+    {
+        var applicationAssemblies = new[]
+        {
+            CatalogApplicationAssembly,
+            OrderingApplicationAssembly,
+            InventoryApplicationAssembly
+        };
+
+        foreach (var assembly in applicationAssemblies)
+        {
+            // Check for IRequest, IRequestHandler, INotification, INotificationHandler
+            var result = Types.InAssembly(assembly)
+                .That()
+                .HaveNameEndingWith("Handler")
+                .Should()
+                .NotHaveDependencyOn("MediatR")
+                .GetResult();
+
+            result.IsSuccessful.Should().BeTrue(
+                $"Handlers in {assembly.GetName().Name} should not implement MediatR interfaces. " +
+                $"Use Wolverine's conventional handlers instead. " +
+                $"Failing types: {string.Join(", ", result.FailingTypeNames ?? [])}");
+        }
+    }
+
+    #endregion
 }

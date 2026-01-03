@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
@@ -14,14 +15,17 @@ namespace NetCommerce.Domain.Tests.Inventory;
 /// <summary>
 ///     Unit tests for ReservationCleanupJob background service.
 ///     Uses in-memory database for fast, isolated testing.
+///     Uses FakeTimeProvider for deterministic time-based test scenarios.
 /// </summary>
 public class ReservationCleanupJobTests
 {
     private readonly ILogger<ReservationCleanupJob> _logger;
+    private readonly FakeTimeProvider _timeProvider;
 
     public ReservationCleanupJobTests()
     {
         _logger = Substitute.For<ILogger<ReservationCleanupJob>>();
+        _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
     }
 
     private static ServiceProvider CreateServiceProvider(string dbName)
@@ -48,7 +52,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -80,22 +85,20 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock1 = Stock.Create(Guid.NewGuid(), "STOCK1-SKU", 100);
-        var stock2 = Stock.Create(Guid.NewGuid(), "STOCK2-SKU", 100);
-        var stock3 = Stock.Create(Guid.NewGuid(), "STOCK3-SKU", 100);
+        // Create stocks and reservations with the same time provider
+        var stock1 = Stock.Create(Guid.NewGuid(), "STOCK1-SKU", 100, timeProvider: _timeProvider);
+        var stock2 = Stock.Create(Guid.NewGuid(), "STOCK2-SKU", 100, timeProvider: _timeProvider);
+        var stock3 = Stock.Create(Guid.NewGuid(), "STOCK3-SKU", 100, timeProvider: _timeProvider);
 
-        var res1 = stock1.Reserve(Guid.NewGuid(), 10);
-        var res2 = stock2.Reserve(Guid.NewGuid(), 20);
-        var res3 = stock3.Reserve(Guid.NewGuid(), 30);
+        var res1 = stock1.Reserve(Guid.NewGuid(), 10, _timeProvider);
+        var res2 = stock2.Reserve(Guid.NewGuid(), 20, _timeProvider);
+        var res3 = stock3.Reserve(Guid.NewGuid(), 30, _timeProvider);
 
         context.Stocks.AddRange(stock1, stock2, stock3);
         await context.SaveChangesAsync();
 
-        // Expire all reservations
-        context.Entry(res1).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        context.Entry(res2).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        context.Entry(res3).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        await context.SaveChangesAsync();
+        // Advance time past reservation expiry (default 15 minutes)
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -107,7 +110,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -140,17 +144,16 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "RESTORE-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 30);
+        var stock = Stock.Create(Guid.NewGuid(), "RESTORE-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 30, _timeProvider);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
         // Verify initial state
-        stock.AvailableQuantity.ShouldBe(70);
+        stock.GetAvailableQuantity(_timeProvider).ShouldBe(70);
 
-        // Expire the reservation
-        context.Entry(reservation).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        await context.SaveChangesAsync();
+        // Advance time past reservation expiry (default 15 minutes)
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -162,7 +165,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -180,7 +184,7 @@ public class ReservationCleanupJobTests
             .FirstAsync(s => s.Id == stock.Id);
 
         // After release, available quantity should be restored
-        updatedStock.AvailableQuantity.ShouldBe(100);
+        updatedStock.GetAvailableQuantity(_timeProvider).ShouldBe(100);
         updatedStock.Quantity.ShouldBe(100); // Total unchanged
     }
 
@@ -198,18 +202,16 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "RELEASED-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 20);
-        stock.ReleaseReservation(reservation.Id);
+        var stock = Stock.Create(Guid.NewGuid(), "RELEASED-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
+        stock.ReleaseReservation(reservation.Id, _timeProvider);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
         var originalReleasedAt = reservation.ReleasedAt;
 
-        // Even if we set ExpiresAt to past, already released reservations should not be affected
-        var entry = context.Entry(reservation);
-        entry.Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        await context.SaveChangesAsync();
+        // Advance time past expiry - already released reservations should not be affected
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -221,7 +223,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -256,23 +259,23 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "MIXED-SKU", 500);
+        var stock = Stock.Create(Guid.NewGuid(), "MIXED-SKU", 500, timeProvider: _timeProvider);
 
         // Create reservations with different statuses
-        var expiredActiveRes = stock.Reserve(Guid.NewGuid(), 10); // Will expire - should be released
-        var activeRes = stock.Reserve(Guid.NewGuid(), 20); // Still active - should NOT be released
-        var confirmedRes = stock.Reserve(Guid.NewGuid(), 30); // Confirmed - should NOT be released
-        stock.ConfirmReservation(confirmedRes.Id);
-        var releasedRes = stock.Reserve(Guid.NewGuid(), 40); // Already released - should NOT change
-        stock.ReleaseReservation(releasedRes.Id);
+        var expiredActiveRes = stock.Reserve(Guid.NewGuid(), 10, _timeProvider); // Will expire - should be expired by cleanup
+        var confirmedRes = stock.Reserve(Guid.NewGuid(), 30, _timeProvider); // Confirmed - should NOT be released
+        stock.ConfirmReservation(confirmedRes.Id, _timeProvider);
+        var releasedRes = stock.Reserve(Guid.NewGuid(), 40, _timeProvider); // Already released - should NOT change
+        stock.ReleaseReservation(releasedRes.Id, _timeProvider);
 
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Expire only the first reservation and the confirmed/released ones (to test they're not affected)
-        context.Entry(expiredActiveRes).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        context.Entry(confirmedRes).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        context.Entry(releasedRes).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
+        // Advance time past reservation expiry for the first one
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
+
+        // Create an active reservation after time advance - should NOT be released
+        var activeRes = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
         await context.SaveChangesAsync();
 
         var options = Options.Create(new ReservationCleanupOptions
@@ -285,7 +288,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -304,8 +308,9 @@ public class ReservationCleanupJobTests
         var updatedConfirmed = await verifyContext.StockReservations.FirstAsync(r => r.Id == confirmedRes.Id);
         var updatedReleased = await verifyContext.StockReservations.FirstAsync(r => r.Id == releasedRes.Id);
 
-        // Only the expired active reservation should be released
-        updatedExpiredActive.Status.ShouldBe(ReservationStatus.Released);
+        // The expired active reservation gets expired status from domain cleanup
+        // (when we call Reserve after time advance, it calls CleanupExpiredReservations internally)
+        updatedExpiredActive.Status.ShouldBe(ReservationStatus.Expired);
         updatedActive.Status.ShouldBe(ReservationStatus.Active);
         updatedConfirmed.Status.ShouldBe(ReservationStatus.Confirmed);
         updatedReleased.Status.ShouldBe(ReservationStatus.Released);
@@ -325,8 +330,8 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "EVENT-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 20);
+        var stock = Stock.Create(Guid.NewGuid(), "EVENT-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
 
         // Clear any events from reserve
         stock.ClearDomainEvents();
@@ -334,9 +339,8 @@ public class ReservationCleanupJobTests
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Expire the reservation
-        context.Entry(reservation).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        await context.SaveChangesAsync();
+        // Advance time past reservation expiry
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -348,7 +352,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -390,7 +395,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -425,7 +431,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -460,21 +467,22 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "ORDER-SKU", 500);
+        var stock = Stock.Create(Guid.NewGuid(), "ORDER-SKU", 500, timeProvider: _timeProvider);
 
-        // Create reservations with different expiry times
-        var oldestRes = stock.Reserve(Guid.NewGuid(), 10);
-        var middleRes = stock.Reserve(Guid.NewGuid(), 10);
-        var newestRes = stock.Reserve(Guid.NewGuid(), 10);
+        // Create reservations at different times to simulate different expiry times
+        var oldestRes = stock.Reserve(Guid.NewGuid(), 10, _timeProvider);
+        _timeProvider.Advance(TimeSpan.FromMinutes(5));
+
+        var middleRes = stock.Reserve(Guid.NewGuid(), 10, _timeProvider);
+        _timeProvider.Advance(TimeSpan.FromMinutes(5));
+
+        var newestRes = stock.Reserve(Guid.NewGuid(), 10, _timeProvider);
 
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Set expiry times - oldest first
-        context.Entry(oldestRes).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-30);
-        context.Entry(middleRes).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-20);
-        context.Entry(newestRes).Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-10);
-        await context.SaveChangesAsync();
+        // Advance time so all are expired but oldest has been expired longest
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -486,7 +494,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -530,7 +539,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -598,15 +608,13 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "TEST-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 20);
+        var stock = Stock.Create(Guid.NewGuid(), "TEST-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Manually expire the reservation by setting ExpiresAt to past
-        var entry = context.Entry(reservation);
-        entry.Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        await context.SaveChangesAsync();
+        // Advance time past reservation expiry (default 15 minutes)
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -618,7 +626,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -649,12 +658,13 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "ACTIVE-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 20);
+        var stock = Stock.Create(Guid.NewGuid(), "ACTIVE-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
         // Reservation is not expired (default is 15 minutes in the future)
+        // Don't advance time past expiry
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -666,7 +676,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -697,16 +708,14 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "CONFIRMED-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 20);
-        stock.ConfirmReservation(reservation.Id);
+        var stock = Stock.Create(Guid.NewGuid(), "CONFIRMED-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
+        stock.ConfirmReservation(reservation.Id, _timeProvider);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Even if we set ExpiresAt to past, confirmed reservations should not be affected
-        var entry = context.Entry(reservation);
-        entry.Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        await context.SaveChangesAsync();
+        // Advance time past expiry - confirmed reservations should not be affected
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -718,7 +727,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -747,22 +757,16 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "MULTI-SKU", 500);
+        var stock = Stock.Create(Guid.NewGuid(), "MULTI-SKU", 500, timeProvider: _timeProvider);
         var reservations = new List<StockReservation>();
 
-        for (var i = 0; i < 5; i++) reservations.Add(stock.Reserve(Guid.NewGuid(), 10));
+        for (var i = 0; i < 5; i++) reservations.Add(stock.Reserve(Guid.NewGuid(), 10, _timeProvider));
 
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Expire all reservations
-        foreach (var res in reservations)
-        {
-            var entry = context.Entry(res);
-            entry.Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        }
-
-        await context.SaveChangesAsync();
+        // Advance time past expiry for all reservations
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -774,7 +778,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -803,22 +808,16 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "BATCH-SKU", 1000);
+        var stock = Stock.Create(Guid.NewGuid(), "BATCH-SKU", 1000, timeProvider: _timeProvider);
         var reservations = new List<StockReservation>();
 
-        for (var i = 0; i < 10; i++) reservations.Add(stock.Reserve(Guid.NewGuid(), 10));
+        for (var i = 0; i < 10; i++) reservations.Add(stock.Reserve(Guid.NewGuid(), 10, _timeProvider));
 
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Expire all reservations
-        foreach (var res in reservations)
-        {
-            var entry = context.Entry(res);
-            entry.Property<DateTime>("ExpiresAt").CurrentValue = DateTime.UtcNow.AddMinutes(-5);
-        }
-
-        await context.SaveChangesAsync();
+        // Advance time past expiry for all reservations
+        _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -830,7 +829,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
@@ -859,12 +859,12 @@ public class ReservationCleanupJobTests
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
 
-        var stock = Stock.Create(Guid.NewGuid(), "NOEXP-SKU", 100);
-        var reservation = stock.Reserve(Guid.NewGuid(), 20);
+        var stock = Stock.Create(Guid.NewGuid(), "NOEXP-SKU", 100, timeProvider: _timeProvider);
+        var reservation = stock.Reserve(Guid.NewGuid(), 20, _timeProvider);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
-        // Reservation is not expired
+        // Reservation is not expired - don't advance time
 
         var options = Options.Create(new ReservationCleanupOptions
         {
@@ -876,7 +876,8 @@ public class ReservationCleanupJobTests
         var job = new ReservationCleanupJob(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            options);
+            options,
+            _timeProvider);
 
         using var cts = new CancellationTokenSource();
 
