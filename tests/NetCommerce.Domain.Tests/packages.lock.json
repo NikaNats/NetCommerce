@@ -1141,6 +1141,13 @@
           "SharedKernel": "[1.0.0, )"
         }
       },
+      "ordering.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Ordering.Application": "[1.0.0, )",
+          "SharedKernel.Infrastructure": "[1.0.0, )"
+        }
+      },
       "sharedkernel": {
         "type": "Project",
         "dependencies": {

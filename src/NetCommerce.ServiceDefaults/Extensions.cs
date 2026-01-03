@@ -51,6 +51,10 @@ public static class Extensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation();
+
+                // Custom application meters for business process observability
+                metrics.AddMeter("NetCommerce.Ordering"); // OrderFulfillmentSaga state gauges
+                metrics.AddMeter("Wolverine");            // Outbox queue depth, retry counts
             });
 
             // 4. Configure Tracing
