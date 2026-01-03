@@ -2,8 +2,10 @@ using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NetCommerce.SharedKernel.Events;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
@@ -97,9 +99,47 @@ public static class WolverineExtensions
             }
 
             // ============================================================================
+            // ============================================================================
             // Development/Testing: Auto-provision message storage tables
             // ============================================================================
             opts.AutoBuildMessageStorageOnStartup = JasperFx.AutoCreate.CreateOrUpdate;
+
+            // ============================================================================
+            // Partitioned Sequential Messaging (High Contention Pattern)
+            // ============================================================================
+            // This is an elite architectural pattern that converts a "Hardware Contention"
+            // problem (Database Locking) into a "Software Scheduling" problem (Message Partitioning).
+            //
+            // By ensuring that all requests for Product A are handled by the same thread,
+            // we effectively create a "virtual queue" for that product. This eliminates
+            // expensive FOR UPDATE database locks because we guarantee that no two threads
+            // will ever attempt to update the same product's stock at the same time.
+            // ============================================================================
+
+            // 1. Grouping Rule: Identify ProductId as the source of truth for concurrency
+            opts.MessagePartitioning
+                .ByMessage<ReserveInventoryCommand>(command =>
+                    // Partition by the first ProductId in the command.
+                    // In high-scale flash sales, we typically process one product per command.
+                    command.Items.Count > 0
+                        ? command.Items[0].ProductId.ToString()
+                        : command.OrderId.ToString());
+
+            opts.MessagePartitioning
+                .ByMessage<ConfirmInventoryCommand>(command =>
+                    command.OrderId.ToString());
+
+            opts.MessagePartitioning
+                .ByMessage<ReleaseInventoryReservationCommand>(command =>
+                    command.OrderId.ToString());
+
+            // 2. Queue Configuration: Create the "High Contention" Lane
+            // - 9 parallel tracks (maximum available in Wolverine's PartitionSlots enum)
+            // - Prime/odd numbers provide better hash distribution across slots
+            // - Durable inbox ensures messages aren't lost if the app restarts
+            opts.LocalQueue("inventory-contention")
+                .PartitionProcessingByGroupId(PartitionSlots.Nine)
+                .UseDurableInbox();
         });
     }
 
