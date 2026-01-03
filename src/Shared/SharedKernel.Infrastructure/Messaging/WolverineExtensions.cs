@@ -10,6 +10,7 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
 using Wolverine.Postgresql;
+using Wolverine.SignalR;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Messaging;
 
@@ -89,6 +90,20 @@ public static class WolverineExtensions
             // FluentValidation Middleware
             // ============================================================================
             opts.UseFluentValidation();
+
+            // ============================================================================
+            // SignalR Transport for Real-Time Browser Notifications
+            // ============================================================================
+            // Enables pushing order status updates to connected browsers via WebSocket.
+            // Uses Wolverine's low-ceremony approach - no custom Hub classes needed.
+            opts.UseSignalR();
+
+            // Route all IOrderNotification messages to the SignalR transport
+            opts.Publish(x =>
+            {
+                x.MessagesImplementing<IOrderNotification>();
+                x.ToSignalR();
+            });
 
             // ============================================================================
             // Handler Discovery

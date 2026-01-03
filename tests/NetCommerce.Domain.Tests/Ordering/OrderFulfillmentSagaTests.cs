@@ -161,7 +161,7 @@ public class OrderFulfillmentSagaTests
         var @event = new InventoryConfirmed(saga.Id);
 
         // Act
-        var finalizeCommand = saga.Handle(@event, _logger);
+        var (finalizeCommand, notification) = saga.Handle(@event, _logger);
 
         // Assert
         saga.State.ShouldBe(OrderFulfillmentState.Completed);
@@ -172,6 +172,11 @@ public class OrderFulfillmentSagaTests
         finalizeCommand.ShouldNotBeNull();
         finalizeCommand.OrderId.ShouldBe(saga.Id);
         finalizeCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!.Value);
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Success");
     }
 
     [Fact]
@@ -224,7 +229,7 @@ public class OrderFulfillmentSagaTests
         var @event = new InventoryReservationFailed(saga.Id, "Out of stock", unavailableProducts);
 
         // Act
-        var failCommand = saga.Handle(@event, _logger);
+        var (failCommand, notification) = saga.Handle(@event, _logger);
 
         // Assert - No compensation needed (nothing was reserved yet)
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
@@ -234,6 +239,11 @@ public class OrderFulfillmentSagaTests
         failCommand.ShouldNotBeNull();
         failCommand.OrderId.ShouldBe(saga.Id);
         failCommand.FailureReason.ShouldBe("Out of stock");
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Error");
     }
 
     [Fact]
@@ -245,7 +255,7 @@ public class OrderFulfillmentSagaTests
         var @event = new PaymentFailed(saga.Id, "Card declined", "CARD_DECLINED");
 
         // Act
-        var (releaseCommand, failCommand) = saga.Handle(@event, _logger);
+        var (releaseCommand, failCommand, notification) = saga.Handle(@event, _logger);
 
         // Assert - Should release inventory (compensating action)
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
@@ -258,6 +268,11 @@ public class OrderFulfillmentSagaTests
 
         failCommand.ShouldNotBeNull();
         failCommand.FailureReason.ShouldBe("Card declined");
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Error");
     }
 
     [Fact]
@@ -271,7 +286,7 @@ public class OrderFulfillmentSagaTests
         var @event = new InventoryConfirmationFailed(saga.Id, "Stock discrepancy detected");
 
         // Act
-        var (refundCommand, releaseCommand, failCommand) = saga.Handle(@event, _logger);
+        var (refundCommand, releaseCommand, failCommand, notification) = saga.Handle(@event, _logger);
 
         // Assert - Must refund AND release inventory
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
@@ -291,6 +306,11 @@ public class OrderFulfillmentSagaTests
 
         // Verify fail command
         failCommand.ShouldNotBeNull();
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Error");
     }
 
     #endregion
@@ -305,13 +325,21 @@ public class OrderFulfillmentSagaTests
         var timeout = new InventoryReservationTimeoutMessage { Id = saga.Id };
 
         // Act
-        var failCommand = saga.Handle(timeout, _logger);
+        var result = saga.Handle(timeout, _logger);
 
         // Assert
+        result.ShouldNotBeNull();
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
         saga.FailureReason.ShouldContain("timed out");
         saga.CompletedAt.ShouldNotBeNull();
+
+        var (failCommand, notification) = result.Value;
         failCommand.ShouldNotBeNull();
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Error");
     }
 
     [Fact]
@@ -346,10 +374,15 @@ public class OrderFulfillmentSagaTests
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
         saga.CompletedAt.ShouldNotBeNull();
 
-        var (releaseCommand, failCommand) = result.Value;
+        var (releaseCommand, failCommand, notification) = result.Value;
         releaseCommand.ShouldNotBeNull();
         failCommand.ShouldNotBeNull();
         failCommand.FailureReason.ShouldContain("timed out");
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Error");
     }
 
     [Fact]
@@ -386,7 +419,7 @@ public class OrderFulfillmentSagaTests
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
         saga.CompletedAt.ShouldNotBeNull();
 
-        var (refundCommand, releaseCommand, failCommand) = result.Value;
+        var (refundCommand, releaseCommand, failCommand, notification) = result.Value;
 
         // Must refund since payment was taken
         refundCommand.ShouldNotBeNull();
@@ -394,6 +427,11 @@ public class OrderFulfillmentSagaTests
 
         releaseCommand.ShouldNotBeNull();
         failCommand.ShouldNotBeNull();
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Error");
     }
 
     #endregion
@@ -510,18 +548,112 @@ public class OrderFulfillmentSagaTests
         saga.PaymentTransactionId = Guid.NewGuid();
 
         // Complete the saga through proper workflow
-        var result = saga.Handle(new InventoryConfirmed(saga.Id), _logger);
+        var (finalizeCommand, notification) = saga.Handle(new InventoryConfirmed(saga.Id), _logger);
 
         // Assert - Saga should be marked as completed
         saga.State.ShouldBe(OrderFulfillmentState.Completed);
         saga.CompletedAt.ShouldNotBeNull();
 
         // The FinalizeOrderCommand should be returned
-        result.ShouldNotBeNull();
+        finalizeCommand.ShouldNotBeNull();
+        finalizeCommand.OrderId.ShouldBe(saga.Id);
+
+        // Verify SignalR notification is returned
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("Success");
 
         // Note: In unit tests, Wolverine's IsCompleted() may not reflect MarkCompleted()
         // because Wolverine manages the completion state internally during message processing.
         // The saga's State property reflects our business logic completion.
+    }
+
+    #endregion
+
+    #region SignalR Notification Tests
+
+    [Fact]
+    public void OrderStatusChanged_SuccessNotification_ShouldHaveCorrectMessage()
+    {
+        // Arrange
+        var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
+        saga.IsPaid = true;
+        saga.PaymentTransactionId = Guid.NewGuid();
+        var @event = new InventoryConfirmed(saga.Id);
+
+        // Act
+        var (_, notification) = saga.Handle(@event, _logger);
+
+        // Assert - Verify notification message is user-friendly
+        notification.Status.ShouldBe("Success");
+        notification.Message.ShouldNotBeNullOrWhiteSpace();
+        notification.Message.ShouldContain("confirmed", Case.Insensitive);
+    }
+
+    [Fact]
+    public void OrderStatusChanged_InventoryFailure_ShouldIndicateOutOfStock()
+    {
+        // Arrange
+        var saga = CreateSagaInState(OrderFulfillmentState.ReservingInventory);
+        var @event = new InventoryReservationFailed(saga.Id, "Insufficient stock", [Guid.NewGuid()]);
+
+        // Act
+        var (_, notification) = saga.Handle(@event, _logger);
+
+        // Assert
+        notification.Status.ShouldBe("Error");
+        notification.Message.ShouldContain("stock", Case.Insensitive);
+    }
+
+    [Fact]
+    public void OrderStatusChanged_PaymentFailure_ShouldAskToTryAgain()
+    {
+        // Arrange
+        var saga = CreateSagaInState(OrderFulfillmentState.ProcessingPayment);
+        saga.IsInventoryReserved = true;
+        var @event = new PaymentFailed(saga.Id, "Card declined", "CARD_DECLINED");
+
+        // Act
+        var (_, _, notification) = saga.Handle(@event, _logger);
+
+        // Assert
+        notification.Status.ShouldBe("Error");
+        notification.Message.ShouldContain("try again", Case.Insensitive);
+    }
+
+    [Fact]
+    public void OrderStatusChanged_Timeout_ShouldIndicateTimeout()
+    {
+        // Arrange
+        var saga = CreateSagaInState(OrderFulfillmentState.ReservingInventory);
+        var timeout = new InventoryReservationTimeoutMessage { Id = saga.Id };
+
+        // Act
+        var result = saga.Handle(timeout, _logger);
+
+        // Assert
+        result.ShouldNotBeNull();
+        var (_, notification) = result.Value;
+        notification.Status.ShouldBe("Error");
+        notification.Message.ShouldContain("timed out", Case.Insensitive);
+    }
+
+    [Fact]
+    public void OrderStatusChanged_AllNotifications_ShouldContainOrderId()
+    {
+        // Arrange - Test multiple scenarios
+        var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
+        saga.IsPaid = true;
+        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.IsInventoryReserved = true;
+
+        // Act - Critical failure scenario
+        var @event = new InventoryConfirmationFailed(saga.Id, "Stock mismatch");
+        var (_, _, _, notification) = saga.Handle(@event, _logger);
+
+        // Assert - Every notification must have the OrderId for client-side filtering
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.OrderId.ShouldNotBe(Guid.Empty);
     }
 
     #endregion

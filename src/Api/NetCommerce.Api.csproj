@@ -36,6 +36,7 @@
 
     <!-- Problem Details -->
     <PackageReference Include="Hellang.Middleware.ProblemDetails" />
+    <PackageReference Include="WolverineFx.SignalR" />
   </ItemGroup>
 
   <ItemGroup>

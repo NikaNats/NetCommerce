@@ -177,6 +177,16 @@
           "WolverineFx.RDBMS": "5.9.2"
         }
       },
+      "WolverineFx.SignalR": {
+        "type": "Direct",
+        "requested": "[5.9.2, )",
+        "resolved": "5.9.2",
+        "contentHash": "CWVk/jxzUFVWNdYK1U0Gu5GrHimmH+WkwUjgTRFk0jTjxAftISUFz7lzHY7SsZClhNc2tIJJh4//cLqbDmqzxg==",
+        "dependencies": {
+          "Microsoft.AspNetCore.SignalR.Client": "9.0.8",
+          "WolverineFx": "5.9.2"
+        }
+      },
       "AspNetCore.HealthChecks.Azure.Storage.Blobs": {
         "type": "Transitive",
         "resolved": "9.0.0",
@@ -278,6 +288,25 @@
           "Microsoft.CodeAnalysis.CSharp": "[4.14.0, 6.0.0)",
           "Microsoft.CodeAnalysis.Scripting": "[4.14.0, 6.0.0)"
         }
+      },
+      "Microsoft.AspNetCore.Http.Connections.Client": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "Ob2n+H3358kvubgXu9hY95MZB6X91PUGJvtWaHGEX7eZ+9bYdUCYs57ukJiIziH+aD9yO9e36bgKIT1WJEtfmA=="
+      },
+      "Microsoft.AspNetCore.SignalR.Client": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "cO+TZaWdhMn2cIYfPH9oFZaisJrx7X6SBAYdmGektPUAW2BYtMbH4HyLOnJ5CYo42zP9WgqhWHKqmoDm7+Ol5w==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Http.Connections.Client": "9.0.8",
+          "Microsoft.AspNetCore.SignalR.Client.Core": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Client.Core": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "EZ4KaPVQ9rDxZYWQ1sYiPfXEbomhKwp5Fn/0q1XtOgTilV/nN2lgA06KTofVJSeVVRwYdlZggflcQNcKCG0xcg=="
       },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
@@ -1059,7 +1088,8 @@
           "FluentValidation": "[12.1.1, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
-          "WolverineFx": "[5.9.2, )"
+          "WolverineFx": "[5.9.2, )",
+          "WolverineFx.SignalR": "[5.9.2, )"
         }
       },
       "sharedkernel.infrastructure": {
@@ -1075,7 +1105,8 @@
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )",
           "WolverineFx.FluentValidation": "[5.9.2, )",
-          "WolverineFx.Postgresql": "[5.9.2, )"
+          "WolverineFx.Postgresql": "[5.9.2, )",
+          "WolverineFx.SignalR": "[5.9.2, )"
         }
       },
       "AspNetCore.HealthChecks.NpgSql": {

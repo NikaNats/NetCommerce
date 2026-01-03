@@ -13,6 +13,7 @@ using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
+using Wolverine.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -139,6 +140,13 @@ app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ============================================================================
+// SignalR Hub for Real-Time Order Notifications
+// ============================================================================
+// Wolverine's built-in WolverineHub provides WebSocket messaging to browsers.
+// Frontend connects to this endpoint to receive order status updates.
+app.MapWolverineSignalRHub("/api/messages");
 
 // ============================================================================
 // Automatic Database Initialization (Development only)

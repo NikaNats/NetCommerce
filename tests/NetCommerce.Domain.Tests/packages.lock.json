@@ -202,6 +202,69 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
         }
       },
+      "Microsoft.AspNetCore.Connections.Abstractions": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "mONfcKx7I4h6Rg+3b20bRyuy/GWz2yLsCNzKKqh1X4OfxnI7l0rdSxBwO203ebZFhjrdXnqMl7Op0N1FQ1Q5DQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Features": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.Http.Connections.Client": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "Ob2n+H3358kvubgXu9hY95MZB6X91PUGJvtWaHGEX7eZ+9bYdUCYs57ukJiIziH+aD9yO9e36bgKIT1WJEtfmA==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Http.Connections.Common": "9.0.8",
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.8",
+          "Microsoft.Extensions.Options": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.Http.Connections.Common": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "150BRlecnjL+6C+yw/bDP49+ONh7BmaJZTRik6KtbaS+cWnEDVXnhE5PTKlFqCYBD5T8wdjKoF5+lzKHJUK47A==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Connections.Abstractions": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Client": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "cO+TZaWdhMn2cIYfPH9oFZaisJrx7X6SBAYdmGektPUAW2BYtMbH4HyLOnJ5CYo42zP9WgqhWHKqmoDm7+Ol5w==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Http.Connections.Client": "9.0.8",
+          "Microsoft.AspNetCore.SignalR.Client.Core": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Client.Core": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "EZ4KaPVQ9rDxZYWQ1sYiPfXEbomhKwp5Fn/0q1XtOgTilV/nN2lgA06KTofVJSeVVRwYdlZggflcQNcKCG0xcg==",
+        "dependencies": {
+          "Microsoft.AspNetCore.SignalR.Common": "9.0.8",
+          "Microsoft.AspNetCore.SignalR.Protocols.Json": "9.0.8",
+          "Microsoft.Extensions.DependencyInjection": "9.0.8",
+          "Microsoft.Extensions.Logging": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Common": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "oNOEDf2UGLU63Qi7LB8OJdfG1CGybVO34bhotpkvAQUJ5zH8Ewf7EvqeHlUgg6cVyrdC+vewOFxTysw212FTyw==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Connections.Abstractions": "9.0.8",
+          "Microsoft.Extensions.Options": "9.0.8"
+        }
+      },
+      "Microsoft.AspNetCore.SignalR.Protocols.Json": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "9LtBkzS2iYOSiUx1NDI91abM5xxD5MUYtdlvwCtMMr6YdsMzHvDUrgPK2N3hpYE94vmj0srt423Kwd1aOqmGPg==",
+        "dependencies": {
+          "Microsoft.AspNetCore.SignalR.Common": "9.0.8"
+        }
+      },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
         "resolved": "9.0.0",
@@ -578,6 +641,11 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.1",
           "Microsoft.Extensions.Options": "10.0.1"
         }
+      },
+      "Microsoft.Extensions.Features": {
+        "type": "Transitive",
+        "resolved": "9.0.8",
+        "contentHash": "oyPrbpRFa0uWik3PMwpK1mbAr+inZTEkaBsnMjHyT74YN0ot6knA7OnyFLg+oM4MwW5PZIS4HHW9efy0+gj+oQ=="
       },
       "Microsoft.Extensions.FileProviders.Abstractions": {
         "type": "Transitive",
@@ -1080,7 +1148,8 @@
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
-          "WolverineFx": "[5.9.2, )"
+          "WolverineFx": "[5.9.2, )",
+          "WolverineFx.SignalR": "[5.9.2, )"
         }
       },
       "sharedkernel.infrastructure": {
@@ -1098,7 +1167,8 @@
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )",
           "WolverineFx.FluentValidation": "[5.9.2, )",
-          "WolverineFx.Postgresql": "[5.9.2, )"
+          "WolverineFx.Postgresql": "[5.9.2, )",
+          "WolverineFx.SignalR": "[5.9.2, )"
         }
       },
       "FluentValidation": {
@@ -1276,6 +1346,16 @@
         "dependencies": {
           "Weasel.Postgresql": "8.4.2",
           "WolverineFx.RDBMS": "5.9.2"
+        }
+      },
+      "WolverineFx.SignalR": {
+        "type": "CentralTransitive",
+        "requested": "[5.9.2, )",
+        "resolved": "5.9.2",
+        "contentHash": "CWVk/jxzUFVWNdYK1U0Gu5GrHimmH+WkwUjgTRFk0jTjxAftISUFz7lzHY7SsZClhNc2tIJJh4//cLqbDmqzxg==",
+        "dependencies": {
+          "Microsoft.AspNetCore.SignalR.Client": "9.0.8",
+          "WolverineFx": "5.9.2"
         }
       }
     }

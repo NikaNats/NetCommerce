@@ -215,7 +215,7 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     Handles successful inventory confirmation.
     ///     Completes the saga successfully.
     /// </summary>
-    public FinalizeOrderCommand Handle(
+    public (FinalizeOrderCommand, OrderStatusChanged) Handle(
         InventoryConfirmed @event,
         ILogger<OrderFulfillmentSaga> logger)
     {
@@ -231,8 +231,11 @@ public sealed class OrderFulfillmentSaga : Saga
         // Mark saga as completed - will be purged from database
         MarkCompleted();
 
-        // Finalize the order in the domain
-        return new FinalizeOrderCommand(Id, PaymentTransactionId!.Value);
+        // Finalize the order in the domain AND notify the browser
+        var finalizeCommand = new FinalizeOrderCommand(Id, PaymentTransactionId!.Value);
+        var notification = new OrderStatusChanged(Id, "Success", "Your order has been confirmed!");
+
+        return (finalizeCommand, notification);
     }
 
     #endregion
@@ -243,7 +246,7 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     Handles inventory reservation failure.
     ///     Compensation: None needed (nothing was reserved or charged yet).
     /// </summary>
-    public FailOrderCommand Handle(
+    public (FailOrderCommand, OrderStatusChanged) Handle(
         InventoryReservationFailed @event,
         ILogger<OrderFulfillmentSaga> logger)
     {
@@ -264,8 +267,11 @@ public sealed class OrderFulfillmentSaga : Saga
         // Mark saga as completed
         MarkCompleted();
 
-        // Fail the order
-        return new FailOrderCommand(Id, @event.Reason);
+        // Fail the order AND notify the browser
+        var failCommand = new FailOrderCommand(Id, @event.Reason);
+        var notification = new OrderStatusChanged(Id, "Error", "Sorry, some items are out of stock.");
+
+        return (failCommand, notification);
     }
 
     /// <summary>
@@ -274,7 +280,8 @@ public sealed class OrderFulfillmentSaga : Saga
     /// </summary>
     public (
         ReleaseInventoryReservationCommand ReleaseCommand,
-        FailOrderCommand FailCommand
+        FailOrderCommand FailCommand,
+        OrderStatusChanged Notification
         ) Handle(
         PaymentFailed @event,
         ILogger<OrderFulfillmentSaga> logger)
@@ -300,7 +307,9 @@ public sealed class OrderFulfillmentSaga : Saga
         CompletedAt = DateTime.UtcNow;
         MarkCompleted();
 
-        return (releaseCommand, new FailOrderCommand(Id, @event.Reason));
+        var notification = new OrderStatusChanged(Id, "Error", "Payment failed. Please try again.");
+
+        return (releaseCommand, new FailOrderCommand(Id, @event.Reason), notification);
     }
 
     /// <summary>
@@ -311,7 +320,8 @@ public sealed class OrderFulfillmentSaga : Saga
     public (
         RefundPaymentCommand RefundCommand,
         ReleaseInventoryReservationCommand ReleaseCommand,
-        FailOrderCommand FailCommand
+        FailOrderCommand FailCommand,
+        OrderStatusChanged Notification
         ) Handle(
         InventoryConfirmationFailed @event,
         ILogger<OrderFulfillmentSaga> logger)
@@ -344,7 +354,12 @@ public sealed class OrderFulfillmentSaga : Saga
         CompletedAt = DateTime.UtcNow;
         MarkCompleted();
 
-        return (refundCommand, releaseCommand, new FailOrderCommand(Id, @event.Reason));
+        var notification = new OrderStatusChanged(
+            Id,
+            "Error",
+            "Stock confirmation failed. Your payment will be refunded.");
+
+        return (refundCommand, releaseCommand, new FailOrderCommand(Id, @event.Reason), notification);
     }
 
     #endregion
@@ -355,7 +370,7 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     Handles inventory reservation timeout.
     ///     If inventory wasn't reserved in time, cancel the order.
     /// </summary>
-    public FailOrderCommand? Handle(
+    public (FailOrderCommand, OrderStatusChanged)? Handle(
         InventoryReservationTimeoutMessage timeout,
         ILogger<OrderFulfillmentSaga> logger)
     {
@@ -380,7 +395,12 @@ public sealed class OrderFulfillmentSaga : Saga
         CompletedAt = DateTime.UtcNow;
         MarkCompleted();
 
-        return new FailOrderCommand(Id, "Inventory reservation timed out");
+        var notification = new OrderStatusChanged(
+            Id,
+            "Error",
+            "Order processing timed out. Please try again.");
+
+        return (new FailOrderCommand(Id, "Inventory reservation timed out"), notification);
     }
 
     /// <summary>
@@ -389,7 +409,8 @@ public sealed class OrderFulfillmentSaga : Saga
     /// </summary>
     public (
         ReleaseInventoryReservationCommand? ReleaseCommand,
-        FailOrderCommand FailCommand
+        FailOrderCommand FailCommand,
+        OrderStatusChanged Notification
         )? Handle(
         PaymentTimeoutMessage timeout,
         ILogger<OrderFulfillmentSaga> logger)
@@ -425,7 +446,12 @@ public sealed class OrderFulfillmentSaga : Saga
         CompletedAt = DateTime.UtcNow;
         MarkCompleted();
 
-        return (releaseCommand, new FailOrderCommand(Id, "Payment processing timed out"));
+        var notification = new OrderStatusChanged(
+            Id,
+            "Error",
+            "Payment processing timed out. Please try again.");
+
+        return (releaseCommand, new FailOrderCommand(Id, "Payment processing timed out"), notification);
     }
 
     /// <summary>
@@ -435,7 +461,8 @@ public sealed class OrderFulfillmentSaga : Saga
     public (
         RefundPaymentCommand? RefundCommand,
         ReleaseInventoryReservationCommand ReleaseCommand,
-        FailOrderCommand FailCommand
+        FailOrderCommand FailCommand,
+        OrderStatusChanged Notification
         )? Handle(
         InventoryConfirmationTimeoutMessage timeout,
         ILogger<OrderFulfillmentSaga> logger)
@@ -479,7 +506,12 @@ public sealed class OrderFulfillmentSaga : Saga
         CompletedAt = DateTime.UtcNow;
         MarkCompleted();
 
-        return (refundCommand, releaseCommand, new FailOrderCommand(Id, "Inventory confirmation timed out"));
+        var notification = new OrderStatusChanged(
+            Id,
+            "Error",
+            "Order processing timed out. Your payment will be refunded.");
+
+        return (refundCommand, releaseCommand, new FailOrderCommand(Id, "Inventory confirmation timed out"), notification);
     }
 
     #endregion
