@@ -1,12 +1,10 @@
 using Microsoft.Extensions.Logging;
-using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Wolverine.Attributes;
 
-namespace NetCommerce.Ordering.Infrastructure.Handlers;
+namespace NetCommerce.Ordering.Application.Orders.Commands;
 
 /// <summary>
 ///     Wolverine handler for CreateOrderCommand.

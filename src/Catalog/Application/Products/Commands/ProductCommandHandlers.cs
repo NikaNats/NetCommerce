@@ -1,13 +1,10 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Wolverine.Attributes;
 
-namespace NetCommerce.Catalog.Infrastructure.Handlers;
+namespace NetCommerce.Catalog.Application.Products.Commands;
 
 /// <summary>
 ///     Wolverine handler for CreateProductCommand.

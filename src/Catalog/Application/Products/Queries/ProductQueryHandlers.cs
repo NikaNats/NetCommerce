@@ -1,13 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Mappers;
-using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Results;
 using Wolverine.Attributes;
 
-namespace NetCommerce.Catalog.Infrastructure.Handlers;
+namespace NetCommerce.Catalog.Application.Products.Queries;
 
 /// <summary>
 ///     Wolverine handler for GetProductByIdQuery.

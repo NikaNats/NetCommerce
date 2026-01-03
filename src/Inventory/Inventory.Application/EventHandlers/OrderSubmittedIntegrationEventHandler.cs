@@ -32,7 +32,7 @@ public static class OrderSubmittedHandler
         // 2. Return ReserveStockCommand for each item as cascading messages
         //
         // Example:
-        // return integrationEvent.Items.Select(item => 
+        // return integrationEvent.Items.Select(item =>
         //     new ReserveStockCommand(item.ProductId, integrationEvent.OrderId, item.Quantity))
         //     .ToArray();
 

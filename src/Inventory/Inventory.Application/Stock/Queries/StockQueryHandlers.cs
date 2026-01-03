@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Inventory.Application.Stock.Mappers;
-using NetCommerce.Inventory.Application.Stock.Queries;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Results;
 using Wolverine.Attributes;
 
-namespace NetCommerce.Inventory.Infrastructure.Handlers;
+namespace NetCommerce.Inventory.Application.Stock.Queries;
 
 /// <summary>
 ///     Wolverine handler for GetStockByProductIdQuery.

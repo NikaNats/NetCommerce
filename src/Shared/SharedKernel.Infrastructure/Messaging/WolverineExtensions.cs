@@ -25,7 +25,7 @@ public static class WolverineExtensions
         IConfiguration configuration,
         params Type[] handlerAssemblyMarkerTypes)
     {
-        var connectionString = configuration.GetConnectionString("postgres") 
+        var connectionString = configuration.GetConnectionString("postgres")
                                ?? configuration.GetConnectionString("DefaultConnection")
                                ?? throw new InvalidOperationException("Database connection string not found.");
 

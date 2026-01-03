@@ -40,7 +40,7 @@ public static class OrderGracePeriodConfirmedHandler
         //
         // Example:
         // return new CapturePaymentCommand(
-        //     integrationEvent.OrderId, 
+        //     integrationEvent.OrderId,
         //     integrationEvent.CustomerId,
         //     integrationEvent.TotalAmount);
 

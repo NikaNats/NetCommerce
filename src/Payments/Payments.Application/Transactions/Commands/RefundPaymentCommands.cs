@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
-using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Application;
@@ -8,7 +7,16 @@ using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Wolverine.Attributes;
 
-namespace NetCommerce.Payments.Infrastructure.Handlers;
+namespace NetCommerce.Payments.Application.Transactions.Commands;
+
+/// <summary>
+///     Refund a previously completed payment transaction.
+///     Used as a compensating action when downstream steps (e.g., inventory confirmation) fail.
+/// </summary>
+public sealed record RefundPaymentTransactionCommand(
+    Guid PaymentTransactionId,
+    Money Amount,
+    string Reason) : ICommand;
 
 /// <summary>
 ///     Wolverine handler for RefundPaymentTransactionCommand.
@@ -23,7 +31,7 @@ public static class RefundPaymentTransactionHandler
         ILogger<RefundPaymentTransactionCommand> logger,
         CancellationToken cancellationToken)
     {
-        var transaction = await db.Transactions.FindAsync([command.PaymentTransactionId], cancellationToken);
+        var transaction = await db.PaymentTransactions.FindAsync([command.PaymentTransactionId], cancellationToken);
 
         if (transaction is null)
             return Result.Failure(Error.NotFound("PaymentTransaction", command.PaymentTransactionId));

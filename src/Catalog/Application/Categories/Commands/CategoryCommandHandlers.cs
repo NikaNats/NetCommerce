@@ -1,13 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using NetCommerce.Catalog.Application.Categories.Commands;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.Catalog.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Wolverine.Attributes;
 
-namespace NetCommerce.Catalog.Infrastructure.Handlers;
+namespace NetCommerce.Catalog.Application.Categories.Commands;
 
 /// <summary>
 ///     Wolverine handler for CreateCategoryCommand.

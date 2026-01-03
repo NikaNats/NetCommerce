@@ -34,7 +34,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
     public string PostgresConnectionString => _postgresContainer.GetConnectionString();
     public string RedisConnectionString => _redisContainer.GetConnectionString();
-    
+
     /// <summary>
     ///     Gets the configured host with Wolverine for tracked session testing.
     /// </summary>
@@ -97,13 +97,13 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // Configure Wolverine for testing
                 opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
-                
+
                 // Use PostgreSQL persistence with outbox
                 opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
-                
+
                 // Auto-apply transactions for handlers
                 opts.Policies.AutoApplyTransactions();
-                
+
                 // Use durable local queue for reliability
                 opts.LocalQueue("local")
                     .UseDurableInbox();
@@ -179,7 +179,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await connection.OpenAsync();
         await _respawner.ResetAsync(connection);
     }
-    
+
     /// <summary>
     ///     Starts a Wolverine tracked session for testing message flows.
     /// </summary>
