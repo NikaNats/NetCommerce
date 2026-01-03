@@ -1,3 +1,4 @@
+#nullable enable
 using NetCommerce.SharedKernel.Application;
 
 namespace NetCommerce.Inventory.Application.Stock.Commands;

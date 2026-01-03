@@ -1,3 +1,4 @@
+#nullable enable
 using System.Security.Claims;
 using NetCommerce.Basket.Application;
 

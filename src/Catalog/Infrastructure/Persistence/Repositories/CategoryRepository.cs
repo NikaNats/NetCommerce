@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;

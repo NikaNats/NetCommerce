@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;

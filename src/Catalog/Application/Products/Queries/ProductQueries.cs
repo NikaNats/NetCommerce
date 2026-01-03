@@ -1,3 +1,4 @@
+#nullable enable
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.SharedKernel.Application;
 

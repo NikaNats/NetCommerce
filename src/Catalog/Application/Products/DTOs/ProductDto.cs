@@ -1,3 +1,4 @@
+#nullable enable
 namespace NetCommerce.Catalog.Application.Products.DTOs;
 
 /// <summary>

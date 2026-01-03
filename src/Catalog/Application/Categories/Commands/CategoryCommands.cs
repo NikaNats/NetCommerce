@@ -1,3 +1,4 @@
+#nullable enable
 using NetCommerce.SharedKernel.Application;
 
 namespace NetCommerce.Catalog.Application.Categories.Commands;

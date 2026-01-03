@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Infrastructure.Persistence;

@@ -1,3 +1,4 @@
+#nullable enable
 using System.Net;
 using Microsoft.AspNetCore.Mvc;
 

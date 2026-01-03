@@ -1,3 +1,4 @@
+#nullable enable
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 

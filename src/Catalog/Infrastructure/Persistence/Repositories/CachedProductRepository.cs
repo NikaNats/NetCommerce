@@ -1,3 +1,4 @@
+#nullable enable
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
 using NetCommerce.Catalog.Domain.Products;

@@ -1,3 +1,5 @@
+#nullable enable
+
 using NetCommerce.SharedKernel.Results;
 
 namespace NetCommerce.Api.Endpoints;
