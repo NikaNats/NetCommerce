@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\src\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Application\Inventory.Application.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Payments\Payments.Application\Payments.Application.csproj" />
     <ProjectReference Include="..\..\src\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Shared\SharedKernel\SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />

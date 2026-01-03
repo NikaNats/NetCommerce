@@ -1060,6 +1060,13 @@
           "SharedKernel.Infrastructure": "[1.0.0, )"
         }
       },
+      "ordering.application": {
+        "type": "Project",
+        "dependencies": {
+          "Ordering.Domain": "[1.0.0, )",
+          "SharedKernel": "[1.0.0, )"
+        }
+      },
       "ordering.domain": {
         "type": "Project",
         "dependencies": {

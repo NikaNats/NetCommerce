@@ -6,9 +6,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
+using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.Ordering.Infrastructure.Persistence;
+using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using Npgsql;
 using Respawn;
@@ -97,6 +100,11 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // Configure Wolverine for testing
                 opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
+
+                // Include Saga and handler assemblies
+                opts.Discovery.IncludeAssembly(typeof(NetCommerce.Ordering.Application.Sagas.OrderFulfillmentSaga).Assembly);
+                opts.Discovery.IncludeAssembly(typeof(NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly);
+                opts.Discovery.IncludeAssembly(typeof(NetCommerce.Payments.Application.Transactions.Commands.RefundPaymentTransactionCommand).Assembly);
 
                 // Use PostgreSQL persistence with outbox
                 opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
