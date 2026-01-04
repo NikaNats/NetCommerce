@@ -15,7 +15,7 @@ public interface IIdempotentCommand
 /// </summary>
 public record CreateOrderCommand(
     Guid CustomerId,
-    List<OrderItemDto> Items,
+    List<OrderItemRequest> Items,
     AddressDto ShippingAddress,
     AddressDto BillingAddress,
     string PaymentMethod,
@@ -58,14 +58,12 @@ public record ShipOrderCommand(
 public record DeliverOrderCommand(Guid OrderId) : ICommand;
 
 /// <summary>
-///     DTO for order items in commands.
+///     Order item intent (price is resolved server-side; <see cref="ExpectedPrice"/> is only for guard checks).
 /// </summary>
-public record OrderItemDto(
+public record OrderItemRequest(
     Guid ProductId,
-    string ProductName,
     int Quantity,
-    decimal UnitPrice,
-    string Currency);
+    decimal? ExpectedPrice = null);
 
 /// <summary>
 ///     DTO for address in commands.

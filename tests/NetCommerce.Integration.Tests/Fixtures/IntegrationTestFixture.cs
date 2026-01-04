@@ -4,13 +4,16 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Handlers;
+using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Handlers;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.Ordering.Infrastructure.Handlers;
 using NetCommerce.Ordering.Infrastructure.Persistence;
@@ -98,6 +101,18 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         });
     }
 
+    private static bool IsDockerUnavailable(Exception ex)
+    {
+        // Testcontainers ultimately talks to the Docker Engine API.
+        // When Docker isn't installed/running, we prefer skipping rather than failing the entire test suite.
+        var message = ex.ToString();
+        return message.Contains("Docker", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("npipe://", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("No such host", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("connection", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("refused", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task DisposeAsync()
     {
         if (_host != null)
@@ -115,6 +130,24 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     private async Task<IHost> BuildTestHostAsync()
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging =>
+            {
+                // Keep test output lean to avoid VS Code freezing on large log volumes.
+                logging.ClearProviders();
+                logging.AddSimpleConsole(options =>
+                {
+                    options.SingleLine = true;
+                    options.TimestampFormat = "HH:mm:ss ";
+                });
+
+                logging.SetMinimumLevel(LogLevel.Warning);
+                logging.AddFilter("NetCommerce", LogLevel.Error);
+                logging.AddFilter("Wolverine", LogLevel.Warning);
+                logging.AddFilter("JasperFx", LogLevel.Warning);
+                logging.AddFilter("Microsoft", LogLevel.Warning);
+                logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Error);
+                logging.AddFilter("Npgsql", LogLevel.Warning);
+            })
             .UseWolverine(opts =>
             {
                 // Configure Wolverine for testing - include Application assemblies for commands/queries
@@ -150,6 +183,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // Register DbContexts
                 services.AddDbContext<CatalogDbContext>(options =>
                     options.UseNpgsql(PostgresConnectionString));
+                services.AddScoped<IPriceLookupService, OrderingPriceLookup>();
                 services.AddDbContext<InventoryDbContext>(options =>
                     options.UseNpgsql(PostgresConnectionString));
                 services.AddDbContext<OrderingDbContext>(options =>

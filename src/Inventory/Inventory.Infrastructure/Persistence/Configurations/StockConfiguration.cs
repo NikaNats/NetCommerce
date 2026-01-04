@@ -47,8 +47,9 @@ public class StockConfiguration : IEntityTypeConfiguration<Stock>
             .HasColumnName("last_updated_at")
             .IsRequired();
 
-        // PostgreSQL system column for optimistic concurrency
-        builder.Property<uint>("xmin")
+        // PostgreSQL system column for optimistic concurrency.
+        // AggregateRoot already exposes `Version`; map it to `xmin` and avoid double-mapping.
+        builder.Property(s => s.Version)
             .HasColumnName("xmin")
             .IsRowVersion()
             .ValueGeneratedOnAddOrUpdate();

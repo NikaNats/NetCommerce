@@ -25,6 +25,7 @@ public static class CreateOrderHandler
     public static async Task<Result<Guid>> HandleAsync(
         CreateOrderCommand command,
         OrderingDbContext db,
+        IPriceLookupService priceLookup,
         ILogger<CreateOrderCommand> logger,
         CancellationToken cancellationToken)
     {
@@ -55,6 +56,9 @@ public static class CreateOrderHandler
             command.ShippingAddress.PostalCode,
             command.ShippingAddress.PhoneNumber);
 
+        var productIds = command.Items.Select(x => x.ProductId).Distinct();
+        var priceMap = await priceLookup.GetPricesAsync(productIds, cancellationToken);
+
         var order = Order.Create(
             command.CustomerId,
             shippingAddress,
@@ -71,8 +75,26 @@ public static class CreateOrderHandler
 
         foreach (var item in command.Items)
         {
-            var money = Money.Create(item.UnitPrice, item.Currency);
-            order.AddItem(item.ProductId, item.ProductName, money, item.Quantity);
+            if (!priceMap.TryGetValue(item.ProductId, out var meta))
+                return Result.Failure<Guid>(Error.NotFound("Product", item.ProductId));
+
+            if (item.ExpectedPrice.HasValue && meta.Price.Amount != item.ExpectedPrice.Value)
+            {
+                logger.LogWarning(
+                    "Price guard triggered for product {ProductId}: expected {Expected}, resolved {Resolved}",
+                    item.ProductId,
+                    item.ExpectedPrice.Value,
+                    meta.Price);
+
+                return Result.Failure<Guid>(Error.Conflict("Price has changed. Please review your cart."));
+            }
+
+            order.AddItem(
+                item.ProductId,
+                meta.Name,
+                meta.Price,
+                item.Quantity,
+                meta.Sku);
         }
 
         try

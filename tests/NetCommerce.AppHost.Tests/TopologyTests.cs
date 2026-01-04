@@ -16,6 +16,11 @@ public class TopologyTests
         var appHost = await DistributedApplicationTestingBuilder
             .CreateAsync<NetCommerce_AppHost>();
 
+        // Keep test output lean to avoid VS Code freezing on large log volumes.
+        appHost.Configuration["Logging:LogLevel:Default"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Microsoft"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Aspire"] = "Warning";
+
         // Mock the secret parameter "PostgresPassword" to prevent build errors
         appHost.Configuration["Parameters:PostgresPassword"] = "test-password";
 
@@ -86,6 +91,11 @@ public class TopologyTests
         // Arrange
         var appHost = await DistributedApplicationTestingBuilder
             .CreateAsync<NetCommerce_AppHost>();
+
+        // Keep test output lean to avoid VS Code freezing on large log volumes.
+        appHost.Configuration["Logging:LogLevel:Default"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Microsoft"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Aspire"] = "Warning";
 
         appHost.Configuration["Parameters:PostgresPassword"] = "test-password";
 

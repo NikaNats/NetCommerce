@@ -1353,6 +1353,7 @@
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.Extensions.Options.ConfigurationExtensions": "[10.0.1, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
+          "Ordering.Domain": "[1.0.0, )",
           "SharedKernel": "[1.0.0, )",
           "SharedKernel.Infrastructure": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"

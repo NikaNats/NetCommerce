@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Shouldly;
 using Wolverine;
@@ -49,14 +51,11 @@ public class TransactionalOutboxTests : IntegrationTestBase
             RecipientName: "John Doe",
             PhoneNumber: string.Empty);
 
-        var items = new List<OrderItemDto>
+        var (productId, productPrice) = await SeedProductAsync(99.99m);
+
+        var items = new List<OrderItemRequest>
         {
-            new(
-                ProductId: Guid.NewGuid(),
-                ProductName: "Test Product",
-                Quantity: 2,
-                UnitPrice: 99.99m,
-                Currency: "USD")
+            new(productId, 2, productPrice)
         };
 
         var command = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
@@ -93,9 +92,11 @@ public class TransactionalOutboxTests : IntegrationTestBase
             "456 Oak Ave", "Portland", "OR", "97201", "USA", "Jane Doe", "+1-555-0456");
         var billingAddress = new AddressDto(
             "456 Oak Ave", "Portland", "OR", "97201", "USA", "Jane Doe", string.Empty);
-        var items = new List<OrderItemDto>
+        var (productId, productPrice) = await SeedProductAsync(50.00m);
+
+        var items = new List<OrderItemRequest>
         {
-            new(Guid.NewGuid(), "Grace Period Product", 1, 50.00m, "USD")
+            new(productId, 1, productPrice)
         };
 
         var createCommand = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
@@ -129,11 +130,13 @@ public class TransactionalOutboxTests : IntegrationTestBase
 
         for (var i = 1; i <= 3; i++)
         {
+            var (productId, productPrice) = await SeedProductAsync(25.00m * i);
+
             var command = new CreateOrderCommand(
                 CustomerId: Guid.NewGuid(),
-                Items: new List<OrderItemDto>
+                Items: new List<OrderItemRequest>
                 {
-                    new(Guid.NewGuid(), $"Product {i}", i, 25.00m * i, "USD")
+                    new(productId, i, productPrice)
                 },
                 ShippingAddress: new AddressDto(
                     $"{i}00 Test St", "Test City", "TS", $"0000{i}", "USA", $"Customer {i}", string.Empty),
@@ -164,11 +167,13 @@ public class TransactionalOutboxTests : IntegrationTestBase
     {
         // Arrange
         var customerId = Guid.NewGuid();
+        var (productId, productPrice) = await SeedProductAsync(75.00m);
+
         var command = new CreateOrderCommand(
             CustomerId: customerId,
-            Items: new List<OrderItemDto>
+            Items: new List<OrderItemRequest>
             {
-                new(Guid.NewGuid(), "Cascade Product", 1, 75.00m, "USD")
+                new(productId, 1, productPrice)
             },
             ShippingAddress: new AddressDto(
                 "789 Cascade Dr", "Cascade City", "CA", "90210", "USA", "Cascade Test", string.Empty),
@@ -189,5 +194,21 @@ public class TransactionalOutboxTests : IntegrationTestBase
         var order = await db.Orders.FindAsync(result.Value);
         order.ShouldNotBeNull();
         order.CustomerId.ShouldBe(customerId);
+    }
+
+    private async Task<(Guid ProductId, decimal Price)> SeedProductAsync(decimal price)
+    {
+        await using var catalogDb = Fixture.CreateCatalogDbContext();
+        var product = Product.Create(
+            name: $"Test Product {Guid.NewGuid():N}",
+            description: "Integration test product",
+            sku: $"TEST-{Guid.NewGuid():N}",
+            price: Money.Create(price, "USD"),
+            categoryId: Guid.NewGuid());
+
+        catalogDb.Products.Add(product);
+        await catalogDb.SaveChangesAsync();
+
+        return (product.Id, product.Price.Amount);
     }
 }

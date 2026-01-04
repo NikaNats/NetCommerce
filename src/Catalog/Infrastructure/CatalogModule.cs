@@ -11,6 +11,7 @@ using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Ordering.Domain.Orders;
 
 namespace NetCommerce.Catalog.Infrastructure;
 
@@ -63,6 +64,8 @@ public static class CatalogModule
         // Services
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.AddSingleton<ICdnUrlGenerator, CdnUrlGenerator>();
+
+        services.AddScoped<IPriceLookupService, OrderingPriceLookup>();
 
         // Note: Wolverine handles transactional outbox automatically via its middleware.
         // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.

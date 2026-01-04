@@ -950,6 +950,12 @@
           "SharedKernel": "[1.0.0, )"
         }
       },
+      "ordering.domain": {
+        "type": "Project",
+        "dependencies": {
+          "SharedKernel": "[1.0.0, )"
+        }
+      },
       "sharedkernel": {
         "type": "Project",
         "dependencies": {
