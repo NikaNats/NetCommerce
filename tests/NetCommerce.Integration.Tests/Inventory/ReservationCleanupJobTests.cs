@@ -350,12 +350,15 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Arrange
         await using var context = Fixture.CreateInventoryDbContext();
 
-        var stock1 = Stock.Create(Guid.NewGuid(), "MULTI-001", 100);
-        var stock2 = Stock.Create(Guid.NewGuid(), "MULTI-002", 100);
-        var stock3 = Stock.Create(Guid.NewGuid(), "MULTI-003", 100);
+        var stock1 = Stock.Create(Guid.NewGuid(), $"MULTI-1-{Guid.NewGuid():N}", 100);
+        var stock2 = Stock.Create(Guid.NewGuid(), $"MULTI-2-{Guid.NewGuid():N}", 100);
+        var stock3 = Stock.Create(Guid.NewGuid(), $"MULTI-3-{Guid.NewGuid():N}", 100);
 
         context.Stocks.AddRange(stock1, stock2, stock3);
         await context.SaveChangesAsync();
+
+        // Capture the stock IDs for verification
+        var stockIds = new[] { stock1.Id, stock2.Id, stock3.Id };
 
         var res1 = stock1.Reserve(Guid.NewGuid(), 10);
         var res2 = stock2.Reserve(Guid.NewGuid(), 20);
@@ -373,10 +376,10 @@ public class ReservationCleanupJobTests : IntegrationTestBase
         // Act
         await RunCleanupJobAsync();
 
-        // Assert
+        // Assert - Only count released reservations for stocks created in THIS test
         await using var verifyContext = Fixture.CreateInventoryDbContext();
         var releasedCount = await verifyContext.StockReservations
-            .CountAsync(r => r.Status == ReservationStatus.Released);
+            .CountAsync(r => stockIds.Contains(r.StockId) && r.Status == ReservationStatus.Released);
 
         releasedCount.ShouldBe(3);
     }

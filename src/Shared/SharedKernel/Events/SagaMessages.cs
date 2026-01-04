@@ -1,6 +1,7 @@
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using Wolverine;
+using Wolverine.Persistence.Sagas;
 
 namespace NetCommerce.SharedKernel.Events;
 
@@ -84,7 +85,7 @@ public sealed record FailOrderCommand(
 ///     Event published by the Payments module when payment succeeds.
 /// </summary>
 public sealed record PaymentSucceeded(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     Guid TransactionId,
     Money Amount) : IntegrationEvent;
 
@@ -92,7 +93,7 @@ public sealed record PaymentSucceeded(
 ///     Event published by the Payments module when payment fails.
 /// </summary>
 public sealed record PaymentFailed(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     string Reason,
     string? ErrorCode) : IntegrationEvent;
 
@@ -100,7 +101,7 @@ public sealed record PaymentFailed(
 ///     Event published by the Inventory module when reservation succeeds.
 /// </summary>
 public sealed record InventoryReserved(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     IReadOnlyList<ReservedItem> ReservedItems) : IntegrationEvent;
 
 /// <summary>
@@ -115,7 +116,7 @@ public sealed record ReservedItem(
 ///     Event published by the Inventory module when reservation fails.
 /// </summary>
 public sealed record InventoryReservationFailed(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     string Reason,
     IReadOnlyList<Guid>? UnavailableProductIds) : IntegrationEvent;
 
@@ -123,20 +124,20 @@ public sealed record InventoryReservationFailed(
 ///     Event published by the Inventory module when inventory is confirmed.
 /// </summary>
 public sealed record InventoryConfirmed(
-    Guid OrderId) : IntegrationEvent;
+    [property: SagaIdentity] Guid OrderId) : IntegrationEvent;
 
 /// <summary>
 ///     Event published by the Inventory module when inventory confirmation fails.
 /// </summary>
 public sealed record InventoryConfirmationFailed(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     string Reason) : IntegrationEvent;
 
 /// <summary>
 ///     Event published by the Payments module when refund completes.
 /// </summary>
 public sealed record RefundCompleted(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     Guid RefundTransactionId,
     Money Amount) : IntegrationEvent;
 
@@ -144,7 +145,7 @@ public sealed record RefundCompleted(
 ///     Event published by the Payments module when refund fails.
 /// </summary>
 public sealed record RefundFailed(
-    Guid OrderId,
+    [property: SagaIdentity] Guid OrderId,
     string Reason) : IntegrationEvent;
 
 #endregion

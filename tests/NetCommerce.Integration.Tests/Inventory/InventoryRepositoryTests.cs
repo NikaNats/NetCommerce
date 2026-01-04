@@ -24,7 +24,7 @@ public class InventoryRepositoryTests : IntegrationTestBase
         // Arrange
         await using var context = Fixture.CreateInventoryDbContext();
 
-        var stock = Stock.Create(Guid.NewGuid(), "MULTI-001", 100);
+        var stock = Stock.Create(Guid.NewGuid(), $"MULTI-{Guid.NewGuid():N}", 100);
         context.Stocks.Add(stock);
         await context.SaveChangesAsync();
 
@@ -291,7 +291,7 @@ public class InventoryRepositoryTests : IntegrationTestBase
         // Arrange
         await using var context = Fixture.CreateInventoryDbContext();
 
-        var stock = Stock.Create(Guid.NewGuid(), "ACTIVE-001", 100);
+        var stock = Stock.Create(Guid.NewGuid(), $"ACTIVE-{Guid.NewGuid():N}", 100);
         stock.Reserve(Guid.NewGuid(), 10);
         stock.Reserve(Guid.NewGuid(), 20);
 

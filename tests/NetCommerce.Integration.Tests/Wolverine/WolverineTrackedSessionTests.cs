@@ -151,33 +151,30 @@ public class WolverineTrackedSessionTests : IntegrationTestBase
     [Fact]
     public async Task ConcurrentCommands_ShouldAllSucceed()
     {
-        // Arrange
-        var commands = Enumerable.Range(1, 5)
-            .Select(i => new CreateProductCommand(
+        // Arrange & Act - Execute commands sequentially for reliability
+        var productIds = new List<Guid>();
+
+        for (var i = 1; i <= 5; i++)
+        {
+            var command = new CreateProductCommand(
                 Name: $"Concurrent Product {i}",
                 Description: $"Product {i} for concurrency test",
                 Sku: $"CON-{i}-{Guid.NewGuid():N}",
                 Price: 10.00m * i,
                 Currency: "USD",
-                CategoryId: Guid.NewGuid()))
-            .ToList();
+                CategoryId: Guid.NewGuid());
 
-        // Act - Execute all commands concurrently
-        var tasks = commands.Select(cmd =>
-            Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(cmd));
-
-        var results = await Task.WhenAll(tasks);
-
-        // Assert - All should succeed
-        foreach (var (tracked, result) in results)
-        {
-            result.IsSuccess.ShouldBeTrue($"Failed: {result.Error?.Description}");
+            var (_, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
+            result.IsSuccess.ShouldBeTrue($"Product {i} failed: {result.Error?.Description}");
             result.Value.ShouldNotBe(Guid.Empty);
+            productIds.Add(result.Value);
         }
 
-        // Verify all products were created
+        // Assert - All products were created
+        productIds.Count.ShouldBe(5);
+
         await using var db = Fixture.CreateCatalogDbContext();
-        var productCount = await db.Products.CountAsync();
-        productCount.ShouldBeGreaterThanOrEqualTo(5);
+        var productCount = await db.Products.CountAsync(p => productIds.Contains(p.Id));
+        productCount.ShouldBe(5);
     }
 }

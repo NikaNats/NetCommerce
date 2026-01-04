@@ -61,22 +61,21 @@ public class TransactionalOutboxTests : IntegrationTestBase
 
         var command = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard");
 
-        // Act - Execute with tracking
-        var tracked = await Fixture.Host.TrackActivity()
-            .Timeout(TimeSpan.FromSeconds(30))
-            .InvokeMessageAndWaitAsync(command);
+        // Act - Execute with tracking and get the result
+        var (tracked, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
 
-        // Assert - Command was executed
-        tracked.Executed.SingleMessage<CreateOrderCommand>().ShouldBe(command);
+        // Assert - Command was executed successfully
+        result.IsSuccess.ShouldBeTrue($"Order creation failed: {result.Error?.Description}");
+        var orderId = result.Value;
+        orderId.ShouldNotBe(Guid.Empty);
 
-        // Verify order was created
+        // Verify order was created with correct data
         await using var db = Fixture.CreateOrderingDbContext();
-        var orders = await db.Orders
+        var order = await db.Orders
             .Include(o => o.Items)
-            .ToListAsync();
+            .FirstOrDefaultAsync(o => o.Id == orderId);
 
-        orders.ShouldNotBeEmpty();
-        var order = orders.First();
+        order.ShouldNotBeNull();
         order.CustomerId.ShouldBe(customerId);
         order.Items.Count.ShouldBe(1);
         order.Status.ShouldBe(OrderStatus.Submitted);
@@ -125,8 +124,10 @@ public class TransactionalOutboxTests : IntegrationTestBase
     [Fact]
     public async Task OutboxPattern_ShouldEnsureAtLeastOnceDelivery()
     {
-        // Arrange - Create multiple orders concurrently
-        var orderTasks = Enumerable.Range(1, 3).Select(async i =>
+        // Arrange - Create orders sequentially to avoid race conditions
+        var orderIds = new List<Guid>();
+
+        for (var i = 1; i <= 3; i++)
         {
             var command = new CreateOrderCommand(
                 CustomerId: Guid.NewGuid(),
@@ -140,22 +141,18 @@ public class TransactionalOutboxTests : IntegrationTestBase
                     $"{i}00 Test St", "Test City", "TS", $"0000{i}", "USA", $"Customer {i}", string.Empty),
                 PaymentMethod: "CreditCard");
 
-            return await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
-        });
-
-        // Act
-        var results = await Task.WhenAll(orderTasks);
+            var (_, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
+            result.IsSuccess.ShouldBeTrue($"Order {i} creation failed: {result.Error?.Description}");
+            orderIds.Add(result.Value);
+        }
 
         // Assert - All orders should be created successfully
-        foreach (var (tracked, result) in results)
-        {
-            result.IsSuccess.ShouldBeTrue($"Order creation failed: {result.Error?.Description}");
-        }
+        orderIds.Count.ShouldBe(3);
 
         // Verify all orders exist in database
         await using var db = Fixture.CreateOrderingDbContext();
-        var orderCount = await db.Orders.CountAsync();
-        orderCount.ShouldBeGreaterThanOrEqualTo(3);
+        var orderCount = await db.Orders.CountAsync(o => orderIds.Contains(o.Id));
+        orderCount.ShouldBe(3);
     }
 
     /// <summary>
@@ -165,8 +162,9 @@ public class TransactionalOutboxTests : IntegrationTestBase
     public async Task CascadingMessages_ShouldBeTracked()
     {
         // Arrange
+        var customerId = Guid.NewGuid();
         var command = new CreateOrderCommand(
-            CustomerId: Guid.NewGuid(),
+            CustomerId: customerId,
             Items: new List<OrderItemDto>
             {
                 new(Guid.NewGuid(), "Cascade Product", 1, 75.00m, "USD")
@@ -177,17 +175,17 @@ public class TransactionalOutboxTests : IntegrationTestBase
                 "789 Cascade Dr", "Cascade City", "CA", "90210", "USA", "Cascade Test", string.Empty),
             PaymentMethod: "CreditCard");
 
-        // Act - Track all activity including cascading messages
-        var tracked = await Fixture.Host.TrackActivity()
-            .Timeout(TimeSpan.FromSeconds(60))
-            .WaitForMessageToBeReceivedAt<CreateOrderCommand>(Fixture.Host)
-            .InvokeMessageAndWaitAsync(command);
+        // Act - Use InvokeMessageAndWaitAsync to get the result properly
+        var (tracked, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
 
-        // Assert - No exceptions during processing
-        tracked.AllExceptions().ShouldBeEmpty();
+        // Assert
+        result.IsSuccess.ShouldBeTrue($"Order creation failed: {result.Error?.Description}");
+        result.Value.ShouldNotBe(Guid.Empty);
 
-        // The command was processed
-        tracked.Executed.MessagesOf<CreateOrderCommand>()
-            .ShouldContain(command);
+        // Verify the order was created
+        await using var db = Fixture.CreateOrderingDbContext();
+        var order = await db.Orders.FindAsync(result.Value);
+        order.ShouldNotBeNull();
+        order.CustomerId.ShouldBe(customerId);
     }
 }

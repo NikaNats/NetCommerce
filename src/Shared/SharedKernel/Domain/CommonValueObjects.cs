@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
@@ -8,7 +10,11 @@ namespace NetCommerce.SharedKernel.Domain;
 /// </summary>
 public sealed class Money : ValueObject
 {
-    private Money(decimal amount, string currency)
+    /// <summary>
+    ///     JSON constructor for deserialization (e.g., saga state persistence).
+    /// </summary>
+    [JsonConstructor]
+    public Money(decimal amount, string currency)
     {
         Amount = amount;
         Currency = currency;

@@ -174,11 +174,14 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
 
         context.Orders.AddRange(orders);
         await context.SaveChangesAsync();
+
+        // Capture the order IDs we created
+        var orderIds = orders.Select(o => o.Id).ToList();
         context.ChangeTracker.Clear();
 
         // Act - Confirm grace period for all orders (simulating background service)
         var ordersToProcess = await context.Orders
-            .Where(o => o.Status == OrderStatus.Submitted)
+            .Where(o => orderIds.Contains(o.Id) && o.Status == OrderStatus.Submitted)
             .ToListAsync();
 
         foreach (var order in ordersToProcess) order.ConfirmGracePeriod();
@@ -186,8 +189,12 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
-        // Assert - All orders should be in AwaitingValidation status
-        var processedOrders = await context.Orders.ToListAsync();
+        // Assert - Only our orders should be in AwaitingValidation status
+        var processedOrders = await context.Orders
+            .Where(o => orderIds.Contains(o.Id))
+            .ToListAsync();
+
+        processedOrders.Count.ShouldBe(10);
         processedOrders.ShouldAllBe(o => o.Status == OrderStatus.AwaitingValidation);
     }
 

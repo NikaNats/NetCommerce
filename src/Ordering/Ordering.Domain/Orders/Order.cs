@@ -207,8 +207,16 @@ public sealed class Order : AggregateRoot<Guid>
 
     private void RecalculateTotal()
     {
+        if (_items.Count == 0)
+        {
+            TotalAmount = Money.Zero();
+            return;
+        }
+
+        // Use the currency of the first item (all items should have the same currency)
+        var currency = _items[0].AppliedPrice.Currency;
         var total = _items.Aggregate(
-            Money.Zero(),
+            Money.Zero(currency),
             (sum, item) => sum.Add(item.AppliedPrice.Multiply(item.Quantity)));
 
         TotalAmount = total;

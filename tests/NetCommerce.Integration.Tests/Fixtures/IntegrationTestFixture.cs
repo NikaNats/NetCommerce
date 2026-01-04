@@ -5,20 +5,28 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NetCommerce.Catalog.Application.Products.Commands;
+using NetCommerce.Catalog.Infrastructure.Handlers;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Inventory.Application.Stock.Commands;
+using NetCommerce.Inventory.Infrastructure.Handlers;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Application.Sagas;
+using NetCommerce.Ordering.Infrastructure.Handlers;
 using NetCommerce.Ordering.Infrastructure.Persistence;
+using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Application.Transactions.Commands;
+using NetCommerce.Payments.Infrastructure.Handlers;
+using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
+using NetCommerce.SharedKernel.Results;
 using Npgsql;
 using Respawn;
 using Respawn.Graph;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
 
@@ -109,17 +117,26 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         var builder = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // Configure Wolverine for testing
+                // Configure Wolverine for testing - include Application assemblies for commands/queries
                 opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
 
-                // Include Saga and handler assemblies
+                // Include Saga and handler assemblies (Application)
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Ordering.Application.Sagas.OrderFulfillmentSaga).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Payments.Application.Transactions.Commands.RefundPaymentTransactionCommand).Assembly);
 
+                // CRITICAL: Include Infrastructure assemblies where Wolverine handlers live
+                opts.Discovery.IncludeAssembly(typeof(CreateProductHandler).Assembly); // Catalog.Infrastructure
+                opts.Discovery.IncludeAssembly(typeof(CreateOrderHandler).Assembly); // Ordering.Infrastructure
+                opts.Discovery.IncludeAssembly(typeof(CreateStockHandler).Assembly); // Inventory.Infrastructure
+                opts.Discovery.IncludeAssembly(typeof(RefundPaymentTransactionHandler).Assembly); // Payments.Infrastructure
+
                 // Use PostgreSQL persistence with outbox
                 opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
+
+                // CRITICAL: Enable EF Core integration for transactional outbox
+                opts.UseEntityFrameworkCoreTransactions();
 
                 // Auto-apply transactions for handlers
                 opts.Policies.AutoApplyTransactions();
@@ -137,6 +154,11 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                     options.UseNpgsql(PostgresConnectionString));
                 services.AddDbContext<OrderingDbContext>(options =>
                     options.UseNpgsql(PostgresConnectionString));
+                services.AddDbContext<PaymentsDbContext>(options =>
+                    options.UseNpgsql(PostgresConnectionString));
+
+                // Register mock payment gateway for testing
+                services.AddSingleton<IPaymentGateway, TestPaymentGateway>();
             });
 
         var host = builder.Build();
@@ -172,11 +194,34 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         return new OrderingDbContext(options);
     }
 
+    public PaymentsDbContext CreatePaymentsDbContext()
+    {
+        var options = new DbContextOptionsBuilder<PaymentsDbContext>()
+            .UseNpgsql(PostgresConnectionString)
+            .Options;
+
+        return new PaymentsDbContext(options);
+    }
+
     private async Task InitializeDatabaseAsync()
     {
-        // Create database and schemas
+        // Create schemas first using raw SQL
+        await using var connection = new NpgsqlConnection(PostgresConnectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = @"
+            CREATE SCHEMA IF NOT EXISTS catalog;
+            CREATE SCHEMA IF NOT EXISTS inventory;
+            CREATE SCHEMA IF NOT EXISTS ordering;
+            CREATE SCHEMA IF NOT EXISTS payments;
+            CREATE SCHEMA IF NOT EXISTS wolverine;
+        ";
+        await cmd.ExecuteNonQueryAsync();
+
+        // Initialize Catalog schema
         await using var catalogContext = CreateCatalogDbContext();
-        await catalogContext.Database.EnsureCreatedAsync();
+        var catalogCreator = catalogContext.GetService<IRelationalDatabaseCreator>();
+        await catalogCreator.CreateTablesAsync();
 
         // Initialize Inventory schema
         await using var inventoryContext = CreateInventoryDbContext();
@@ -187,6 +232,11 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await using var orderingContext = CreateOrderingDbContext();
         var orderingCreator = orderingContext.GetService<IRelationalDatabaseCreator>();
         await orderingCreator.CreateTablesAsync();
+
+        // Initialize Payments schema
+        await using var paymentsContext = CreatePaymentsDbContext();
+        var paymentsCreator = paymentsContext.GetService<IRelationalDatabaseCreator>();
+        await paymentsCreator.CreateTablesAsync();
     }
 
     /// <summary>
@@ -230,10 +280,77 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await Fixture.ResetDatabaseAsync();
+        // Reset test payment gateway configuration for each test
+        TestPaymentGateway.Reset();
     }
 
     public Task DisposeAsync()
     {
         return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     Configurable test payment gateway for integration tests.
+///     Supports simulating failures for specific order IDs or amounts.
+/// </summary>
+internal sealed class TestPaymentGateway : IPaymentGateway
+{
+    /// <summary>
+    ///     Order IDs that should fail payment processing.
+    /// </summary>
+    public static HashSet<Guid> FailingOrderIds { get; } = [];
+
+    /// <summary>
+    ///     Payment amounts (decimal values) that should fail (useful for testing specific scenarios).
+    ///     Example: 666.00m could trigger a failure.
+    /// </summary>
+    public static HashSet<decimal> FailingAmounts { get; } = [];
+
+    /// <summary>
+    ///     Resets the failure configuration (call in test cleanup).
+    /// </summary>
+    public static void Reset()
+    {
+        FailingOrderIds.Clear();
+        FailingAmounts.Clear();
+    }
+
+    public PaymentProvider Provider => PaymentProvider.Stripe;
+
+    public Task<Result<PaymentResult>> ProcessPaymentAsync(
+        PaymentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Check if this order should fail
+        if (FailingOrderIds.Contains(request.OrderId))
+        {
+            return Task.FromResult(Result.Failure<PaymentResult>(
+                Error.Failure("Payment.Failed", "Simulated payment failure for testing")));
+        }
+
+        // Check if this amount should fail (compare the decimal value from Money)
+        if (FailingAmounts.Contains(request.Amount.Amount))
+        {
+            return Task.FromResult(Result.Failure<PaymentResult>(
+                Error.Failure("Payment.DeclinedAmount", $"Payment declined for amount {request.Amount}")));
+        }
+
+        var result = new PaymentResult(
+            TransactionId: $"test_txn_{Guid.NewGuid():N}",
+            Status: PaymentResultStatus.Succeeded);
+
+        return Task.FromResult(Result.Success(result));
+    }
+
+    public Task<Result<RefundResult>> ProcessRefundAsync(
+        RefundRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new RefundResult(
+            RefundId: $"test_refund_{Guid.NewGuid():N}",
+            Success: true);
+
+        return Task.FromResult(Result.Success(result));
     }
 }
