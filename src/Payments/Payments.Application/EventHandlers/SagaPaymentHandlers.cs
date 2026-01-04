@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
+using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.SharedKernel.Events;
 using Wolverine.Attributes;
 using Wolverine;
@@ -15,12 +16,21 @@ public static class SagaPaymentHandlers
 {
     /// <summary>
     ///     Handles payment request from the OrderFulfillmentSaga.
-    ///     Uses the injected payment gateway to process payments.
-    ///     Returns a PaymentSucceeded or PaymentFailed event as cascading message.
+    ///
+    ///     WEBHOOK-FIRST PATTERN (2025 Gold Standard):
+    ///     1. Create PaymentTransaction with Status=Pending
+    ///     2. Call gateway.ProcessPaymentAsync (returns Pending with ExternalTransactionId)
+    ///     3. Store ExternalTransactionId
+    ///     4. Return PaymentInitiated event (NOT PaymentSucceeded)
+    ///     5. Webhook will later trigger PaymentCompletedDomainEvent → saga continues
+    ///
+    ///     Prevents "Ghost Charge" vulnerability where customer is charged but order is lost.
     /// </summary>
+    [Transactional]
     public static async Task<object> Handle(
         RequestPaymentCommand command,
         IPaymentGateway paymentGateway,
+        IPaymentTransactionRepository repository,
         Envelope envelope,
         ILogger<RequestPaymentCommand> logger)
     {
@@ -33,45 +43,83 @@ public static class SagaPaymentHandlers
 
         try
         {
-            // Create payment request for the gateway
+            // 1. Create PaymentTransaction (internal ledger)
+            var paymentTransaction = PaymentTransaction.Create(
+                orderId: command.OrderId,
+                amount: command.Amount,
+                provider: paymentGateway.Provider,
+                idempotencyKey: $"payment_{envelope.Id}");
+
+            await repository.AddAsync(paymentTransaction);
+
+            // 2. Initiate payment with provider (returns Pending)
             var paymentRequest = new PaymentRequest(
                 OrderId: command.OrderId,
                 Amount: command.Amount,
                 PaymentMethodToken: "tok_visa",
-                IdempotencyKey: $"payment_{envelope.Id}",
+                IdempotencyKey: paymentTransaction.IdempotencyKey!,
                 Description: $"Payment for order {command.OrderNumber}");
 
-            // Process payment through the gateway
             var result = await paymentGateway.ProcessPaymentAsync(paymentRequest);
 
-            if (result.IsSuccess && result.Value.Status == PaymentResultStatus.Succeeded)
+            if (result.IsFailure)
             {
-                var externalTransactionId = result.Value.TransactionId;
+                // Gateway error (network, configuration, etc)
+                var errorMessage = result.Error?.Description ?? "Payment gateway error";
 
-                logger.LogInformation(
-                    "Payment successful for Order {OrderId}. TransactionId: {TransactionId}",
-                    command.OrderId,
-                    externalTransactionId);
+                paymentTransaction.MarkAsFailed(errorMessage);
+                repository.Update(paymentTransaction);
 
-                // Return success event as cascading message
-                return new PaymentSucceeded(
-                    command.OrderId,
-                    externalTransactionId,
-                    command.Amount);
-            }
-            else
-            {
-                var errorMessage = result.Error?.Description ?? "Payment processing failed";
-                logger.LogWarning(
-                    "Payment declined for Order {OrderId}. Reason: {Reason}",
+                logger.LogError(
+                    "Payment gateway error for Order {OrderId}. Error: {Error}",
                     command.OrderId,
                     errorMessage);
 
                 return new PaymentFailed(
                     command.OrderId,
                     errorMessage,
-                    result.Error?.Code ?? "GATEWAY_DECLINED");
+                    result.Error?.Code ?? "GATEWAY_ERROR");
             }
+
+            var paymentResult = result.Value;
+
+            // 3. Handle immediate failures (card declined, etc)
+            if (paymentResult.Status == PaymentResultStatus.Failed)
+            {
+                paymentTransaction.MarkAsFailed(paymentResult.ErrorMessage ?? "Payment declined");
+                repository.Update(paymentTransaction);
+
+                logger.LogWarning(
+                    "Payment declined for Order {OrderId}. Reason: {Reason}",
+                    command.OrderId,
+                    paymentResult.ErrorMessage);
+
+                return new PaymentFailed(
+                    command.OrderId,
+                    paymentResult.ErrorMessage ?? "Payment declined",
+                    "CARD_DECLINED");
+            }
+
+            // 4. Store ExternalTransactionId
+            paymentTransaction.SetExternalTransactionId(paymentResult.TransactionId);
+            repository.Update(paymentTransaction);
+
+            logger.LogInformation(
+                "Payment initiated for Order {OrderId}. " +
+                "PaymentId: {PaymentId}, ExternalTransactionId: {ExternalId}, Status: {Status}. " +
+                "Awaiting webhook confirmation.",
+                command.OrderId,
+                paymentTransaction.Id,
+                paymentResult.TransactionId,
+                paymentResult.Status);
+
+            // 5. Return PaymentInitiated event (saga waits for webhook)
+            // NOTE: Saga will receive PaymentCompletedDomainEvent from webhook later
+            return new PaymentInitiated(
+                command.OrderId,
+                paymentTransaction.Id,
+                paymentResult.TransactionId,
+                command.Amount);
         }
         catch (Exception ex)
         {

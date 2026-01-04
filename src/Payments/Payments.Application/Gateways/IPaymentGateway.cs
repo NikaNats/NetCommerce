@@ -11,8 +11,20 @@ public interface IPaymentGateway
 {
     PaymentProvider Provider { get; }
 
+    /// <summary>
+    /// Initiates payment and returns Pending status.
+    /// Actual payment confirmation comes via webhook.
+    /// </summary>
     Task<Result<PaymentResult>> ProcessPaymentAsync(
         PaymentRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Query current payment status from provider API.
+    /// Used by reconciliation job to catch missed/delayed webhooks.
+    /// </summary>
+    Task<Result<PaymentResult>> GetPaymentStatusAsync(
+        string externalTransactionId,
         CancellationToken cancellationToken = default);
 
     Task<Result<RefundResult>> ProcessRefundAsync(

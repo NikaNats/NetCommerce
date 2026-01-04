@@ -18,6 +18,22 @@ public sealed record RequestPaymentCommand(
     string OrderNumber) : ICommand;
 
 /// <summary>
+///     Command sent by webhook endpoint to process external payment confirmation.
+///     Triggered by payment gateway webhooks (Stripe, PayPal, etc).
+///     Targets the Payments module.
+///
+///     WEBHOOK-FIRST PATTERN:
+///     - ProcessPaymentAsync returns Pending status
+///     - This command handles actual payment confirmation from provider
+///     - Idempotent: safe to process duplicate webhooks
+///     - Updates PaymentTransaction status and publishes PaymentCompletedDomainEvent
+/// </summary>
+public sealed record ProcessExternalPaymentConfirmation(
+    string ExternalTransactionId,
+    string Status,
+    string WebhookEventId) : ICommand;
+
+/// <summary>
 ///     Command sent by the OrderSaga to reserve inventory.
 ///     Targets the Inventory module.
 /// </summary>
@@ -88,6 +104,17 @@ public sealed record FailOrderCommand(
 #endregion
 
 #region Saga Events - Messages received FROM modules
+
+/// <summary>
+///     Event published by the Payments module when payment is initiated.
+///     WEBHOOK-FIRST PATTERN: Payment is Pending, awaiting webhook confirmation.
+///     Saga waits for PaymentCompletedDomainEvent from webhook.
+/// </summary>
+public sealed record PaymentInitiated(
+    [property: SagaIdentity] Guid OrderId,
+    Guid PaymentTransactionId,
+    string ExternalTransactionId,
+    Money Amount) : IntegrationEvent;
 
 /// <summary>
 ///     Event published by the Payments module when payment succeeds.

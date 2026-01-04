@@ -9,28 +9,33 @@ namespace NetCommerce.Payments.Application.EventHandlers;
 ///     Wolverine handler for PaymentCompletedDomainEvent.
 ///     Bridges domain events to integration events via cascading messages.
 ///     Pattern: Domain event handler returns integration event as cascading message.
+///
+///     WEBHOOK-FIRST PATTERN:
+///     This is triggered by ProcessExternalPaymentConfirmation handler after webhook confirmation.
+///     Returns PaymentSucceeded to continue the saga.
 /// </summary>
 [WolverineHandler]
 public static class PaymentCompletedDomainEventHandler
 {
     /// <summary>
-    ///     Handles the domain event and returns an integration event as a cascading message.
-    ///     Wolverine will automatically publish the returned message through the outbox.
+    ///     Handles the domain event and returns PaymentSucceeded as a cascading message.
+    ///     This triggers saga continuation after webhook confirmation.
     /// </summary>
-    public static PaymentCompletedIntegrationEvent Handle(
+    public static PaymentSucceeded Handle(
         PaymentCompletedDomainEvent domainEvent,
         ILogger<PaymentCompletedDomainEvent> logger)
     {
         logger.LogInformation(
-            "Bridging PaymentCompletedDomainEvent to PaymentCompletedIntegrationEvent for TransactionId: {TransactionId}, OrderId: {OrderId}",
+            "Bridging PaymentCompletedDomainEvent to PaymentSucceeded for TransactionId: {TransactionId}, OrderId: {OrderId}. " +
+            "This event came from webhook confirmation.",
             domainEvent.ExternalTransactionId,
             domainEvent.OrderId);
 
-        // Return integration event as cascading message
+        // Return PaymentSucceeded event as cascading message
         // Wolverine handles publishing via the transactional outbox
-        return new PaymentCompletedIntegrationEvent(
-            domainEvent.ExternalTransactionId,
+        return new PaymentSucceeded(
             domainEvent.OrderId,
+            domainEvent.ExternalTransactionId,
             domainEvent.Amount);
     }
 }

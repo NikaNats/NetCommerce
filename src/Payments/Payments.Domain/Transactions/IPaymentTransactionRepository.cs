@@ -12,4 +12,12 @@ public interface IPaymentTransactionRepository : IRepository<PaymentTransaction,
 
     Task<IReadOnlyList<PaymentTransaction>> GetByOrderIdHistoryAsync(Guid orderId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get pending payments older than the specified time.
+    /// Used by PaymentReconciliationJob to catch missed/delayed webhooks.
+    /// </summary>
+    Task<IReadOnlyList<PaymentTransaction>> GetPendingPaymentsAsync(
+        DateTime olderThan,
+        CancellationToken cancellationToken = default);
 }

@@ -257,8 +257,39 @@ public sealed class OrderFulfillmentSaga : Saga
     }
 
     /// <summary>
+    ///     Handles payment initiation.
+    ///
+    ///     WEBHOOK-FIRST PATTERN:
+    ///     Payment is initiated but status is Pending - awaiting webhook confirmation.
+    ///     Saga remains in ProcessingPayment state, waiting for PaymentSucceeded event from webhook.
+    ///
+    ///     This acknowledges the payment was initiated with the provider (Stripe, PayPal, etc)
+    ///     but actual charge confirmation will come via PaymentSucceeded event.
+    /// </summary>
+    public void Handle(
+        PaymentInitiated @event,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogInformation(
+            "Payment initiated for Order {OrderId}. PaymentId: {PaymentId}, ExternalTransactionId: {ExternalId}. " +
+            "Awaiting webhook confirmation.",
+            Id,
+            @event.PaymentTransactionId,
+            @event.ExternalTransactionId);
+
+        // Store PaymentTransactionId for potential refund
+        PaymentTransactionId = @event.ExternalTransactionId;
+
+        // State remains ProcessingPayment - we're waiting for webhook
+        // PaymentTimeoutMessage is already scheduled from previous handler
+    }
+
+    /// <summary>
     ///     Handles successful payment.
     ///     Proceeds to confirm inventory (hard deduction).
+    ///
+    ///     WEBHOOK-FIRST PATTERN:
+    ///     This event is triggered by webhook confirmation, not by API response.
     /// </summary>
     public (
         ConfirmInventoryCommand ConfirmCommand,
@@ -268,7 +299,8 @@ public sealed class OrderFulfillmentSaga : Saga
         ILogger<OrderFulfillmentSaga> logger)
     {
         logger.LogInformation(
-            "Payment succeeded for Order {OrderId}. TransactionId: {TransactionId}. Confirming inventory.",
+            "Payment succeeded for Order {OrderId}. TransactionId: {TransactionId}. " +
+            "Confirming inventory. (Confirmed via webhook)",
             Id,
             @event.ExternalTransactionId);
 

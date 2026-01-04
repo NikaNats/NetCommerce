@@ -35,4 +35,15 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
         return await DbSet
             .FirstOrDefaultAsync(pt => pt.ExternalTransactionId == externalTransactionId, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<PaymentTransaction>> GetPendingPaymentsAsync(
+        DateTime olderThan,
+        CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .Where(pt => pt.Status == PaymentStatus.Pending && pt.CreatedAt < olderThan)
+            .OrderBy(pt => pt.CreatedAt)
+            .Take(100) // Limit to prevent overload
+            .ToListAsync(cancellationToken);
+    }
 }

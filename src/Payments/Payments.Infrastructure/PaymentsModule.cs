@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
+using NetCommerce.Payments.Infrastructure.BackgroundJobs;
 using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
@@ -40,6 +41,9 @@ public static class PaymentsModule
         // Payment Gateway - Stripe by default
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+
+        // Background Jobs
+        services.AddHostedService<PaymentReconciliationJob>();
 
         // Note: Wolverine handles transactional outbox automatically via its middleware.
         // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
