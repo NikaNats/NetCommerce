@@ -9,11 +9,18 @@ namespace NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 ///     Decorator for IProductRepository that adds distributed caching via Redis.
 ///     Implements the Decorator pattern to transparently cache product reads.
 ///     Cache keys use product identifiers (ID, SKU, slug) for multi-level caching.
+///
+///     SECURITY: Implements "Shielded Negative Caching" to prevent Cache Penetration attacks.
+///     Non-existent products are cached with a sentinel value to protect the database from
+///     phantom lookups (e.g., bot attacks requesting thousands of fake product IDs).
 /// </summary>
 public sealed class CachedProductRepository : IProductRepository
 {
     private const string CacheKeyPrefix = "catalog:product";
-    private const int CacheDurationSeconds = 3600; // 1 hour
+    private const int CacheDurationSeconds = 3600; // 1 hour for existing products
+    private const string NotFoundSentinel = "SENTINEL_NOT_FOUND";
+    private const int NegativeCacheDurationSeconds = 300; // 5 minutes for non-existent items
+
     private readonly IDistributedCache _cache;
     private readonly IProductRepository _innerRepository;
 
@@ -27,13 +34,23 @@ public sealed class CachedProductRepository : IProductRepository
 
     /// <summary>
     ///     Gets a product by ID with caching.
+    ///     SECURITY: Implements negative caching to shield DB from Cache Penetration attacks.
+    ///     Non-existent product IDs are cached for 5 minutes to prevent repeated DB queries.
     /// </summary>
     public async Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var cacheKey = $"{CacheKeyPrefix}:id:{id}";
 
+        // 1. Try to get from cache
         var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
         if (cached != null)
+        {
+            // 2. Check if it's a cached "Not Found" result (SHIELD)
+            if (cached == NotFoundSentinel)
+            {
+                return null;
+            }
+
             try
             {
                 return JsonSerializer.Deserialize<Product>(cached);
@@ -43,23 +60,46 @@ public sealed class CachedProductRepository : IProductRepository
                 // If deserialization fails, proceed to fetch from repository
                 await _cache.RemoveAsync(cacheKey, cancellationToken);
             }
+        }
 
+        // 3. Fallback to DB
         var product = await _innerRepository.GetByIdAsync(id, cancellationToken);
-        if (product != null) await CacheProductAsync(product, cancellationToken);
 
+        if (product == null)
+        {
+            // 4. CRITICAL: Cache the absence to prevent DB DoS from repeated phantom lookups
+            var negativeOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(NegativeCacheDurationSeconds)
+            };
+            await _cache.SetStringAsync(cacheKey, NotFoundSentinel, negativeOptions, cancellationToken);
+            return null;
+        }
+
+        // 5. Normal caching for successful result
+        await CacheProductAsync(product, cancellationToken);
         return product;
     }
 
     /// <summary>
     ///     Gets a product by SKU with caching.
     ///     Caches both the product data and maintains a SKU→ID mapping.
+    ///     SECURITY: Implements negative caching to shield DB from SKU-based phantom lookups.
     /// </summary>
     public async Task<Product?> GetBySkuAsync(string sku, CancellationToken cancellationToken = default)
     {
         var skuCacheKey = $"{CacheKeyPrefix}:sku:{sku}";
 
+        // 1. Try to get from cache
         var cached = await _cache.GetStringAsync(skuCacheKey, cancellationToken);
         if (cached != null)
+        {
+            // 2. Check for negative cache (SHIELD)
+            if (cached == NotFoundSentinel)
+            {
+                return null;
+            }
+
             try
             {
                 return JsonSerializer.Deserialize<Product>(cached);
@@ -68,23 +108,47 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 await _cache.RemoveAsync(skuCacheKey, cancellationToken);
             }
+        }
 
+        // 3. Fallback to DB
         var product = await _innerRepository.GetBySkuAsync(sku, cancellationToken);
-        if (product != null) await CacheProductAsync(product, cancellationToken);
 
+        if (product == null)
+        {
+            // 4. Shield DB from repeated SKU lookups (e.g., inventory scanner bots)
+            var negativeOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(NegativeCacheDurationSeconds)
+            };
+            await _cache.SetStringAsync(skuCacheKey, NotFoundSentinel, negativeOptions, cancellationToken);
+            return null;
+        }
+
+        // 5. Cache the successful result
+        await CacheProductAsync(product, cancellationToken);
         return product;
     }
 
     /// <summary>
     ///     Gets a product by slug with caching.
     ///     Caches both the product data and maintains a slug→ID mapping.
+    ///     SECURITY: Implements negative caching to shield DB from slug-based phantom lookups
+    ///     (common in SEO crawlers and brute-force URL scanning).
     /// </summary>
     public async Task<Product?> GetBySlugAsync(string slug, CancellationToken cancellationToken = default)
     {
         var slugCacheKey = $"{CacheKeyPrefix}:slug:{slug}";
 
+        // 1. Try to get from cache
         var cached = await _cache.GetStringAsync(slugCacheKey, cancellationToken);
         if (cached != null)
+        {
+            // 2. Check for negative cache (SHIELD against URL scanning)
+            if (cached == NotFoundSentinel)
+            {
+                return null;
+            }
+
             try
             {
                 return JsonSerializer.Deserialize<Product>(cached);
@@ -93,10 +157,24 @@ public sealed class CachedProductRepository : IProductRepository
             {
                 await _cache.RemoveAsync(slugCacheKey, cancellationToken);
             }
+        }
 
+        // 3. Fallback to DB
         var product = await _innerRepository.GetBySlugAsync(slug, cancellationToken);
-        if (product != null) await CacheProductAsync(product, cancellationToken);
 
+        if (product == null)
+        {
+            // 4. Shield DB from crawler/bot URL scans generating thousands of 404s
+            var negativeOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(NegativeCacheDurationSeconds)
+            };
+            await _cache.SetStringAsync(slugCacheKey, NotFoundSentinel, negativeOptions, cancellationToken);
+            return null;
+        }
+
+        // 5. Cache the successful result
+        await CacheProductAsync(product, cancellationToken);
         return product;
     }
 
