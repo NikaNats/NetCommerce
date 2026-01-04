@@ -342,6 +342,9 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     Handles inventory confirmation failure.
     ///     This is the CRITICAL failure scenario - payment was taken but inventory can't be confirmed.
     ///     Compensation: Refund payment AND release inventory.
+    ///
+    ///     IMPORTANT: The saga transitions to Compensating state and does NOT complete until the refund is verified.
+    ///     This implements the "Guarded Compensation" pattern for financial reliability.
     /// </summary>
     public (
         RefundPaymentCommand RefundCommand,
@@ -355,12 +358,12 @@ public sealed class OrderFulfillmentSaga : Saga
         logger.LogCritical(
             "CRITICAL: Inventory confirmation failed for Order {OrderId} AFTER payment. " +
             "PaymentTransactionId: {TransactionId}. Reason: {Reason}. " +
-            "Initiating compensating actions: refund + release inventory.",
+            "Transitioning to Compensating state. Saga will remain active until refund is confirmed.",
             Id,
             PaymentTransactionId,
             @event.Reason);
 
-        // Update state
+        // Update state to Compensating - DO NOT call MarkCompleted()
         State = OrderFulfillmentState.Compensating;
         FailureReason = @event.Reason;
 
@@ -375,10 +378,7 @@ public sealed class OrderFulfillmentSaga : Saga
             Id,
             $"Inventory confirmation failed: {@event.Reason}");
 
-        // Complete saga after issuing compensations
-        State = OrderFulfillmentState.Failed;
-        CompletedAt = DateTime.UtcNow;
-        MarkCompleted();
+        // NOTE: Saga stays alive - awaiting RefundCompleted or RefundFailed events
 
         var notification = new OrderStatusChanged(
             Id,
@@ -386,6 +386,53 @@ public sealed class OrderFulfillmentSaga : Saga
             "Stock confirmation failed. Your payment will be refunded.");
 
         return (refundCommand, releaseCommand, new FailOrderCommand(Id, @event.Reason), notification);
+    }
+
+    #endregion
+
+    #region Compensation Result Handlers
+
+    /// <summary>
+    ///     Handles successful refund confirmation.
+    ///     This is the final step in the compensation workflow - the saga can now safely complete.
+    ///     Implements the "Guarded Compensation" pattern by waiting for external system confirmation.
+    /// </summary>
+    public void Handle(RefundCompleted @event, ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogInformation(
+            "Refund verified for Order {OrderId}. RefundTransactionId: {RefundTransactionId}, " +
+            "Amount: {Amount}. Closing Saga state.",
+            Id,
+            @event.RefundTransactionId,
+            @event.Amount);
+
+        State = OrderFulfillmentState.Failed;
+        CompletedAt = DateTime.UtcNow;
+
+        // NOW and ONLY now is it safe to delete the saga from the DB
+        MarkCompleted();
+    }
+
+    /// <summary>
+    ///     Handles failed refund - the "nightmare scenario".
+    ///     Money was charged but cannot be refunded automatically.
+    ///     The saga remains in the database for manual intervention.
+    /// </summary>
+    public void Handle(RefundFailed @event, ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogError(
+            "FATAL: Refund failed for Order {OrderId}. Money is stuck! " +
+            "Reason: {Reason}. Saga will remain in database for manual intervention.",
+            Id,
+            @event.Reason);
+
+        State = OrderFulfillmentState.ManualInterventionRequired;
+        FailureReason = $"Refund failed: {@event.Reason}";
+
+        // We do NOT call MarkCompleted().
+        // This saga stays in the DB and shows up on an Admin Dashboard for human action.
+
+        // TODO: Emit alert to operations dashboard/PagerDuty
     }
 
     #endregion
@@ -651,7 +698,8 @@ public enum OrderFulfillmentState
     LockingInventory = 2,
     ProcessingPayment = 3,
     ConfirmingInventory = 4,
-    Compensating = 5,
-    Completed = 6,
-    Failed = 7
+    Compensating = 5,           // Refund requested, awaiting confirmation
+    Completed = 6,              // Success
+    Failed = 7,                 // Terminated after successful refund
+    ManualInterventionRequired = 8 // The "Nightmare" state (Refund failed)
 }

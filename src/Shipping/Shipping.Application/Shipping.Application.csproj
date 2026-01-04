@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Shipping.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shipping.Domain\Shipping.Domain.csproj"/>
+    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
+  </ItemGroup>
+
+</Project>

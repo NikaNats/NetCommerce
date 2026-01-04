@@ -227,3 +227,59 @@ public sealed record StartOrderFulfillmentCommand(
     IReadOnlyList<OrderItemReservation> Items) : ICommand;
 
 #endregion
+
+#region Shipping Integration Events
+
+/// <summary>
+///     Integration event published by Ordering when an order is ready for shipping.
+///     Targets the Shipping module.
+/// </summary>
+public sealed record OrderReadyForShipping(
+    Guid OrderId,
+    string OrderNumber,
+    IReadOnlyList<ShippingItem> Items,
+    ShippingAddressDto Address) : IntegrationEvent;
+
+/// <summary>
+///     Item details for shipping.
+/// </summary>
+public sealed record ShippingItem(
+    Guid ProductId,
+    string ProductName,
+    int Quantity,
+    decimal WeightKg);
+
+/// <summary>
+///     Shipping address DTO for cross-module communication.
+/// </summary>
+public sealed record ShippingAddressDto(
+    string RecipientName,
+    string Street,
+    string City,
+    string State,
+    string Country,
+    string PostalCode,
+    string Phone);
+
+/// <summary>
+///     Integration event published by Shipping when a shipment is created.
+///     Targets the Ordering module to update order status.
+/// </summary>
+public sealed record ShipmentCreatedIntegrationEvent(
+    Guid OrderId,
+    Guid ShipmentId,
+    string TrackingNumber,
+    string CourierProvider,
+    DateTime? EstimatedDeliveryDate) : IntegrationEvent;
+
+/// <summary>
+///     Integration event published by Shipping when a shipment is delivered.
+///     Targets the Ordering module to mark order as delivered.
+/// </summary>
+public sealed record ShipmentDeliveredIntegrationEvent(
+    Guid OrderId,
+    Guid ShipmentId,
+    string TrackingNumber,
+    DateTime DeliveredAt) : IntegrationEvent;
+
+#endregion
