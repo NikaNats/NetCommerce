@@ -200,6 +200,24 @@ public sealed record InventoryReservationTimeoutMessage : TimeoutMessage
 }
 
 /// <summary>
+///     Timeout message for the 5-minute grace period.
+///     Once inventory is reserved, the saga waits 5 minutes before charging the customer.
+///     This allows users to cancel penalty-free while holding their stock exclusively.
+///     Implements the "Strong Reservation Before Grace Period" pattern.
+/// </summary>
+public sealed record GracePeriodTimeout : TimeoutMessage
+{
+    public GracePeriodTimeout() : base(TimeSpan.FromMinutes(5))
+    {
+    }
+
+    /// <summary>
+    ///     The OrderId is used by Wolverine to find the saga instance.
+    /// </summary>
+    public Guid Id { get; init; }
+}
+
+/// <summary>
 ///     Timeout message for inventory confirmation.
 /// </summary>
 public sealed record InventoryConfirmationTimeoutMessage : TimeoutMessage

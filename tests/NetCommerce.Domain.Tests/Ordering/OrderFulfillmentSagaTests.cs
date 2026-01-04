@@ -112,19 +112,48 @@ public class OrderFulfillmentSagaTests
         var @event = new InventoryReserved(saga.Id, reservedItems);
 
         // Act
-        var (lockCommand, timeout) = saga.Handle(@event, _logger);
+        var (notification, timer) = saga.Handle(@event, _logger);
 
-        // Assert
-        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
+        // Assert - Should transition to InGracePeriod (Strong Reservation Before Grace Period pattern)
+        saga.State.ShouldBe(OrderFulfillmentState.InGracePeriod);
         saga.IsInventoryReserved.ShouldBeTrue();
         saga.ReservedItems.ShouldBe(reservedItems);
 
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("StockSecured");
+        notification.Message.ShouldContain("Items are held exclusively for you");
+
+        timer.ShouldNotBeNull();
+        timer.Id.ShouldBe(saga.Id);
+    }
+
+    [Fact]
+    public void Handle_GracePeriodTimeout_ShouldLockInventory_AndProceedToPayment()
+    {
+        // Arrange - Saga in InGracePeriod state after inventory reservation
+        var saga = CreateSagaInState(OrderFulfillmentState.InGracePeriod);
+        saga.IsInventoryReserved = true;
+        saga.ReservedItems = new List<ReservedItem>
+        {
+            new(Guid.NewGuid(), Guid.NewGuid(), 1)
+        };
+        var timeout = new GracePeriodTimeout { Id = saga.Id };
+
+        // Act
+        var (lockCommand, notification) = saga.Handle(timeout, _logger);
+
+        // Assert - Should transition to LockingInventory
+        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
+
         lockCommand.ShouldNotBeNull();
         lockCommand.OrderId.ShouldBe(saga.Id);
-        lockCommand.ReservedItems.ShouldBe(reservedItems);
+        lockCommand.ReservedItems.ShouldBe(saga.ReservedItems);
 
-        timeout.ShouldNotBeNull();
-        timeout.Id.ShouldBe(saga.Id);
+        notification.ShouldNotBeNull();
+        notification.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("ProcessingPayment");
+        notification.Message.ShouldContain("Grace period ended");
     }
 
     [Fact]
@@ -226,24 +255,28 @@ public class OrderFulfillmentSagaTests
         var (saga, _, _) = OrderFulfillmentSaga.Start(startCommand, _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ReservingInventory);
 
-        // Act Step 2: Inventory reserved → lock for payment
+        // Act Step 2: Inventory reserved → enter grace period
         var reservedItems = new List<ReservedItem> { new(items[0].ProductId, Guid.NewGuid(), 1) };
         saga.Handle(new InventoryReserved(orderId, reservedItems), _logger);
-        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
+        saga.State.ShouldBe(OrderFulfillmentState.InGracePeriod);
         saga.IsInventoryReserved.ShouldBeTrue();
 
-        // Act Step 3: Inventory locked → request payment
+        // Act Step 3: Grace period expires → lock inventory for payment
+        saga.Handle(new GracePeriodTimeout { Id = orderId }, _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
+
+        // Act Step 4: Inventory locked → request payment
         saga.Handle(new InventoryLocked(orderId, reservedItems), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ProcessingPayment);
         saga.IsInventoryLockedForPayment.ShouldBeTrue();
 
-        // Act Step 4: Payment succeeded
+        // Act Step 5: Payment succeeded
         var transactionId = Guid.NewGuid().ToString();
         saga.Handle(new PaymentSucceeded(orderId, transactionId, amount), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid.ShouldBeTrue();
 
-        // Act Step 5: Inventory confirmed
+        // Act Step 6: Inventory confirmed
         saga.Handle(new InventoryConfirmed(orderId), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.Completed);
         saga.CompletedAt.ShouldNotBeNull();
@@ -321,10 +354,10 @@ public class OrderFulfillmentSagaTests
         // Act
         var (refundCommand, releaseCommand, failCommand, notification) = saga.Handle(@event, _logger);
 
-        // Assert - Must refund AND release inventory
-        saga.State.ShouldBe(OrderFulfillmentState.Failed);
+        // Assert - MUST transition to Compensating (NOT Failed) - Guarded Compensation pattern
+        saga.State.ShouldBe(OrderFulfillmentState.Compensating);
         saga.FailureReason.ShouldBe("Stock discrepancy detected");
-        saga.CompletedAt.ShouldNotBeNull();
+        saga.CompletedAt.ShouldBeNull(); // Saga NOT completed yet - waiting for refund confirmation
 
         // Verify refund command
         refundCommand.ShouldNotBeNull();

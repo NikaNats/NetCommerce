@@ -156,29 +156,76 @@ public sealed class OrderFulfillmentSaga : Saga
 
     /// <summary>
     ///     Handles successful inventory reservation.
-    ///     Proceeds to payment processing.
+    ///     CRITICAL: Stock is now secured. Start the 5-minute grace period.
+    ///     This implements the "Strong Reservation Before Grace Period" pattern.
     /// </summary>
     public (
-        LockInventoryForPaymentCommand LockCommand,
-        PaymentTimeoutMessage Timeout
+        OrderStatusChanged Notification,
+        GracePeriodTimeout Timer
         ) Handle(
         InventoryReserved @event,
         ILogger<OrderFulfillmentSaga> logger)
     {
         logger.LogInformation(
-            "Inventory reserved for Order {OrderId}. Reserved {ItemCount} items. Locking for payment.",
+            "Inventory reserved for Order {OrderId}. Reserved {ItemCount} items. " +
+            "Starting 5-minute grace period with stock secured.",
             Id,
             @event.ReservedItems.Count);
 
         // Update state
         IsInventoryReserved = true;
         ReservedItems = @event.ReservedItems.ToList();
+        State = OrderFulfillmentState.InGracePeriod;
+
+        // Notify user: "Stock is secured. We will process payment in 5 mins."
+        var notification = new OrderStatusChanged(
+            Id,
+            "StockSecured",
+            $"Your order {OrderNumber} is confirmed. Items are held exclusively for you. " +
+            "You can cancel anytime in the next 5 minutes. Payment will be processed automatically.");
+
+        // Schedule 5-minute delay before payment
+        var timer = new GracePeriodTimeout { Id = Id };
+
+        return (notification, timer);
+    }
+
+    /// <summary>
+    ///     Handles grace period timeout (5 minutes elapsed).
+    ///     If user hasn't cancelled, proceed to lock inventory and process payment.
+    ///     This is the "point of no return" - payment will now be captured.
+    /// </summary>
+    public (
+        LockInventoryForPaymentCommand LockCommand,
+        OrderStatusChanged Notification
+        ) Handle(
+        GracePeriodTimeout timeout,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        // If user cancelled during grace period, this won't execute (saga marked complete)
+        if (State == OrderFulfillmentState.Completed || State == OrderFulfillmentState.Failed)
+        {
+            logger.LogInformation(
+                "Grace period expired for Order {OrderId} but order was already {State}. Ignoring.",
+                Id,
+                State);
+            return (null!, null!); // Saga already terminated
+        }
+
+        logger.LogInformation(
+            "Grace period expired for Order {OrderId}. User did not cancel. " +
+            "Locking inventory and proceeding to payment.",
+            Id);
+
         State = OrderFulfillmentState.LockingInventory;
 
-        var lockCommand = new LockInventoryForPaymentCommand(Id, @event.ReservedItems);
-        var timeout = new PaymentTimeoutMessage { Id = Id };
+        var lockCommand = new LockInventoryForPaymentCommand(Id, ReservedItems!);
+        var notification = new OrderStatusChanged(
+            Id,
+            "ProcessingPayment",
+            $"Grace period ended. Processing payment for order {OrderNumber}.");
 
-        return (lockCommand, timeout);
+        return (lockCommand, notification);
     }
 
     /// <summary>
@@ -695,11 +742,12 @@ public enum OrderFulfillmentState
 {
     NotStarted = 0,
     ReservingInventory = 1,
-    LockingInventory = 2,
-    ProcessingPayment = 3,
-    ConfirmingInventory = 4,
-    Compensating = 5,           // Refund requested, awaiting confirmation
-    Completed = 6,              // Success
-    Failed = 7,                 // Terminated after successful refund
-    ManualInterventionRequired = 8 // The "Nightmare" state (Refund failed)
+    InGracePeriod = 2,          // Stock secured, 5-min cooling-off period
+    LockingInventory = 3,
+    ProcessingPayment = 4,
+    ConfirmingInventory = 5,
+    Compensating = 6,           // Refund requested, awaiting confirmation
+    Completed = 7,              // Success
+    Failed = 8,                 // Terminated after successful refund
+    ManualInterventionRequired = 9 // The "Nightmare" state (Refund failed)
 }
