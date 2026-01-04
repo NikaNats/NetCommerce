@@ -82,18 +82,26 @@
   "groups": [
     {
       "name": "Administrators",
-      "realmRoles": ["admin"]
+      "realmRoles": [
+        "admin"
+      ]
     },
     {
       "name": "Customers",
-      "realmRoles": ["customer"]
+      "realmRoles": [
+        "customer"
+      ]
     },
     {
       "name": "Vendors",
-      "realmRoles": ["vendor"]
+      "realmRoles": [
+        "vendor"
+      ]
     }
   ],
-  "defaultGroups": ["/Customers"],
+  "defaultGroups": [
+    "/Customers"
+  ],
   "clients": [
     {
       "clientId": "netcommerce-api",
@@ -286,8 +294,12 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["admin"],
-      "groups": ["/Administrators"],
+      "realmRoles": [
+        "admin"
+      ],
+      "groups": [
+        "/Administrators"
+      ],
       "clientRoles": {
         "netcommerce-api": [
           "catalog:read",
@@ -317,8 +329,12 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["customer"],
-      "groups": ["/Customers"],
+      "realmRoles": [
+        "customer"
+      ],
+      "groups": [
+        "/Customers"
+      ],
       "clientRoles": {
         "netcommerce-api": [
           "catalog:read",
@@ -341,8 +357,12 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["vendor"],
-      "groups": ["/Vendors"],
+      "realmRoles": [
+        "vendor"
+      ],
+      "groups": [
+        "/Vendors"
+      ],
       "clientRoles": {
         "netcommerce-api": [
           "catalog:read",

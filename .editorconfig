@@ -35,16 +35,16 @@ dotnet_analyzer_diagnostic.category-Style.severity = warning
 dotnet_analyzer_diagnostic.category-CodeQuality.severity = warning
 
 # Critical Individual Rules (High Impact)
-dotnet_diagnostic.CA2007.severity = none           # CA2007: ConfigureAwait is noise in modern .NET
-dotnet_diagnostic.CA2016.severity = warning        # Forward CancellationToken
-dotnet_diagnostic.CA1848.severity = warning        # Use LoggerMessage pattern (Perf)
-dotnet_diagnostic.CA1856.severity = error          # ConstantExpected misuse
-dotnet_diagnostic.CA2264.severity = warning        # ThrowIfNull on non-nullable values
-dotnet_diagnostic.CA2252.severity = error          # Preview features must be opted in
+dotnet_diagnostic.CA2007.severity = none # CA2007: ConfigureAwait is noise in modern .NET
+dotnet_diagnostic.CA2016.severity = warning # Forward CancellationToken
+dotnet_diagnostic.CA1848.severity = warning # Use LoggerMessage pattern (Perf)
+dotnet_diagnostic.CA1856.severity = error # ConstantExpected misuse
+dotnet_diagnostic.CA2264.severity = warning # ThrowIfNull on non-nullable values
+dotnet_diagnostic.CA2252.severity = error # Preview features must be opted in
 
 # Trimming / Native AOT readiness
-dotnet_diagnostic.IL2026.severity = warning        # RequiresUnreferencedCode
-dotnet_diagnostic.IL3050.severity = warning        # RequiresDynamicCode
+dotnet_diagnostic.IL2026.severity = warning # RequiresUnreferencedCode
+dotnet_diagnostic.IL3050.severity = warning # RequiresDynamicCode
 
 ###############################
 # Naming (dotnet/runtime)     #

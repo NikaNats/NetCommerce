@@ -5,12 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="WolverineFx" />
-    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="WolverineFx"/>
+    <PackageReference Include="FluentValidation"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
   </ItemGroup>
 
 </Project>

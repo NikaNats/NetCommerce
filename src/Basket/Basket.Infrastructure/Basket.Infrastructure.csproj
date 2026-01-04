@@ -5,13 +5,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="StackExchange.Redis"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Basket.Application\Basket.Application.csproj" />
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj" />
-    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />
+    <ProjectReference Include="..\Basket.Application\Basket.Application.csproj"/>
+    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
+    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
   </ItemGroup>
 
 </Project>

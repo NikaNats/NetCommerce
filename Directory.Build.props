@@ -7,7 +7,7 @@
     ***************************************************************************
   -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"
-          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../')))" />
+          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../')))"/>
 
   <PropertyGroup>
     <!--
@@ -126,13 +126,13 @@
       SECTION 9: GLOBAL ANALYZERS
       Standardizes reliability and concurrency checks across all projects.
     -->
-    <PackageReference Include="DotNet.ReproducibleBuilds" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="DotNet.ReproducibleBuilds" PrivateAssets="all"/>
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all"/>
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all"/>
   </ItemGroup>
 
   <!-- Developer Feedback: Prints a high-visibility status message during build -->
   <Target Name="CustomBuildStatus" BeforeTargets="Build">
-    <Message Importance="high" Text="[PIPELINE] Project: $(MSBuildProjectName) | AOT: $(IsAotCompatible) | Runtime: $(TargetFramework)" />
+    <Message Importance="high" Text="[PIPELINE] Project: $(MSBuildProjectName) | AOT: $(IsAotCompatible) | Runtime: $(TargetFramework)"/>
   </Target>
 </Project>

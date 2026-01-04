@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />
-    <ProjectReference Include="..\Payments.Application\Payments.Application.csproj" />
+    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Payments.Application\Payments.Application.csproj"/>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Stripe.net" />
+    <PackageReference Include="Stripe.net"/>
   </ItemGroup>
 
 </Project>

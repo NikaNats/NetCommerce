@@ -5,8 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Payments.Domain\Payments.Domain.csproj" />
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj" />
+    <ProjectReference Include="..\Payments.Domain\Payments.Domain.csproj"/>
+    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
   </ItemGroup>
 
 </Project>
