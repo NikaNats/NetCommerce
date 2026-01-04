@@ -1,9 +1,11 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
+using Npgsql;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Ordering.Infrastructure.Handlers;
@@ -26,6 +28,24 @@ public static class CreateOrderHandler
         ILogger<CreateOrderCommand> logger,
         CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(command.IdempotencyKey))
+            return Result.Failure<Guid>(Error.Validation("IdempotencyKey is required."));
+
+        var existingOrder = await db.Orders
+            .AsNoTracking()
+            .Select(o => new { o.Id, o.IdempotencyKey })
+            .FirstOrDefaultAsync(o => o.IdempotencyKey == command.IdempotencyKey, cancellationToken);
+
+        if (existingOrder is not null)
+        {
+            logger.LogWarning(
+                "Duplicate order request detected for key {Key}. Returning existing OrderId {OrderId}.",
+                command.IdempotencyKey,
+                existingOrder.Id);
+
+            return Result.Success(existingOrder.Id);
+        }
+
         var shippingAddress = ShippingAddress.Create(
             command.ShippingAddress.RecipientName,
             command.ShippingAddress.Street,
@@ -35,12 +55,10 @@ public static class CreateOrderHandler
             command.ShippingAddress.PostalCode,
             command.ShippingAddress.PhoneNumber);
 
-        var idempotencyKey = $"order-{command.CustomerId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
-
         var order = Order.Create(
             command.CustomerId,
             shippingAddress,
-            idempotencyKey);
+            command.IdempotencyKey);
 
         var billingAddress = BillingAddress.Create(
             command.BillingAddress.RecipientName,
@@ -57,14 +75,29 @@ public static class CreateOrderHandler
             order.AddItem(item.ProductId, item.ProductName, money, item.Quantity);
         }
 
-        db.Orders.Add(order);
-        // Wolverine's transactional middleware handles SaveChangesAsync
+        try
+        {
+            db.Orders.Add(order);
+            // Wolverine's transactional middleware handles SaveChangesAsync
 
-        logger.LogInformation(
-            "Order {OrderId} created for customer {CustomerId}",
-            order.Id, command.CustomerId);
+            logger.LogInformation(
+                "Order {OrderId} created for customer {CustomerId} with idempotency key {Key}",
+                order.Id, command.CustomerId, command.IdempotencyKey);
 
-        return order.Id;
+            return order.Id;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            var duplicate = await db.Orders.AsNoTracking()
+                .FirstAsync(o => o.IdempotencyKey == command.IdempotencyKey, cancellationToken);
+
+            logger.LogWarning(
+                "Unique constraint hit for idempotency key {Key}. Returning existing OrderId {OrderId}.",
+                command.IdempotencyKey,
+                duplicate.Id);
+
+            return Result.Success(duplicate.Id);
+        }
     }
 }
 

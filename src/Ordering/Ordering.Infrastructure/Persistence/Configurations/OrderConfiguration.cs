@@ -63,7 +63,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasColumnName("idempotency_key")
             .HasMaxLength(100);
 
-        builder.HasIndex(o => o.IdempotencyKey)
+        builder.HasIndex(o => new { o.IdempotencyKey, o.CustomerId })
             .IsUnique()
             .HasFilter("idempotency_key IS NOT NULL");
 

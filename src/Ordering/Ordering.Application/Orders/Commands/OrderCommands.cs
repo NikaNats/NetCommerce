@@ -3,6 +3,14 @@ using NetCommerce.SharedKernel.Application;
 namespace NetCommerce.Ordering.Application.Orders.Commands;
 
 /// <summary>
+///     Marker for idempotent commands that carry a client-generated idempotency key.
+/// </summary>
+public interface IIdempotentCommand
+{
+    string IdempotencyKey { get; init; }
+}
+
+/// <summary>
 ///     Command to create a new order.
 /// </summary>
 public record CreateOrderCommand(
@@ -10,7 +18,8 @@ public record CreateOrderCommand(
     List<OrderItemDto> Items,
     AddressDto ShippingAddress,
     AddressDto BillingAddress,
-    string PaymentMethod) : ICommand<Guid>;
+    string PaymentMethod,
+    string IdempotencyKey) : ICommand<Guid>, IIdempotentCommand;
 
 /// <summary>
 ///     Command to add an item to an existing order.

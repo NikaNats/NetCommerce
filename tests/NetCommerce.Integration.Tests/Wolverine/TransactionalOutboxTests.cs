@@ -59,7 +59,7 @@ public class TransactionalOutboxTests : IntegrationTestBase
                 Currency: "USD")
         };
 
-        var command = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard");
+        var command = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
 
         // Act - Execute with tracking and get the result
         var (tracked, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
@@ -98,7 +98,7 @@ public class TransactionalOutboxTests : IntegrationTestBase
             new(Guid.NewGuid(), "Grace Period Product", 1, 50.00m, "USD")
         };
 
-        var createCommand = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard");
+        var createCommand = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
         var (_, createResult) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(createCommand);
         createResult.IsSuccess.ShouldBeTrue();
 
@@ -139,7 +139,8 @@ public class TransactionalOutboxTests : IntegrationTestBase
                     $"{i}00 Test St", "Test City", "TS", $"0000{i}", "USA", $"Customer {i}", string.Empty),
                 BillingAddress: new AddressDto(
                     $"{i}00 Test St", "Test City", "TS", $"0000{i}", "USA", $"Customer {i}", string.Empty),
-                PaymentMethod: "CreditCard");
+                PaymentMethod: "CreditCard",
+                IdempotencyKey: Guid.NewGuid().ToString());
 
             var (_, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
             result.IsSuccess.ShouldBeTrue($"Order {i} creation failed: {result.Error?.Description}");
@@ -173,7 +174,8 @@ public class TransactionalOutboxTests : IntegrationTestBase
                 "789 Cascade Dr", "Cascade City", "CA", "90210", "USA", "Cascade Test", string.Empty),
             BillingAddress: new AddressDto(
                 "789 Cascade Dr", "Cascade City", "CA", "90210", "USA", "Cascade Test", string.Empty),
-            PaymentMethod: "CreditCard");
+            PaymentMethod: "CreditCard",
+            IdempotencyKey: Guid.NewGuid().ToString());
 
         // Act - Use InvokeMessageAndWaitAsync to get the result properly
         var (tracked, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
