@@ -39,7 +39,7 @@ public sealed record OrderItemReservation(
 /// </summary>
 public sealed record ConfirmInventoryCommand(
     Guid OrderId,
-    Guid PaymentTransactionId) : ICommand;
+    string PaymentTransactionId) : ICommand;
 
 /// <summary>
 ///     Command sent by the OrderSaga to release inventory reservation.
@@ -57,7 +57,7 @@ public sealed record ReleaseInventoryReservationCommand(
 /// </summary>
 public sealed record RefundPaymentCommand(
     Guid OrderId,
-    Guid PaymentTransactionId,
+    string PaymentTransactionId,
     Money Amount,
     string Reason) : ICommand;
 
@@ -67,7 +67,7 @@ public sealed record RefundPaymentCommand(
 /// </summary>
 public sealed record FinalizeOrderCommand(
     Guid OrderId,
-    Guid PaymentTransactionId) : ICommand;
+    string PaymentTransactionId) : ICommand;
 
 /// <summary>
 ///     Command sent by the OrderSaga to fail the order.
@@ -86,7 +86,7 @@ public sealed record FailOrderCommand(
 /// </summary>
 public sealed record PaymentSucceeded(
     [property: SagaIdentity] Guid OrderId,
-    Guid TransactionId,
+    string ExternalTransactionId,
     Money Amount) : IntegrationEvent;
 
 /// <summary>

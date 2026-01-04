@@ -61,7 +61,7 @@ public class GracePeriodWorkflowTests
         // Arrange - Grace period has passed
         var order = CreateOrderWithItems();
         order.ConfirmGracePeriod();
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
         order.ClearDomainEvents();
 
         // Act - User cancels after payment
@@ -113,7 +113,7 @@ public class GracePeriodWorkflowTests
 
         // Step 3: Payment is processed
         order.ClearDomainEvents();
-        var paymentId = Guid.NewGuid();
+        var paymentId = Guid.NewGuid().ToString();
         order.MarkAsPaid(paymentId);
         order.Status.ShouldBe(OrderStatus.Paid);
         order.PaymentTransactionId.ShouldBe(paymentId);

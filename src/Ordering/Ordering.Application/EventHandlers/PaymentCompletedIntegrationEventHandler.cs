@@ -23,11 +23,11 @@ public static class PaymentCompletedHandler
     {
         logger.LogInformation(
             "Processing PaymentCompletedIntegrationEvent for TransactionId: {TransactionId}, OrderId: {OrderId}",
-            integrationEvent.TransactionId,
+            integrationEvent.ExternalTransactionId,
             integrationEvent.OrderId);
 
         // Return command as cascading message
         // Wolverine will execute this to confirm the order
-        return new ConfirmOrderCommand(integrationEvent.OrderId, integrationEvent.TransactionId);
+        return new ConfirmOrderCommand(integrationEvent.OrderId, integrationEvent.ExternalTransactionId);
     }
 }

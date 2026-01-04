@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.SharedKernel.Events;
 using Wolverine.Attributes;
+using Wolverine;
 
 namespace NetCommerce.Payments.Application.EventHandlers;
 
@@ -20,13 +21,15 @@ public static class SagaPaymentHandlers
     public static async Task<object> Handle(
         RequestPaymentCommand command,
         IPaymentGateway paymentGateway,
+        Envelope envelope,
         ILogger<RequestPaymentCommand> logger)
     {
         logger.LogInformation(
-            "Processing payment request for Order {OrderId} ({OrderNumber}). Amount: {Amount}",
+            "Processing payment request for Order {OrderId} ({OrderNumber}). Amount: {Amount}. MessageId: {MessageId}",
             command.OrderId,
             command.OrderNumber,
-            command.Amount);
+            command.Amount,
+            envelope.Id);
 
         try
         {
@@ -34,8 +37,8 @@ public static class SagaPaymentHandlers
             var paymentRequest = new PaymentRequest(
                 OrderId: command.OrderId,
                 Amount: command.Amount,
-                PaymentMethodToken: "default_token", // Simulated token
-                IdempotencyKey: $"order_{command.OrderId}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+                PaymentMethodToken: "tok_visa",
+                IdempotencyKey: $"payment_{envelope.Id}",
                 Description: $"Payment for order {command.OrderNumber}");
 
             // Process payment through the gateway
@@ -43,17 +46,17 @@ public static class SagaPaymentHandlers
 
             if (result.IsSuccess && result.Value.Status == PaymentResultStatus.Succeeded)
             {
-                var transactionId = Guid.Parse(result.Value.TransactionId.Replace("test_txn_", "").PadRight(32, '0').Substring(0, 32));
+                var externalTransactionId = result.Value.TransactionId;
 
                 logger.LogInformation(
                     "Payment successful for Order {OrderId}. TransactionId: {TransactionId}",
                     command.OrderId,
-                    transactionId);
+                    externalTransactionId);
 
                 // Return success event as cascading message
                 return new PaymentSucceeded(
                     command.OrderId,
-                    transactionId,
+                    externalTransactionId,
                     command.Amount);
             }
             else
@@ -76,12 +79,7 @@ public static class SagaPaymentHandlers
                 "Payment failed for Order {OrderId}. Error: {Error}",
                 command.OrderId,
                 ex.Message);
-
-            // Return failure event
-            return new PaymentFailed(
-                command.OrderId,
-                ex.Message,
-                "GATEWAY_ERROR");
+            throw;
         }
     }
 
@@ -106,7 +104,7 @@ public static class SagaPaymentHandlers
         {
             // Create refund request for the gateway
             var refundRequest = new RefundRequest(
-                OriginalTransactionId: command.PaymentTransactionId.ToString(),
+                OriginalTransactionId: command.PaymentTransactionId,
                 Amount: command.Amount,
                 Reason: command.Reason ?? "Order compensation");
 

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Application.Transactions.Commands;
@@ -23,7 +24,8 @@ public static class RefundPaymentTransactionHandler
         ILogger<RefundPaymentTransactionCommand> logger,
         CancellationToken cancellationToken)
     {
-        var transaction = await db.Transactions.FindAsync([command.PaymentTransactionId], cancellationToken);
+        var transaction = await db.Transactions
+            .FirstOrDefaultAsync(t => t.ExternalTransactionId == command.PaymentTransactionId, cancellationToken);
 
         if (transaction is null)
             return Result.Failure(Error.NotFound("PaymentTransaction", command.PaymentTransactionId));

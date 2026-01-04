@@ -286,7 +286,7 @@ public class OrderFulfillmentSagaIntegrationTests : IntegrationTestBase
         var nonExistentOrderId = Guid.NewGuid();
         var lateEvent = new PaymentSucceeded(
             nonExistentOrderId,
-            Guid.NewGuid(),
+            Guid.NewGuid().ToString(),
             Money.Create(100m));
 
         // Act
@@ -333,7 +333,7 @@ public class OrderFulfillmentSagaIntegrationTests : IntegrationTestBase
         // Send a late PaymentSucceeded for a non-existent/completed saga
         var latePaymentSucceeded = new PaymentSucceeded(
             orderId,
-            Guid.NewGuid(),
+            Guid.NewGuid().ToString(),
             Money.Create(100m));
 
         // Act - This should be handled gracefully (logged and ignored)

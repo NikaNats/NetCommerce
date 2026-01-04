@@ -31,7 +31,7 @@ public sealed record OrderStockConfirmedDomainEvent(
 
 public sealed record OrderPaidDomainEvent(
     Guid OrderId,
-    Guid PaymentTransactionId,
+    string PaymentTransactionId,
     string OrderNumber,
     Money TotalAmount) : DomainEvent;
 

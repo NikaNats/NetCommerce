@@ -52,7 +52,7 @@ public sealed class PaymentTransaction : AggregateRoot<Guid>
         Status = PaymentStatus.Completed;
         CompletedAt = DateTime.UtcNow;
 
-        RaiseDomainEvent(new PaymentCompletedDomainEvent(Id, OrderId, Amount));
+        RaiseDomainEvent(new PaymentCompletedDomainEvent(externalTransactionId, OrderId, Amount));
     }
 
     public void MarkAsFailed(string reason)

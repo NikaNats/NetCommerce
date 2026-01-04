@@ -74,7 +74,7 @@ public sealed class OrderFulfillmentSaga : Saga
     /// <summary>
     ///     Payment transaction ID for refunds.
     /// </summary>
-    public Guid? PaymentTransactionId { get; set; }
+    public string? PaymentTransactionId { get; set; }
 
     /// <summary>
     ///     Reserved items with their reservation IDs for release operations.
@@ -197,15 +197,15 @@ public sealed class OrderFulfillmentSaga : Saga
         logger.LogInformation(
             "Payment succeeded for Order {OrderId}. TransactionId: {TransactionId}. Confirming inventory.",
             Id,
-            @event.TransactionId);
+            @event.ExternalTransactionId);
 
         // Update state
         IsPaid = true;
-        PaymentTransactionId = @event.TransactionId;
+        PaymentTransactionId = @event.ExternalTransactionId;
         State = OrderFulfillmentState.ConfirmingInventory;
 
         // Step 3: Confirm inventory (hard deduction)
-        var confirmCommand = new ConfirmInventoryCommand(Id, @event.TransactionId);
+        var confirmCommand = new ConfirmInventoryCommand(Id, @event.ExternalTransactionId);
         var timeout = new InventoryConfirmationTimeoutMessage { Id = Id };
 
         return (confirmCommand, timeout);
@@ -232,7 +232,7 @@ public sealed class OrderFulfillmentSaga : Saga
         MarkCompleted();
 
         // Finalize the order in the domain AND notify the browser
-        var finalizeCommand = new FinalizeOrderCommand(Id, PaymentTransactionId!.Value);
+        var finalizeCommand = new FinalizeOrderCommand(Id, PaymentTransactionId!);
         var notification = new OrderStatusChanged(Id, "Success", "Your order has been confirmed!");
 
         return (finalizeCommand, notification);
@@ -341,7 +341,7 @@ public sealed class OrderFulfillmentSaga : Saga
         // Compensating actions
         var refundCommand = new RefundPaymentCommand(
             Id,
-            PaymentTransactionId!.Value,
+            PaymentTransactionId!,
             TotalAmount,
             $"Inventory confirmation failed: {@event.Reason}");
 
@@ -489,11 +489,11 @@ public sealed class OrderFulfillmentSaga : Saga
 
         // Must refund since payment was taken
         RefundPaymentCommand? refundCommand = null;
-        if (IsPaid && PaymentTransactionId.HasValue)
+        if (IsPaid && !string.IsNullOrWhiteSpace(PaymentTransactionId))
         {
             refundCommand = new RefundPaymentCommand(
                 Id,
-                PaymentTransactionId.Value,
+            PaymentTransactionId!,
                 TotalAmount,
                 "Inventory confirmation timed out");
         }

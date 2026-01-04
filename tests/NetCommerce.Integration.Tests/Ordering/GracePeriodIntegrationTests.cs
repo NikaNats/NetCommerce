@@ -137,7 +137,7 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
         step2Order.IsInGracePeriod.ShouldBeFalse();
 
         // Step 3: Payment processed
-        var paymentId = Guid.NewGuid();
+        var paymentId = Guid.NewGuid().ToString();
         step2Order.MarkAsPaid(paymentId);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();

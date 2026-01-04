@@ -5,7 +5,7 @@ namespace NetCommerce.Payments.Domain.Transactions;
 // Domain Events for Payment
 
 public sealed record PaymentCompletedDomainEvent(
-    Guid TransactionId,
+    string ExternalTransactionId,
     Guid OrderId,
     Money Amount) : DomainEvent;
 

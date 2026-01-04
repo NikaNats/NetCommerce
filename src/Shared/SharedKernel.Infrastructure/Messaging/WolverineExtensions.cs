@@ -1,4 +1,5 @@
 using FluentValidation;
+using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,6 +10,7 @@ using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
+using Wolverine.Persistence;
 using Wolverine.Postgresql;
 using Wolverine.SignalR;
 
@@ -50,7 +52,7 @@ public static class WolverineExtensions
             // As of Wolverine 5.4.1+, explicit idempotency uses Eager checking by default
             // This checks for duplicates BEFORE executing handlers, which is safer
             // for handlers with external side-effects (Stripe, email, etc.)
-            opts.Policies.AutoApplyTransactions();
+            opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
 
             // ============================================================================
             // Idempotency Detection
@@ -60,9 +62,9 @@ public static class WolverineExtensions
             // Uniqueness is tracked by Message ID + Destination URI
             opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
 
-            // Keep processed messages for 10 minutes to handle duplicate detection
+            // Keep processed messages for 15 minutes to handle duplicate detection
             // Messages marked as Handled older than this will be automatically deleted
-            opts.Durability.KeepAfterMessageHandling = TimeSpan.FromMinutes(10);
+            opts.Durability.KeepAfterMessageHandling = 15.Minutes();
 
             // ============================================================================
             // Modular Monolith: Separated Handler Mode
@@ -188,7 +190,7 @@ public static class WolverineExtensions
 //
 // CONFIGURATION SUMMARY:
 // - MessageIdentity.IdAndDestination: Tracks uniqueness by ID + destination
-// - KeepAfterMessageHandling: Keep processed messages for 10 minutes (default: 5)
+// - KeepAfterMessageHandling: Keep processed messages for 15 minutes (default: 5)
 // - AutoApplyTransactions(): Enables eager idempotency checks (default as of 5.4.1+)
 //
 // USAGE IN MESSAGE HANDLERS:

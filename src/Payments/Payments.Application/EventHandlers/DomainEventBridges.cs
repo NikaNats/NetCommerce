@@ -23,13 +23,13 @@ public static class PaymentCompletedDomainEventHandler
     {
         logger.LogInformation(
             "Bridging PaymentCompletedDomainEvent to PaymentCompletedIntegrationEvent for TransactionId: {TransactionId}, OrderId: {OrderId}",
-            domainEvent.TransactionId,
+            domainEvent.ExternalTransactionId,
             domainEvent.OrderId);
 
         // Return integration event as cascading message
         // Wolverine handles publishing via the transactional outbox
         return new PaymentCompletedIntegrationEvent(
-            domainEvent.TransactionId,
+            domainEvent.ExternalTransactionId,
             domainEvent.OrderId,
             domainEvent.Amount);
     }

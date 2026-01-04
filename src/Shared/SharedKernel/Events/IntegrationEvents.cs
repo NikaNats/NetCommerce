@@ -48,7 +48,7 @@ public sealed record OrderCancelledIntegrationEvent(
     string PreviousStatus) : IntegrationEvent;
 
 public sealed record PaymentCompletedIntegrationEvent(
-    Guid TransactionId,
+    string ExternalTransactionId,
     Guid OrderId,
     Money Amount) : IntegrationEvent;
 
@@ -59,7 +59,7 @@ public sealed record PaymentCompletedIntegrationEvent(
 /// </summary>
 public sealed record OrderInventoryConfirmationFailedIntegrationEvent(
     Guid OrderId,
-    Guid PaymentTransactionId,
+    string PaymentTransactionId,
     Money Amount,
     string FailureReason,
     string? FailureDetails) : IntegrationEvent;

@@ -217,7 +217,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         // Arrange
         var productId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var transactionId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid().ToString();
 
         var stock = Stock.Create(productId, "PS5-CONSOLE", 100);
         var reservation = stock.Reserve(orderId, 5);
@@ -250,7 +250,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
     {
         // Arrange
         var orderId = Guid.NewGuid();
-        var transactionId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid().ToString();
         var command = new ConfirmInventoryCommand(orderId, transactionId);
 
         // Act
@@ -368,7 +368,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         // Arrange
         var productId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
-        var transactionId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid().ToString();
 
         var stock = Stock.Create(productId, "PS5-CONSOLE", 100);
         _dbContext.Stocks.Add(stock);

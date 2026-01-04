@@ -33,7 +33,7 @@ public record CancelOrderCommand(
 /// <summary>
 ///     Command to confirm an order (after payment).
 /// </summary>
-public record ConfirmOrderCommand(Guid OrderId, Guid PaymentTransactionId) : ICommand;
+public record ConfirmOrderCommand(Guid OrderId, string PaymentTransactionId) : ICommand;
 
 /// <summary>
 ///     Command to ship an order.

@@ -29,7 +29,7 @@ public class OrderTests
         order.Status.ShouldBe(OrderStatus.AwaitingValidation);
 
         // Payment
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
         order.Status.ShouldBe(OrderStatus.Paid);
 
         order.MarkAsShipped("TRACK-001");
@@ -150,7 +150,7 @@ public class OrderTests
         // Arrange
         var order = OrderFaker.GenerateWithItems();
         order.ConfirmGracePeriod();
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() =>
@@ -244,7 +244,7 @@ public class OrderTests
         order.ClearDomainEvents();
 
         // Act
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
 
         // Assert
         order.Status.ShouldBe(OrderStatus.Paid);
@@ -259,7 +259,7 @@ public class OrderTests
         var order = OrderFaker.GenerateWithItems();
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => order.MarkAsPaid(Guid.NewGuid()));
+        Should.Throw<InvalidOperationException>(() => order.MarkAsPaid(Guid.NewGuid().ToString()));
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class OrderTests
         // Arrange
         var order = OrderFaker.GenerateWithItems();
         order.ConfirmGracePeriod();
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
         order.ClearDomainEvents();
 
         // Act
@@ -288,7 +288,7 @@ public class OrderTests
         // Arrange
         var order = OrderFaker.GenerateWithItems();
         order.ConfirmGracePeriod();
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
         order.MarkAsShipped();
         order.ClearDomainEvents();
 
@@ -359,7 +359,7 @@ public class OrderTests
         // Arrange
         var order = OrderFaker.GenerateWithItems();
         order.ConfirmGracePeriod();
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
         order.ClearDomainEvents();
 
         // Act
@@ -376,7 +376,7 @@ public class OrderTests
         // Arrange
         var order = OrderFaker.GenerateWithItems();
         order.ConfirmGracePeriod();
-        order.MarkAsPaid(Guid.NewGuid());
+        order.MarkAsPaid(Guid.NewGuid().ToString());
         order.MarkAsShipped();
         order.MarkAsDelivered();
 

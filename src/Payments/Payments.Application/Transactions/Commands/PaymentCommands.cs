@@ -8,6 +8,6 @@ namespace NetCommerce.Payments.Application.Transactions.Commands;
 ///     Used as a compensating action when downstream steps (e.g., inventory confirmation) fail.
 /// </summary>
 public sealed record RefundPaymentTransactionCommand(
-    Guid PaymentTransactionId,
+    string PaymentTransactionId,
     Money Amount,
     string Reason) : ICommand;

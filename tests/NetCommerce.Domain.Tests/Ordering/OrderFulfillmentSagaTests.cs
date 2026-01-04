@@ -133,7 +133,7 @@ public class OrderFulfillmentSagaTests
         // Arrange
         var saga = CreateSagaInState(OrderFulfillmentState.ProcessingPayment);
         saga.IsInventoryReserved = true;
-        var transactionId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid().ToString();
         var @event = new PaymentSucceeded(saga.Id, transactionId, saga.TotalAmount);
 
         // Act
@@ -157,7 +157,7 @@ public class OrderFulfillmentSagaTests
         // Arrange
         var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid = true;
-        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.PaymentTransactionId = Guid.NewGuid().ToString();
         var @event = new InventoryConfirmed(saga.Id);
 
         // Act
@@ -171,7 +171,7 @@ public class OrderFulfillmentSagaTests
 
         finalizeCommand.ShouldNotBeNull();
         finalizeCommand.OrderId.ShouldBe(saga.Id);
-        finalizeCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!.Value);
+        finalizeCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!);
 
         // Verify SignalR notification is returned
         notification.ShouldNotBeNull();
@@ -205,7 +205,7 @@ public class OrderFulfillmentSagaTests
         saga.IsInventoryReserved.ShouldBeTrue();
 
         // Act Step 3: Payment succeeded
-        var transactionId = Guid.NewGuid();
+        var transactionId = Guid.NewGuid().ToString();
         saga.Handle(new PaymentSucceeded(orderId, transactionId, amount), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid.ShouldBeTrue();
@@ -282,7 +282,7 @@ public class OrderFulfillmentSagaTests
         var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
         saga.IsInventoryReserved = true;
         saga.IsPaid = true;
-        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.PaymentTransactionId = Guid.NewGuid().ToString();
         var @event = new InventoryConfirmationFailed(saga.Id, "Stock discrepancy detected");
 
         // Act
@@ -296,7 +296,7 @@ public class OrderFulfillmentSagaTests
         // Verify refund command
         refundCommand.ShouldNotBeNull();
         refundCommand.OrderId.ShouldBe(saga.Id);
-        refundCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!.Value);
+        refundCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!);
         refundCommand.Amount.ShouldBe(saga.TotalAmount);
         refundCommand.Reason.ShouldContain("Inventory confirmation failed");
 
@@ -407,7 +407,7 @@ public class OrderFulfillmentSagaTests
         // Arrange - Critical: Payment was taken but confirmation is stuck
         var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid = true;
-        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.PaymentTransactionId = Guid.NewGuid().ToString();
         saga.IsInventoryReserved = true;
         var timeout = new InventoryConfirmationTimeoutMessage { Id = saga.Id };
 
@@ -423,7 +423,7 @@ public class OrderFulfillmentSagaTests
 
         // Must refund since payment was taken
         refundCommand.ShouldNotBeNull();
-        refundCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!.Value);
+        refundCommand.PaymentTransactionId.ShouldBe(saga.PaymentTransactionId!);
 
         releaseCommand.ShouldNotBeNull();
         failCommand.ShouldNotBeNull();
@@ -456,7 +456,7 @@ public class OrderFulfillmentSagaTests
     public void NotFound_PaymentSucceeded_ShouldLogAndNotThrow()
     {
         // Arrange
-        var @event = new PaymentSucceeded(Guid.NewGuid(), Guid.NewGuid(), Money.Create(100m));
+        var @event = new PaymentSucceeded(Guid.NewGuid(), Guid.NewGuid().ToString(), Money.Create(100m));
         var logger = Substitute.For<ILogger<OrderFulfillmentSaga>>();
 
         // Act & Assert
@@ -495,7 +495,7 @@ public class OrderFulfillmentSagaTests
             new InventoryReservationFailed(orderId, "test", null), logger)).ShouldBeNull();
 
         Record.Exception(() => OrderFulfillmentSaga.NotFound(
-            new PaymentSucceeded(orderId, Guid.NewGuid(), Money.Create(1m)), logger)).ShouldBeNull();
+            new PaymentSucceeded(orderId, Guid.NewGuid().ToString(), Money.Create(1m)), logger)).ShouldBeNull();
 
         Record.Exception(() => OrderFulfillmentSaga.NotFound(
             new PaymentFailed(orderId, "test", null), logger)).ShouldBeNull();
@@ -545,7 +545,7 @@ public class OrderFulfillmentSagaTests
         // Arrange - Use the Handle method to properly complete the saga
         var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid = true;
-        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.PaymentTransactionId = Guid.NewGuid().ToString();
 
         // Complete the saga through proper workflow
         var (finalizeCommand, notification) = saga.Handle(new InventoryConfirmed(saga.Id), _logger);
@@ -578,7 +578,7 @@ public class OrderFulfillmentSagaTests
         // Arrange
         var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid = true;
-        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.PaymentTransactionId = Guid.NewGuid().ToString();
         var @event = new InventoryConfirmed(saga.Id);
 
         // Act
@@ -644,7 +644,7 @@ public class OrderFulfillmentSagaTests
         // Arrange - Test multiple scenarios
         var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid = true;
-        saga.PaymentTransactionId = Guid.NewGuid();
+        saga.PaymentTransactionId = Guid.NewGuid().ToString();
         saga.IsInventoryReserved = true;
 
         // Act - Critical failure scenario

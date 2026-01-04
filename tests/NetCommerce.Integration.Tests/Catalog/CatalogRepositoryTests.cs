@@ -239,20 +239,22 @@ public class CatalogRepositoryTests : IntegrationTestBase
         // Arrange
         await using var context = Fixture.CreateCatalogDbContext();
 
+        var skus = new[] { "CHEAP", "MED", "EXP" };
+
         context.Products.AddRange(
-            Product.Create("Cheap", "d", "CHEAP", Money.Create(50m), Guid.NewGuid()),
-            Product.Create("Medium", "d", "MED", Money.Create(150m), Guid.NewGuid()),
-            Product.Create("Expensive", "d", "EXP", Money.Create(500m), Guid.NewGuid()));
+            Product.Create("Cheap", "d", skus[0], Money.Create(50m), Guid.NewGuid()),
+            Product.Create("Medium", "d", skus[1], Money.Create(150m), Guid.NewGuid()),
+            Product.Create("Expensive", "d", skus[2], Money.Create(500m), Guid.NewGuid()));
 
         await context.SaveChangesAsync();
 
         // Act
         var affordableProducts = await context.Products
-            .Where(p => p.Price.Amount >= 100m && p.Price.Amount <= 200m)
+            .Where(p => skus.Contains(p.Sku) && p.Price.Amount >= 100m && p.Price.Amount <= 200m)
             .ToListAsync();
 
         // Assert
-        affordableProducts.Count.ShouldBe(1);
+        affordableProducts.ShouldHaveSingleItem();
         affordableProducts.First().Name.ShouldBe("Medium");
     }
 
