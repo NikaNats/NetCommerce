@@ -93,13 +93,22 @@ public class ProductTests
     {
         // Arrange
         var product = ProductFaker.Generate();
+        var oldSku = product.Sku;
+        var oldSlug = product.Slug;
         product.ClearDomainEvents();
 
         // Act
         product.UpdateDetails("New Name", "New Desc", "NEW-SKU");
 
         // Assert
-        product.DomainEvents.ShouldContain(e => e is ProductUpdatedDomainEvent);
+        var evt = product.DomainEvents.ShouldHaveSingleItem() as ProductUpdatedDomainEvent;
+        evt.ShouldNotBeNull();
+        evt.ProductId.ShouldBe(product.Id);
+        evt.Name.ShouldBe("New Name");
+        evt.OldSku.ShouldBe(oldSku);
+        evt.NewSku.ShouldBe("NEW-SKU");
+        evt.OldSlug.ShouldBe(oldSlug);
+        evt.NewSlug.ShouldBe(product.Slug);
     }
 
     #endregion
@@ -138,6 +147,8 @@ public class ProductTests
             .Single();
 
         priceChangedEvent.ProductId.ShouldBe(product.Id);
+        priceChangedEvent.Sku.ShouldBe(product.Sku);
+        priceChangedEvent.Slug.ShouldBe(product.Slug);
         priceChangedEvent.OldPrice.ShouldBe(oldPrice);
         priceChangedEvent.NewPrice.ShouldBe(newPrice);
     }

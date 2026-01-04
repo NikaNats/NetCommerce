@@ -194,40 +194,29 @@ public sealed class CachedProductRepository : IProductRepository
 
     /// <summary>
     ///     Adds a new product (write operation).
-    ///     Invalidates relevant caches.
+    ///     Cache population deferred until first read to avoid phantom cache entries.
     /// </summary>
     public async Task AddAsync(Product aggregate, CancellationToken cancellationToken = default)
     {
         await _innerRepository.AddAsync(aggregate, cancellationToken);
-
-        // Cache the new product after insert
-        await CacheProductAsync(aggregate, cancellationToken);
     }
 
     /// <summary>
     ///     Updates an existing product (write operation).
-    ///     Invalidates all related caches.
+    ///     Cache invalidation is handled via domain events and Wolverine's outbox.
     /// </summary>
     public void Update(Product aggregate)
     {
         _innerRepository.Update(aggregate);
-
-        // Invalidate caches for this product
-        // Note: We don't await here as this is a sync method.
-        // In a real scenario, consider using a background job for cache invalidation.
-        _ = InvalidateProductCachesAsync(aggregate);
     }
 
     /// <summary>
     ///     Removes a product (write operation).
-    ///     Invalidates all related caches.
+    ///     Cache invalidation is handled via domain events and Wolverine's outbox.
     /// </summary>
     public void Remove(Product aggregate)
     {
         _innerRepository.Remove(aggregate);
-
-        // Invalidate caches for this product
-        _ = InvalidateProductCachesAsync(aggregate);
     }
 
     /// <summary>
@@ -255,27 +244,4 @@ public sealed class CachedProductRepository : IProductRepository
         await _cache.SetStringAsync(slugKey, serialized, cacheOptions, cancellationToken);
     }
 
-    /// <summary>
-    ///     Invalidates all cache entries for a product.
-    /// </summary>
-    private async Task InvalidateProductCachesAsync(Product product)
-    {
-        var keys = new[]
-        {
-            $"{CacheKeyPrefix}:id:{product.Id}",
-            $"{CacheKeyPrefix}:sku:{product.Sku}",
-            $"{CacheKeyPrefix}:slug:{product.Slug}",
-            $"{CacheKeyPrefix}:category:{product.CategoryId}"
-        };
-
-        foreach (var key in keys)
-            try
-            {
-                await _cache.RemoveAsync(key);
-            }
-            catch
-            {
-                // Log and continue; cache removal failures should not block the application
-            }
-    }
 }

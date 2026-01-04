@@ -11,10 +11,16 @@ public sealed record ProductCreatedDomainEvent(
 
 public sealed record ProductUpdatedDomainEvent(
     Guid ProductId,
-    string Name) : DomainEvent;
+    string Name,
+    string OldSku,
+    string NewSku,
+    string? OldSlug,
+    string? NewSlug) : DomainEvent;
 
 public sealed record ProductPriceChangedDomainEvent(
     Guid ProductId,
+    string Sku,
+    string? Slug,
     Money OldPrice,
     Money NewPrice) : DomainEvent;
 

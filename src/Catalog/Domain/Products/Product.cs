@@ -53,12 +53,15 @@ public sealed class Product : AggregateRoot<Guid>
 
     public void UpdateDetails(string name, string description, string sku)
     {
+        var oldSku = Sku;
+        var oldSlug = Slug;
+
         Name = name;
         Description = description;
         Sku = sku;
         Slug = SlugGenerator.Generate(name);
 
-        RaiseDomainEvent(new ProductUpdatedDomainEvent(Id, Name));
+        RaiseDomainEvent(new ProductUpdatedDomainEvent(Id, Name, oldSku, Sku, oldSlug, Slug));
     }
 
     public void UpdatePrice(Money newPrice)
@@ -66,7 +69,7 @@ public sealed class Product : AggregateRoot<Guid>
         var oldPrice = Price;
         Price = newPrice;
 
-        RaiseDomainEvent(new ProductPriceChangedDomainEvent(Id, oldPrice, newPrice));
+        RaiseDomainEvent(new ProductPriceChangedDomainEvent(Id, Sku, Slug, oldPrice, newPrice));
     }
 
     public void AssignCategory(Guid categoryId)
