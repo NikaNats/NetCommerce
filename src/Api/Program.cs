@@ -123,6 +123,17 @@ var app = builder.Build();
 app.MapDefaultEndpoints();
 
 // ============================================================================
+// Resilient Database Migrations (Dev or AutoMigrate flag)
+// ============================================================================
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMigrate"))
+{
+    await app.Services.ApplyMigrationsAsync<CatalogDbContext>();
+    await app.Services.ApplyMigrationsAsync<OrderingDbContext>();
+    await app.Services.ApplyMigrationsAsync<InventoryDbContext>();
+    await app.Services.ApplyMigrationsAsync<PaymentsDbContext>();
+}
+
+// ============================================================================
 // Middleware Pipeline
 // ============================================================================
 app.UseExceptionHandler();
@@ -147,30 +158,6 @@ app.UseAuthorization();
 // Wolverine's built-in WolverineHub provides WebSocket messaging to browsers.
 // Frontend connects to this endpoint to receive order status updates.
 app.MapWolverineSignalRHub("/api/messages");
-
-// ============================================================================
-// Automatic Database Initialization (Development only)
-// ============================================================================
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-
-    // Catalog
-    var catalogDb = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    await catalogDb.Database.EnsureCreatedAsync();
-
-    // Ordering
-    var orderingDb = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
-    await orderingDb.Database.EnsureCreatedAsync();
-
-    // Inventory
-    var inventoryDb = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-    await inventoryDb.Database.EnsureCreatedAsync();
-
-    // Payments
-    var paymentsDb = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
-    await paymentsDb.Database.EnsureCreatedAsync();
-}
 
 // ============================================================================
 // Map Minimal API Endpoints
