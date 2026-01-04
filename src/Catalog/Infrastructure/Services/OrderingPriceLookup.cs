@@ -35,7 +35,7 @@ public sealed class OrderingPriceLookup : IPriceLookupService
             .Where(p => requestedIds.Contains(p.Id))
             .ToDictionaryAsync(
                 p => p.Id,
-                p => new PriceSnapshot(p.Name, p.Price, p.Sku),
+                p => new PriceSnapshot(p.Name, p.Price, p.Sku, p.WeightKg),
                 cancellationToken);
     }
 }

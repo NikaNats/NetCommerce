@@ -14,6 +14,7 @@ public sealed class OrderItem : Entity<Guid>
         string appliedTitle,
         Money appliedPrice,
         int quantity,
+        decimal appliedWeightKg,
         string? sku)
     {
         Id = id;
@@ -21,6 +22,7 @@ public sealed class OrderItem : Entity<Guid>
         AppliedTitle = appliedTitle;
         AppliedPrice = appliedPrice;
         Quantity = quantity;
+        AppliedWeightKg = appliedWeightKg;
         Sku = sku;
     }
 
@@ -39,6 +41,12 @@ public sealed class OrderItem : Entity<Guid>
     ///     Price captured at order time (snapshot).
     /// </summary>
     public Money AppliedPrice { get; } = default!;
+
+    /// <summary>
+    ///     Weight in kilograms captured at order time (snapshot).
+    ///     Ensures shipping labels match the product weight when ordered, even if catalog changes later.
+    /// </summary>
+    public decimal AppliedWeightKg { get; private set; }
 
     public int Quantity { get; private set; }
     public string? Sku { get; private set; }

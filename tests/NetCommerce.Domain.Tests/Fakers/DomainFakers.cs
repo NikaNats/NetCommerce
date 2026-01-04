@@ -86,7 +86,8 @@ public static class OrderFaker
                 Guid.NewGuid(),
                 faker.Commerce.ProductName(),
                 MoneyFaker.Generate(faker.Finance.Amount(10), currency),
-                faker.Random.Int(1, 5));
+                faker.Random.Int(1, 5),
+                2.0m);
 
         return order;
     }

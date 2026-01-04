@@ -17,5 +17,6 @@ public interface IPriceLookupService
 
 /// <summary>
 ///     Snapshot of the catalog metadata that should be stored with the order item.
+///     Includes physical weight for shipping label accuracy.
 /// </summary>
-public record PriceSnapshot(string Name, Money Price, string Sku);
+public record PriceSnapshot(string Name, Money Price, string Sku, decimal WeightKg);

@@ -218,7 +218,8 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
             Guid.NewGuid(),
             "Test Product",
             Money.Create(99.99m), // Use GEL to match Money.Zero() default
-            2);
+            2,
+            3.0m);
 
         return order;
     }

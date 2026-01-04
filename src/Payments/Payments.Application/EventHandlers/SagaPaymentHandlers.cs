@@ -47,7 +47,7 @@ public static class SagaPaymentHandlers
             var paymentTransaction = PaymentTransaction.Create(
                 orderId: command.OrderId,
                 amount: command.Amount,
-                provider: paymentGateway.Provider,
+                provider: (Domain.Transactions.PaymentProvider)paymentGateway.Provider,
                 idempotencyKey: $"payment_{envelope.Id}");
 
             await repository.AddAsync(paymentTransaction);

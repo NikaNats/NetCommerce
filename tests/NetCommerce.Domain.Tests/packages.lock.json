@@ -99,6 +99,16 @@
           "EmptyFiles": "4.4.0"
         }
       },
+      "Stripe.net": {
+        "type": "Direct",
+        "requested": "[50.1.0, )",
+        "resolved": "50.1.0",
+        "contentHash": "q6mc5CngdCLEWNHpFaa2NEOml/3cZ5jTDp1R7iHNbYHkGX5h0TmDa3theILyVTd2yOH9HqLmeeJMCpCwUeDy0A==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3",
+          "System.Configuration.ConfigurationManager": "9.0.0"
+        }
+      },
       "xunit": {
         "type": "Direct",
         "requested": "[2.9.3, )",
@@ -1170,6 +1180,27 @@
         "dependencies": {
           "Ordering.Application": "[1.0.0, )",
           "SharedKernel.Infrastructure": "[1.0.0, )"
+        }
+      },
+      "payments.application": {
+        "type": "Project",
+        "dependencies": {
+          "Payments.Domain": "[1.0.0, )",
+          "SharedKernel": "[1.0.0, )"
+        }
+      },
+      "payments.domain": {
+        "type": "Project",
+        "dependencies": {
+          "SharedKernel": "[1.0.0, )"
+        }
+      },
+      "payments.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Payments.Application": "[1.0.0, )",
+          "SharedKernel.Infrastructure": "[1.0.0, )",
+          "Stripe.net": "[50.1.0, )"
         }
       },
       "sharedkernel": {

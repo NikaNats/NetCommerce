@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Application.Sagas;
+using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Application;
+using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Results;
 using Wolverine;
 
@@ -25,6 +29,13 @@ public class OrderEndpoints : IEndpointGroup
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
             .AddEndpointFilter<IdempotencyFilter>()
             .RequireAuthorization("CustomerOnly");
+
+        group.MapGet("/manual-intervention", GetStuckSagas)
+            .WithName("GetStuckSagas")
+            .WithSummary("Get orders requiring manual intervention")
+            .WithDescription("Returns all sagas in ManualInterventionRequired state (refund failed, requires ops team review).")
+            .Produces<StuckSagasResponse>(StatusCodes.Status200OK)
+            .RequireAuthorization("AdminOnly");
     }
 
     private static async Task<IResult> CreateOrder(
@@ -42,4 +53,38 @@ public class OrderEndpoints : IEndpointGroup
 
         return Results.Created(location, new { id = result.Value });
     }
+
+    private static async Task<IResult> GetStuckSagas(
+        OrderingDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var stuckSagas = await db.Set<OrderFulfillmentSaga>()
+            .AsNoTracking()
+            .Where(s => s.State == OrderFulfillmentState.ManualInterventionRequired)
+            .OrderBy(s => s.StartedAt)
+            .Select(s => new StuckSagaDto(
+                s.Id,
+                s.OrderNumber,
+                s.PaymentTransactionId ?? "N/A",
+                s.FailureReason ?? "Unknown reason",
+                s.StartedAt,
+                s.TotalAmount))
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(new StuckSagasResponse(
+            stuckSagas.Count,
+            stuckSagas));
+    }
 }
+
+public sealed record StuckSagasResponse(
+    int Count,
+    List<StuckSagaDto> Sagas);
+
+public sealed record StuckSagaDto(
+    Guid OrderId,
+    string OrderNumber,
+    string PaymentTransactionId,
+    string RefundFailureReason,
+    DateTime StuckSince,
+    Money Amount);

@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing"/>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory"/>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite"/>
+    <PackageReference Include="Stripe.net"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +33,9 @@
     <ProjectReference Include="..\..\src\Ordering\Ordering.Infrastructure\Ordering.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Inventory\Inventory.Domain\Inventory.Domain.csproj"/>
     <ProjectReference Include="..\..\src\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj"/>
+    <ProjectReference Include="..\..\src\Payments\Payments.Domain\Payments.Domain.csproj"/>
+    <ProjectReference Include="..\..\src\Payments\Payments.Application\Payments.Application.csproj"/>
+    <ProjectReference Include="..\..\src\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Shipping\Shipping.Domain\Shipping.Domain.csproj"/>
     <ProjectReference Include="..\..\src\Shipping\Shipping.Application\Shipping.Application.csproj"/>
     <ProjectReference Include="..\..\src\Shipping\Shipping.Infrastructure\Shipping.Infrastructure.csproj"/>

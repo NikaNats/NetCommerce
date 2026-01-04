@@ -94,6 +94,7 @@ public static class CreateOrderHandler
                 meta.Name,
                 meta.Price,
                 item.Quantity,
+                meta.WeightKg,
                 meta.Sku);
         }
 

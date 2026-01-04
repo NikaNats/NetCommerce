@@ -18,6 +18,7 @@ public sealed class Product : AggregateRoot<Guid>
     public string Description { get; private set; } = string.Empty;
     public string Sku { get; private set; } = string.Empty;
     public Money Price { get; private set; } = default!;
+    public decimal WeightKg { get; private set; }
     public Guid CategoryId { get; private set; }
     public ProductStatus Status { get; private set; }
     public string? SeoTitle { get; private set; }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Events;
 
 namespace NetCommerce.Ordering.Application.Handlers;
@@ -9,11 +10,14 @@ namespace NetCommerce.Ordering.Application.Handlers;
 /// </summary>
 public sealed class PublishOrderReadyForShippingHandler
 {
+    private readonly IOrderRepository _orderRepository;
     private readonly ILogger<PublishOrderReadyForShippingHandler> _logger;
 
     public PublishOrderReadyForShippingHandler(
+        IOrderRepository orderRepository,
         ILogger<PublishOrderReadyForShippingHandler> logger)
     {
+        _orderRepository = orderRepository;
         _logger = logger;
     }
 
@@ -21,31 +25,49 @@ public sealed class PublishOrderReadyForShippingHandler
     ///     Handles FinalizeOrderCommand and publishes OrderReadyForShipping.
     ///     This is triggered after the saga completes successfully (payment + inventory confirmed).
     /// </summary>
-    public OrderReadyForShipping? Handle(FinalizeOrderCommand command)
+    public async Task<OrderReadyForShipping?> Handle(
+        FinalizeOrderCommand command,
+        CancellationToken cancellationToken)
     {
         _logger.LogInformation(
-            "Order {OrderId} finalized. Publishing OrderReadyForShipping event.",
+            "Order {OrderId} finalized. Fetching order details for shipping.",
             command.OrderId);
 
-        // TODO: Fetch order details from repository to get actual items and address
-        // For now, return a placeholder event structure
+        var order = await _orderRepository.GetByIdAsync(command.OrderId, cancellationToken);
+        if (order is null)
+        {
+            _logger.LogWarning(
+                "Order {OrderId} not found. Cannot publish OrderReadyForShipping.",
+                command.OrderId);
+            return null;
+        }
 
-        // In production, this would look like:
-        // var order = await _orderRepository.GetByIdAsync(command.OrderId);
-        // var items = order.Items.Select(i => new ShippingItem(...)).ToList();
-        // var address = MapToShippingAddress(order.ShippingAddress);
+        var shippingItems = order.Items.Select(item => new ShippingItem(
+            item.ProductId,
+            item.AppliedTitle,
+            item.Quantity,
+            item.AppliedWeightKg)).ToList();
 
-        // Return event (Wolverine will publish it via Outbox)
-        // return new OrderReadyForShipping(
-        //     command.OrderId,
-        //     order.OrderNumber,
-        //     items,
-        //     address);
+        var shippingAddress = new ShippingAddressDto(
+            order.ShippingAddress.RecipientName,
+            order.ShippingAddress.Street,
+            order.ShippingAddress.City,
+            order.ShippingAddress.State,
+            order.ShippingAddress.Country,
+            order.ShippingAddress.PostalCode,
+            order.ShippingAddress.Phone);
 
-        _logger.LogWarning(
-            "OrderReadyForShipping event creation is stubbed. " +
-            "Implement full logic to fetch order details.");
+        _logger.LogInformation(
+            "Publishing OrderReadyForShipping for Order {OrderId} ({OrderNumber}) with {ItemCount} items, total weight {TotalWeight}kg",
+            order.Id,
+            order.OrderNumber,
+            shippingItems.Count,
+            shippingItems.Sum(i => i.WeightKg * i.Quantity));
 
-        return null; // TODO: Remove when implementation is complete
+        return new OrderReadyForShipping(
+            order.Id,
+            order.OrderNumber,
+            shippingItems,
+            shippingAddress);
     }
 }

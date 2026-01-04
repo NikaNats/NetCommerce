@@ -387,4 +387,16 @@ internal sealed class TestPaymentGateway : IPaymentGateway
 
         return Task.FromResult(Result.Success(result));
     }
+
+    public Task<Result<PaymentResult>> GetPaymentStatusAsync(
+        string externalTransactionId,
+        CancellationToken cancellationToken = default)
+    {
+        // For testing, return succeeded status
+        var result = new PaymentResult(
+            TransactionId: externalTransactionId,
+            Status: PaymentResultStatus.Succeeded);
+
+        return Task.FromResult(Result.Success(result));
+    }
 }

@@ -177,7 +177,8 @@ public class GracePeriodWorkflowTests
             Guid.NewGuid(),
             "Test Product",
             Money.Create(99.99m),
-            2);
+            2,
+            3.0m);
 
         return order;
     }
