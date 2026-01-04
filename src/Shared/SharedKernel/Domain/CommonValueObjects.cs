@@ -56,6 +56,11 @@ public sealed class Money : ValueObject
         return new Money(Math.Round(Amount * multiplier, 2), Currency);
     }
 
+    /// <summary>
+    ///     Converts the amount to minor currency units (e.g., cents) using banker-safe rounding.
+    /// </summary>
+    public long ToSubunits() => Convert.ToInt64(Math.Round(Amount * 100, 0, MidpointRounding.AwayFromZero));
+
     private void EnsureSameCurrency(Money other)
     {
         if (Currency != other.Currency)

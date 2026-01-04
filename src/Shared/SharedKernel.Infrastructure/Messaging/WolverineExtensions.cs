@@ -133,17 +133,12 @@ public static class WolverineExtensions
             // will ever attempt to update the same product's stock at the same time.
             // ============================================================================
 
-            // 1. Grouping Rule: Identify ProductId as the source of truth for concurrency
-            opts.MessagePartitioning
-                .ByMessage<ReserveInventoryCommand>(command =>
-                    // Partition by the first ProductId in the command.
-                    // In high-scale flash sales, we typically process one product per command.
-                    command.Items.Count > 0
-                        ? command.Items[0].ProductId.ToString()
-                        : command.OrderId.ToString());
-
             opts.MessagePartitioning
                 .ByMessage<ConfirmInventoryCommand>(command =>
+                    command.OrderId.ToString());
+
+            opts.MessagePartitioning
+                .ByMessage<LockInventoryForPaymentCommand>(command =>
                     command.OrderId.ToString());
 
             opts.MessagePartitioning

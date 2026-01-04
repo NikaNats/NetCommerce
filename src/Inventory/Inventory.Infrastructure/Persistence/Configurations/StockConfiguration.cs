@@ -47,6 +47,12 @@ public class StockConfiguration : IEntityTypeConfiguration<Stock>
             .HasColumnName("last_updated_at")
             .IsRequired();
 
+        // PostgreSQL system column for optimistic concurrency
+        builder.Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .IsRowVersion()
+            .ValueGeneratedOnAddOrUpdate();
+
         // Computed properties - not persisted
         builder.Ignore(s => s.AvailableQuantity);
         builder.Ignore(s => s.ReservedQuantity);

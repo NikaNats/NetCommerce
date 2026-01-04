@@ -62,6 +62,11 @@ public sealed class OrderFulfillmentSaga : Saga
     public bool IsInventoryReserved { get; set; }
 
     /// <summary>
+    ///     Flag indicating inventory reservations are locked for payment.
+    /// </summary>
+    public bool IsInventoryLockedForPayment { get; set; }
+
+    /// <summary>
     ///     Flag indicating payment was successfully processed.
     /// </summary>
     public bool IsPaid { get; set; }
@@ -154,30 +159,51 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     Proceeds to payment processing.
     /// </summary>
     public (
-        RequestPaymentCommand PaymentCommand,
+        LockInventoryForPaymentCommand LockCommand,
         PaymentTimeoutMessage Timeout
         ) Handle(
         InventoryReserved @event,
         ILogger<OrderFulfillmentSaga> logger)
     {
         logger.LogInformation(
-            "Inventory reserved for Order {OrderId}. Reserved {ItemCount} items. Proceeding to payment.",
+            "Inventory reserved for Order {OrderId}. Reserved {ItemCount} items. Locking for payment.",
             Id,
             @event.ReservedItems.Count);
 
         // Update state
         IsInventoryReserved = true;
         ReservedItems = @event.ReservedItems.ToList();
+        State = OrderFulfillmentState.LockingInventory;
+
+        var lockCommand = new LockInventoryForPaymentCommand(Id, @event.ReservedItems);
+        var timeout = new PaymentTimeoutMessage { Id = Id };
+
+        return (lockCommand, timeout);
+    }
+
+    /// <summary>
+    ///     Handles successful lock of inventory for payment; proceeds to payment processing.
+    /// </summary>
+    public (
+        RequestPaymentCommand PaymentCommand,
+        PaymentTimeoutMessage Timeout
+        ) Handle(
+        InventoryLocked @event,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogInformation(
+            "Inventory locked for payment for Order {OrderId}. Proceeding to payment.",
+            Id);
+
+        IsInventoryLockedForPayment = true;
         State = OrderFulfillmentState.ProcessingPayment;
 
-        // Step 2: Process payment
         var paymentCommand = new RequestPaymentCommand(
             Id,
             CustomerId,
             TotalAmount,
             OrderNumber);
 
-        // Timeout for payment
         var timeout = new PaymentTimeoutMessage { Id = Id };
 
         return (paymentCommand, timeout);
@@ -532,6 +558,15 @@ public sealed class OrderFulfillmentSaga : Saga
     }
 
     public static void NotFound(
+        InventoryLocked @event,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogInformation(
+            "Received late InventoryLocked for Order {OrderId}. Saga already completed, ignoring.",
+            @event.OrderId);
+    }
+
+    public static void NotFound(
         InventoryReservationFailed @event,
         ILogger<OrderFulfillmentSaga> logger)
     {
@@ -613,9 +648,10 @@ public enum OrderFulfillmentState
 {
     NotStarted = 0,
     ReservingInventory = 1,
-    ProcessingPayment = 2,
-    ConfirmingInventory = 3,
-    Compensating = 4,
-    Completed = 5,
-    Failed = 6
+    LockingInventory = 2,
+    ProcessingPayment = 3,
+    ConfirmingInventory = 4,
+    Compensating = 5,
+    Completed = 6,
+    Failed = 7
 }

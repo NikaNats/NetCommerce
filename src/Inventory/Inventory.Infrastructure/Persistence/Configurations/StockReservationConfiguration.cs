@@ -40,6 +40,10 @@ public class StockReservationConfiguration : IEntityTypeConfiguration<StockReser
             .HasColumnName("created_at")
             .IsRequired();
 
+        builder.Property(sr => sr.UpdatedAt)
+            .HasColumnName("updated_at")
+            .IsRequired();
+
         builder.Property(sr => sr.ExpiresAt)
             .HasColumnName("expires_at")
             .IsRequired();
@@ -53,5 +57,9 @@ public class StockReservationConfiguration : IEntityTypeConfiguration<StockReser
         // Index for finding expired reservations
         builder.HasIndex(sr => new { sr.Status, sr.ExpiresAt })
             .HasFilter("status = 'Active'");
+
+        // Index to locate long-running pending payments
+        builder.HasIndex(sr => new { sr.Status, sr.UpdatedAt })
+            .HasFilter("status = 'PendingPayment'");
     }
 }

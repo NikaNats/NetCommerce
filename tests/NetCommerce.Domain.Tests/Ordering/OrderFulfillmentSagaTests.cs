@@ -100,7 +100,7 @@ public class OrderFulfillmentSagaTests
     #region Happy Path Tests
 
     [Fact]
-    public void Handle_InventoryReserved_ShouldTransitionToProcessingPayment()
+    public void Handle_InventoryReserved_ShouldTransitionToLockingInventory()
     {
         // Arrange
         var saga = CreateSagaInState(OrderFulfillmentState.ReservingInventory);
@@ -112,16 +112,44 @@ public class OrderFulfillmentSagaTests
         var @event = new InventoryReserved(saga.Id, reservedItems);
 
         // Act
+        var (lockCommand, timeout) = saga.Handle(@event, _logger);
+
+        // Assert
+        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
+        saga.IsInventoryReserved.ShouldBeTrue();
+        saga.ReservedItems.ShouldBe(reservedItems);
+
+        lockCommand.ShouldNotBeNull();
+        lockCommand.OrderId.ShouldBe(saga.Id);
+        lockCommand.ReservedItems.ShouldBe(reservedItems);
+
+        timeout.ShouldNotBeNull();
+        timeout.Id.ShouldBe(saga.Id);
+    }
+
+    [Fact]
+    public void Handle_InventoryLocked_ShouldTransitionToProcessingPayment()
+    {
+        // Arrange
+        var saga = CreateSagaInState(OrderFulfillmentState.LockingInventory);
+        saga.IsInventoryReserved = true;
+        var reservedItems = new List<ReservedItem>
+        {
+            new(Guid.NewGuid(), Guid.NewGuid(), 1)
+        };
+        var @event = new InventoryLocked(saga.Id, reservedItems);
+
+        // Act
         var (paymentCommand, timeout) = saga.Handle(@event, _logger);
 
         // Assert
         saga.State.ShouldBe(OrderFulfillmentState.ProcessingPayment);
-        saga.IsInventoryReserved.ShouldBeTrue();
-        saga.ReservedItems.ShouldBe(reservedItems);
+        saga.IsInventoryLockedForPayment.ShouldBeTrue();
 
         paymentCommand.ShouldNotBeNull();
         paymentCommand.OrderId.ShouldBe(saga.Id);
         paymentCommand.Amount.ShouldBe(saga.TotalAmount);
+        paymentCommand.OrderNumber.ShouldBe(saga.OrderNumber);
 
         timeout.ShouldNotBeNull();
         timeout.Id.ShouldBe(saga.Id);
@@ -198,19 +226,24 @@ public class OrderFulfillmentSagaTests
         var (saga, _, _) = OrderFulfillmentSaga.Start(startCommand, _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ReservingInventory);
 
-        // Act Step 2: Inventory reserved
+        // Act Step 2: Inventory reserved → lock for payment
         var reservedItems = new List<ReservedItem> { new(items[0].ProductId, Guid.NewGuid(), 1) };
         saga.Handle(new InventoryReserved(orderId, reservedItems), _logger);
-        saga.State.ShouldBe(OrderFulfillmentState.ProcessingPayment);
+        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
         saga.IsInventoryReserved.ShouldBeTrue();
 
-        // Act Step 3: Payment succeeded
+        // Act Step 3: Inventory locked → request payment
+        saga.Handle(new InventoryLocked(orderId, reservedItems), _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.ProcessingPayment);
+        saga.IsInventoryLockedForPayment.ShouldBeTrue();
+
+        // Act Step 4: Payment succeeded
         var transactionId = Guid.NewGuid().ToString();
         saga.Handle(new PaymentSucceeded(orderId, transactionId, amount), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ConfirmingInventory);
         saga.IsPaid.ShouldBeTrue();
 
-        // Act Step 4: Inventory confirmed
+        // Act Step 5: Inventory confirmed
         saga.Handle(new InventoryConfirmed(orderId), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.Completed);
         saga.CompletedAt.ShouldNotBeNull();

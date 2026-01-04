@@ -33,12 +33,15 @@ public sealed class IdempotencyFilter : IEndpointFilter
 
         for (var i = 0; i < context.Arguments.Count; i++)
         {
-            if (context.Arguments[i] is IIdempotentCommand command)
+            if (context.Arguments[i] is CreateOrderCommand createOrder)
             {
-                context.Arguments[i] = command with { IdempotencyKey = key };
+                context.Arguments[i] = createOrder with { IdempotencyKey = key };
                 break;
             }
         }
+
+        // Echo the idempotency key for observability/debugging
+        context.HttpContext.Response.Headers[HeaderName] = key;
 
         return await next(context);
     }

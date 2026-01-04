@@ -7,26 +7,11 @@ using Wolverine.Attributes;
 namespace NetCommerce.Inventory.Infrastructure.Handlers;
 
 /// <summary>
-///     Partitioned Sequential Messaging handlers for high-contention inventory operations.
-///
-///     <para>
-///     Architecture: These handlers run in the "inventory-contention" local queue which
-///     uses message partitioning by ProductId. This means:
-///     - All commands for the same ProductId are processed sequentially by the same thread
-///     - Different ProductIds can be processed in parallel (up to 9 concurrent tracks)
-///     - NO database locks (FOR UPDATE) are needed - thread-level serialization provides safety
-///     </para>
-///
-///     <para>
-///     Benefits:
-///     - Zero DB deadlocks (Postgres only sees non-conflicting statements)
-///     - Maximized CPU utilization (9 products processed in parallel)
-///     - Healthy connection pool (only 9 threads ever active in DB for inventory)
-///     </para>
+///     Inventory reservation handler using deterministic, multi-row pessimistic locking to avoid races.
 /// </summary>
 [WolverineHandler]
-[LocalQueue("inventory-contention")] // CRITICAL: Run in the partitioned lane
-public class PartitionedReserveInventoryHandler
+[Transactional]
+public class ReserveInventoryHandler
 {
     /// <summary>
     ///     Handles inventory reservation from the OrderFulfillmentSaga.
@@ -40,7 +25,7 @@ public class PartitionedReserveInventoryHandler
     public static async Task<object> Handle(
         ReserveInventoryCommand command,
         InventoryDbContext db,
-        ILogger<PartitionedReserveInventoryHandler> logger,
+        ILogger<ReserveInventoryHandler> logger,
         CancellationToken ct)
     {
         if (command.Items.Count == 0)
@@ -58,6 +43,18 @@ public class PartitionedReserveInventoryHandler
         var reservedItems = new List<ReservedItem>();
         var unavailableProducts = new List<Guid>();
 
+        // Deterministic sort to avoid deadlocks when locking multiple rows
+        var sortedProductIds = command.Items
+            .Select(x => x.ProductId)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToArray();
+
+        var stocks = await db.Stocks
+            .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({sortedProductIds}) ORDER BY s.product_id FOR UPDATE")
+            .Include(s => s.Reservations)
+            .ToListAsync(ct);
+
         foreach (var item in command.Items)
         {
             logger.LogDebug(
@@ -66,12 +63,7 @@ public class PartitionedReserveInventoryHandler
                 item.Quantity,
                 command.OrderId);
 
-            // NO 'FOR UPDATE' needed here!
-            // Wolverine guarantees that no other thread is handling THIS ProductId right now.
-            // This is the key insight of Partitioned Sequential Messaging.
-            var stock = await db.Stocks
-                .Include(s => s.Reservations)
-                .FirstOrDefaultAsync(s => s.ProductId == item.ProductId, ct);
+            var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
 
             if (stock is null)
             {
@@ -86,12 +78,7 @@ public class PartitionedReserveInventoryHandler
 
             try
             {
-                // This logic is now thread-safe by design
-                // No concurrent thread can access the same ProductId's stock
                 var reservation = stock.Reserve(command.OrderId, item.Quantity);
-
-                // Note: EF Core tracks 'stock' and 'reservation'.
-                // Wolverine's AutoApplyTransactions will call SaveChangesAsync automatically.
 
                 reservedItems.Add(new ReservedItem(
                     item.ProductId,
@@ -146,6 +133,113 @@ public class PartitionedReserveInventoryHandler
 }
 
 /// <summary>
+///     Handler that locks previously reserved inventory to prevent cleanup while payment is processed.
+/// </summary>
+[WolverineHandler]
+[Transactional]
+[LocalQueue("inventory-contention")]
+public class LockInventoryForPaymentHandler
+{
+    public static async Task<object> Handle(
+        LockInventoryForPaymentCommand command,
+        InventoryDbContext db,
+        ILogger<LockInventoryForPaymentHandler> logger,
+        CancellationToken ct)
+    {
+        if (command.ReservedItems.Count == 0)
+        {
+            logger.LogWarning(
+                "LockInventoryForPaymentCommand for Order {OrderId} has no reserved items",
+                command.OrderId);
+
+            return new InventoryReservationFailed(
+                command.OrderId,
+                "No reserved items to lock",
+                UnavailableProductIds: null);
+        }
+
+        var productIds = command.ReservedItems
+            .Select(x => x.ProductId)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToArray();
+
+        var reservationIds = command.ReservedItems
+            .Select(x => x.ReservationId)
+            .Distinct()
+            .ToArray();
+
+        var stocks = await db.Stocks
+            .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
+            .Include(s => s.Reservations)
+            .ToListAsync(ct);
+
+        var missing = new List<Guid>();
+
+        foreach (var item in command.ReservedItems)
+        {
+            var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
+
+            if (stock is null)
+            {
+                logger.LogWarning(
+                    "Stock record not found while locking reservation {ReservationId} for Order {OrderId}, Product {ProductId}",
+                    item.ReservationId,
+                    command.OrderId,
+                    item.ProductId);
+                missing.Add(item.ProductId);
+                continue;
+            }
+
+            var reservation = stock.Reservations.FirstOrDefault(r => r.Id == item.ReservationId);
+            if (reservation is null)
+            {
+                logger.LogWarning(
+                    "Reservation {ReservationId} not found for Order {OrderId}, Product {ProductId}",
+                    item.ReservationId,
+                    command.OrderId,
+                    item.ProductId);
+                missing.Add(item.ProductId);
+                continue;
+            }
+
+            if (reservation.Status != Domain.Stock.ReservationStatus.Active)
+            {
+                logger.LogWarning(
+                    "Reservation {ReservationId} for Order {OrderId} cannot be locked from status {Status}",
+                    reservation.Id,
+                    command.OrderId,
+                    reservation.Status);
+                missing.Add(item.ProductId);
+                continue;
+            }
+
+            stock.LockReservationForPayment(item.ReservationId);
+        }
+
+        if (missing.Count > 0)
+        {
+            logger.LogWarning(
+                "Locking reservations failed for Order {OrderId}. Missing or invalid reservations for {Count} product(s)",
+                command.OrderId,
+                missing.Count);
+
+            return new InventoryReservationFailed(
+                command.OrderId,
+                $"Could not lock reservations for {missing.Count} product(s)",
+                missing);
+        }
+
+        logger.LogInformation(
+            "Locked {Count} reservations for Order {OrderId} to proceed with payment",
+            command.ReservedItems.Count,
+            command.OrderId);
+
+        return new InventoryLocked(command.OrderId, command.ReservedItems);
+    }
+}
+
+/// <summary>
 ///     Partitioned handler for confirming inventory reservations.
 ///     Converts soft reservations to hard deductions after payment confirmation.
 /// </summary>
@@ -189,7 +283,7 @@ public class PartitionedConfirmInventoryHandler
             {
                 var reservation = stock.Reservations
                     .FirstOrDefault(r => r.OrderId == command.OrderId &&
-                                         r.Status == Domain.Stock.ReservationStatus.Active);
+                                         (r.Status == Domain.Stock.ReservationStatus.Active || r.Status == Domain.Stock.ReservationStatus.PendingPayment));
 
                 if (reservation is not null)
                 {

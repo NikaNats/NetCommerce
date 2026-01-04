@@ -10,6 +10,7 @@ namespace NetCommerce.Inventory.Domain.Stock;
 public sealed class StockReservation : Entity<Guid>
 {
     public static readonly TimeSpan DefaultReservationDuration = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan DefaultPaymentSafetyBuffer = TimeSpan.FromMinutes(30);
 
     private StockReservation()
     {
@@ -19,6 +20,7 @@ public sealed class StockReservation : Entity<Guid>
     public Guid OrderId { get; private set; }
     public int Quantity { get; private set; }
     public DateTime CreatedAt { get; private set; }
+    public DateTime UpdatedAt { get; private set; }
     public DateTime ExpiresAt { get; private set; }
     public ReservationStatus Status { get; private set; }
     public DateTime? ConfirmedAt { get; private set; }
@@ -39,34 +41,47 @@ public sealed class StockReservation : Entity<Guid>
             OrderId = orderId,
             Quantity = quantity,
             CreatedAt = now,
+            UpdatedAt = now,
             ExpiresAt = now.Add(duration ?? DefaultReservationDuration),
             Status = ReservationStatus.Active
         };
+    }
+
+    internal void MarkAsPendingPayment(TimeSpan? safetyBuffer = null, TimeProvider? timeProvider = null)
+    {
+        Status = ReservationStatus.PendingPayment;
+        var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        UpdatedAt = now;
+        ExpiresAt = safetyBuffer.HasValue ? now.Add(safetyBuffer.Value) : ExpiresAt;
     }
 
     internal void Confirm(TimeProvider? timeProvider = null)
     {
         Status = ReservationStatus.Confirmed;
         ConfirmedAt = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        UpdatedAt = ConfirmedAt.Value;
     }
 
     internal void Release(TimeProvider? timeProvider = null)
     {
         Status = ReservationStatus.Released;
         ReleasedAt = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        UpdatedAt = ReleasedAt.Value;
     }
 
     internal void Expire(TimeProvider? timeProvider = null)
     {
         Status = ReservationStatus.Expired;
         ReleasedAt = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        UpdatedAt = ReleasedAt.Value;
     }
 }
 
 public enum ReservationStatus
 {
     Active = 0,
-    Confirmed = 1,
-    Released = 2,
-    Expired = 3
+    PendingPayment = 1,
+    Confirmed = 2,
+    Released = 3,
+    Expired = 4
 }

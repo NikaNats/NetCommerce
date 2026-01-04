@@ -26,14 +26,14 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
 {
     private readonly PostgresTestFixture _fixture;
     private InventoryDbContext _dbContext = null!;
-    private readonly ILogger<PartitionedReserveInventoryHandler> _reserveLogger;
+    private readonly ILogger<ReserveInventoryHandler> _reserveLogger;
     private readonly ILogger<PartitionedConfirmInventoryHandler> _confirmLogger;
     private readonly ILogger<PartitionedReleaseInventoryHandler> _releaseLogger;
 
     public PartitionedStockHandlerTests(PostgresTestFixture fixture)
     {
         _fixture = fixture;
-        _reserveLogger = Substitute.For<ILogger<PartitionedReserveInventoryHandler>>();
+        _reserveLogger = Substitute.For<ILogger<ReserveInventoryHandler>>();
         _confirmLogger = Substitute.For<ILogger<PartitionedConfirmInventoryHandler>>();
         _releaseLogger = Substitute.For<ILogger<PartitionedReleaseInventoryHandler>>();
     }
@@ -66,7 +66,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
             [new OrderItemReservation(productId, 1, "PS5-CONSOLE")]);
 
         // Act
-        var result = await PartitionedReserveInventoryHandler.Handle(
+        var result = await ReserveInventoryHandler.Handle(
             command, _dbContext, _reserveLogger, CancellationToken.None);
 
         // Assert
@@ -100,7 +100,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
             [new OrderItemReservation(productId, 10, "PS5-CONSOLE")]);
 
         // Act
-        var result = await PartitionedReserveInventoryHandler.Handle(
+        var result = await ReserveInventoryHandler.Handle(
             command, _dbContext, _reserveLogger, CancellationToken.None);
 
         // Assert
@@ -123,7 +123,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
             [new OrderItemReservation(productId, 1, "NONEXISTENT")]);
 
         // Act
-        var result = await PartitionedReserveInventoryHandler.Handle(
+        var result = await ReserveInventoryHandler.Handle(
             command, _dbContext, _reserveLogger, CancellationToken.None);
 
         // Assert
@@ -140,7 +140,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         var command = new ReserveInventoryCommand(orderId, []);
 
         // Act
-        var result = await PartitionedReserveInventoryHandler.Handle(
+        var result = await ReserveInventoryHandler.Handle(
             command, _dbContext, _reserveLogger, CancellationToken.None);
 
         // Assert
@@ -169,7 +169,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         ]);
 
         // Act
-        var result = await PartitionedReserveInventoryHandler.Handle(
+        var result = await ReserveInventoryHandler.Handle(
             command, _dbContext, _reserveLogger, CancellationToken.None);
 
         // Assert
@@ -198,7 +198,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         ]);
 
         // Act
-        var result = await PartitionedReserveInventoryHandler.Handle(
+        var result = await ReserveInventoryHandler.Handle(
             command, _dbContext, _reserveLogger, CancellationToken.None);
 
         // Assert - Should fail entirely, not partial
@@ -340,7 +340,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
             // Clear change tracker to simulate fresh context per request
             _dbContext.ChangeTracker.Clear();
 
-            var result = await PartitionedReserveInventoryHandler.Handle(
+            var result = await ReserveInventoryHandler.Handle(
                 command, _dbContext, _reserveLogger, CancellationToken.None);
 
             if (result is InventoryReserved)
@@ -377,7 +377,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         // Act - Step 1: Reserve
         var reserveCommand = new ReserveInventoryCommand(orderId,
             [new OrderItemReservation(productId, 5, "PS5-CONSOLE")]);
-        var reserveResult = await PartitionedReserveInventoryHandler.Handle(
+        var reserveResult = await ReserveInventoryHandler.Handle(
             reserveCommand, _dbContext, _reserveLogger, CancellationToken.None);
         await _dbContext.SaveChangesAsync();
 
@@ -427,7 +427,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         // Act - Step 1: Reserve
         var reserveCommand = new ReserveInventoryCommand(orderId,
             [new OrderItemReservation(productId, 5, "PS5-CONSOLE")]);
-        await PartitionedReserveInventoryHandler.Handle(
+        await ReserveInventoryHandler.Handle(
             reserveCommand, _dbContext, _reserveLogger, CancellationToken.None);
         await _dbContext.SaveChangesAsync();
 

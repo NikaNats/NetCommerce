@@ -26,6 +26,14 @@ public sealed record ReserveInventoryCommand(
     IReadOnlyList<OrderItemReservation> Items) : ICommand;
 
 /// <summary>
+///     Command sent by the OrderSaga to lock existing reservations for payment.
+///     Targets the Inventory module.
+/// </summary>
+public sealed record LockInventoryForPaymentCommand(
+    Guid OrderId,
+    IReadOnlyList<ReservedItem> ReservedItems) : ICommand;
+
+/// <summary>
 ///     Item details for inventory reservation.
 /// </summary>
 public sealed record OrderItemReservation(
@@ -101,6 +109,13 @@ public sealed record PaymentFailed(
 ///     Event published by the Inventory module when reservation succeeds.
 /// </summary>
 public sealed record InventoryReserved(
+    [property: SagaIdentity] Guid OrderId,
+    IReadOnlyList<ReservedItem> ReservedItems) : IntegrationEvent;
+
+/// <summary>
+///     Event published by the Inventory module after reservations are promoted to payment locks.
+/// </summary>
+public sealed record InventoryLocked(
     [property: SagaIdentity] Guid OrderId,
     IReadOnlyList<ReservedItem> ReservedItems) : IntegrationEvent;
 

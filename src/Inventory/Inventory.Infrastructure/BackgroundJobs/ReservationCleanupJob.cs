@@ -95,10 +95,19 @@ public class ReservationCleanupJob : BackgroundService
             .Select(r => new { r.Id, r.StockId, r.OrderId, r.Quantity })
             .ToListAsync(cancellationToken);
 
-        if (expiredReservations.Count == 0) return;
+        var stuckPayments = await context.StockReservations
+            .Where(r => r.Status == ReservationStatus.PendingPayment)
+            .Where(r => r.UpdatedAt <= now.AddHours(-2))
+            .OrderBy(r => r.UpdatedAt)
+            .Take(_options.BatchSize)
+            .Select(r => new { r.Id, r.StockId, r.OrderId, r.Quantity })
+            .ToListAsync(cancellationToken);
+
+        if (expiredReservations.Count == 0 && stuckPayments.Count == 0) return;
 
         var stockIds = expiredReservations
             .Select(r => r.StockId)
+            .Concat(stuckPayments.Select(r => r.StockId))
             .Distinct()
             .ToList();
 
@@ -115,6 +124,10 @@ public class ReservationCleanupJob : BackgroundService
                 .Where(r => r.StockId == stock.Id)
                 .ToList();
 
+            var stuckForStock = stuckPayments
+                .Where(r => r.StockId == stock.Id)
+                .ToList();
+
             foreach (var reservation in reservationsForStock)
             {
                 stock.ReleaseReservation(reservation.Id);
@@ -122,6 +135,16 @@ public class ReservationCleanupJob : BackgroundService
 
                 _logger.LogDebug(
                     "Released expired reservation {ReservationId} for Stock {StockId}, OrderId: {OrderId}, Quantity: {Quantity}",
+                    reservation.Id, stock.Id, reservation.OrderId, reservation.Quantity);
+            }
+
+            foreach (var reservation in stuckForStock)
+            {
+                stock.ReleaseReservation(reservation.Id);
+                totalReleased++;
+
+                _logger.LogWarning(
+                    "Released stuck pending-payment reservation {ReservationId} for Stock {StockId}, OrderId: {OrderId}, Quantity: {Quantity}",
                     reservation.Id, stock.Id, reservation.OrderId, reservation.Quantity);
             }
         }

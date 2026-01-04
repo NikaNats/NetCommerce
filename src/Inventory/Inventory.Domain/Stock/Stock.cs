@@ -41,7 +41,9 @@ public sealed class Stock : AggregateRoot<Guid>
     {
         var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return Quantity - _reservations
-            .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt > now)
+            .Where(r =>
+                (r.Status == ReservationStatus.Active && r.ExpiresAt > now) ||
+                r.Status == ReservationStatus.PendingPayment)
             .Sum(r => r.Quantity);
     }
 
@@ -53,7 +55,9 @@ public sealed class Stock : AggregateRoot<Guid>
     {
         var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return _reservations
-            .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt > now)
+            .Where(r =>
+                (r.Status == ReservationStatus.Active && r.ExpiresAt > now) ||
+                r.Status == ReservationStatus.PendingPayment)
             .Sum(r => r.Quantity);
     }
 
@@ -139,7 +143,7 @@ public sealed class Stock : AggregateRoot<Guid>
         if (reservation is null)
             throw new InvalidOperationException($"Reservation {reservationId} not found");
 
-        if (reservation.Status != ReservationStatus.Active)
+        if (reservation.Status != ReservationStatus.Active && reservation.Status != ReservationStatus.PendingPayment)
             throw new InvalidOperationException($"Reservation is not active. Status: {reservation.Status}");
 
         reservation.Confirm(tp);
@@ -167,6 +171,24 @@ public sealed class Stock : AggregateRoot<Guid>
 
         RaiseDomainEvent(new StockReleasedDomainEvent(
             Id, ProductId, reservation.OrderId, reservation.Quantity, GetAvailableQuantity(tp)));
+    }
+
+    /// <summary>
+    ///     Promotes a soft reservation to a pending-payment lock to protect it from cleanup.
+    /// </summary>
+    public void LockReservationForPayment(Guid reservationId, TimeSpan? safetyBuffer = null, TimeProvider? timeProvider = null)
+    {
+        var tp = timeProvider ?? TimeProvider.System;
+        var reservation = _reservations.FirstOrDefault(r => r.Id == reservationId);
+
+        if (reservation is null)
+            throw new InvalidOperationException($"Reservation {reservationId} not found");
+
+        if (reservation.Status != ReservationStatus.Active)
+            throw new InvalidOperationException($"Reservation cannot be locked from status {reservation.Status}");
+
+        reservation.MarkAsPendingPayment(safetyBuffer ?? StockReservation.DefaultPaymentSafetyBuffer, tp);
+        LastUpdatedAt = tp.GetUtcNow().UtcDateTime;
     }
 
     /// <summary>
