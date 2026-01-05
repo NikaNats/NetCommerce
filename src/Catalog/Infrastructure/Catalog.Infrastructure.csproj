@@ -10,6 +10,7 @@
     <PackageReference Include="WolverineFx"/>
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions"/>
+    <PackageReference Include="MeiliSearch"/>
   </ItemGroup>
 
   <ItemGroup>

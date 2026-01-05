@@ -61,6 +61,15 @@ var seq = builder.AddSeq("seq")
     .WithLifetime(ContainerLifetime.Persistent);
 
 // =============================================================================
+// Meilisearch for product search (read model)
+// Provides <50ms search latency with typo tolerance, faceting, and highlighting
+// =============================================================================
+var meilisearchMasterKey = builder.AddParameter("meilisearch-masterkey", secret: true);
+var meilisearch = builder.AddMeilisearch("meilisearch", masterKey: meilisearchMasterKey)
+    .WithDataVolume()
+    .WithLifetime(ContainerLifetime.Persistent);
+
+// =============================================================================
 // NetCommerce API
 // =============================================================================
 var api = builder.AddProject<NetCommerce_Api>("netcommerce-api")
@@ -75,6 +84,8 @@ var api = builder.AddProject<NetCommerce_Api>("netcommerce-api")
     .WithReference(blobStorage).WaitFor(storage)
     // Seq logging
     .WithReference(seq).WaitFor(seq)
+    // Meilisearch for product search
+    .WithReference(meilisearch).WaitFor(meilisearch)
     // Keycloak authentication - using realm reference for proper configuration
     .WithReference(keycloak)
     .WithReference(realm)

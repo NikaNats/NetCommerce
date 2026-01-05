@@ -15,6 +15,7 @@
     <PackageReference Include="Keycloak.AuthServices.Aspire.Hosting"/>
     <PackageReference Include="Aspire.Hosting.Azure.Storage"/>
     <PackageReference Include="Aspire.Hosting.Seq"/>
+    <PackageReference Include="CommunityToolkit.Aspire.Hosting.Meilisearch"/>
   </ItemGroup>
 
   <ItemGroup>

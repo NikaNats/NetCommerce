@@ -195,6 +195,16 @@
           "System.IO.Hashing": "9.0.10"
         }
       },
+      "CommunityToolkit.Aspire.Hosting.Meilisearch": {
+        "type": "Direct",
+        "requested": "[9.2.1, )",
+        "resolved": "9.2.1",
+        "contentHash": "dCb+ubBV5ugbnXJ2TSnY1iFWwxYYRUikb/33+DtR3yrSxoeMsiZqYoPcyyQQVnoFNdQxgIPjzMLOnjkB4FAZYw==",
+        "dependencies": {
+          "Aspire.Hosting": "9.1.0",
+          "MeiliSearch": "0.16.0"
+        }
+      },
       "DotNet.ReproducibleBuilds": {
         "type": "Direct",
         "requested": "[1.2.39, )",
@@ -843,8 +853,32 @@
       },
       "Microsoft.IdentityModel.Abstractions": {
         "type": "Transitive",
-        "resolved": "6.35.0",
-        "contentHash": "xuR8E4Rd96M41CnUSCiOJ2DBh+z+zQSmyrYHdYhD6K4fXBcQGVnRCFQ0efROUYpP+p0zC1BLKr0JRpVuujTZSg=="
+        "resolved": "7.6.2",
+        "contentHash": "ULeyJwfYTMHOAArrBZorjPyM/BL5PFfwRzDtxlOxawO9vB/wVmHmbzZnOyHCOLJjel7XiVNmVnAs3H0jh4/9jQ=="
+      },
+      "Microsoft.IdentityModel.JsonWebTokens": {
+        "type": "Transitive",
+        "resolved": "7.6.2",
+        "contentHash": "ySbY72MsWw7BnSZw0fCsmp/oMou8ntJkfuZUBcplV3ncXMzxcXCn3fK6Gg2YLnTT6F2G9JXl9zc2lwfVfGOWEA==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Tokens": "7.6.2"
+        }
+      },
+      "Microsoft.IdentityModel.Logging": {
+        "type": "Transitive",
+        "resolved": "7.6.2",
+        "contentHash": "0brV311MYxGz7Numa+pbVsxbz5tfe2nbAig1b5tQb3h/L1y5lkoPyOgD0qAfI0iX1njbwr8l9NdxIT1cDbzWKA==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Abstractions": "7.6.2"
+        }
+      },
+      "Microsoft.IdentityModel.Tokens": {
+        "type": "Transitive",
+        "resolved": "7.6.2",
+        "contentHash": "pLnhCq9UNKWkn83zutkObYuzA+sOzx6VZpPI8hB8gD/vAXVt14D0SJ0sKPftwufvAbYGSNRda1vw/IFLbkjxNg==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Logging": "7.6.2"
+        }
       },
       "Microsoft.NET.StringTools": {
         "type": "Transitive",
@@ -930,6 +964,15 @@
         "resolved": "10.0.1",
         "contentHash": "xfaHEHVDkMOOZR5S6ZGezD0+vekdH1Nx/9Ih8/rOqOGSOk1fxiN3u94bYkBW/wigj0Uw2Wt3vvRj9mtYdgwEjw=="
       },
+      "System.IdentityModel.Tokens.Jwt": {
+        "type": "Transitive",
+        "resolved": "7.6.2",
+        "contentHash": "dyvPIzxohovbECESKj9ep7yShujU5oN9dKYR3ivvoTM7nLANNrBC5jN9ysZfY5Hp/Xs0R1b79IsdHuu6D4xwow==",
+        "dependencies": {
+          "Microsoft.IdentityModel.JsonWebTokens": "7.6.2",
+          "Microsoft.IdentityModel.Tokens": "7.6.2"
+        }
+      },
       "System.IO.Hashing": {
         "type": "Transitive",
         "resolved": "9.0.10",
@@ -978,6 +1021,15 @@
         "dependencies": {
           "Azure.Core": "1.47.3",
           "Azure.Storage.Common": "12.25.0"
+        }
+      },
+      "MeiliSearch": {
+        "type": "CentralTransitive",
+        "requested": "[0.16.0, )",
+        "resolved": "0.16.0",
+        "contentHash": "XcxChvfrcnCDcbxTuSFaC5zEIJUE9Mu+JhPB6+FEfpAjG4gsyUwLWc7GAr0vYf0q+m2JlxvtuLrFJn+83ZorVg==",
+        "dependencies": {
+          "System.IdentityModel.Tokens.Jwt": "7.6.2"
         }
       },
       "Microsoft.Extensions.Configuration.Abstractions": {

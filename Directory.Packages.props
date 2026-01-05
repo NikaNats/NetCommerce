@@ -32,6 +32,8 @@
     <PackageVersion Include="Aspire.StackExchange.Redis" Version="13.1.0" />
     <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.1.0" />
     <PackageVersion Include="Aspire.Seq" Version="13.1.0" />
+    <PackageVersion Include="CommunityToolkit.Aspire.Hosting.Meilisearch" Version="9.2.1" />
+    <PackageVersion Include="CommunityToolkit.Aspire.Meilisearch" Version="9.2.1" />
     <PackageVersion Include="Keycloak.AuthServices.Aspire.Hosting" Version="0.2.0" />
   </ItemGroup>
   <ItemGroup Label="ASP.NET Core">
@@ -56,6 +58,9 @@
   <ItemGroup Label="Redis">
     <PackageVersion Include="StackExchange.Redis" Version="2.10.1" />
     <PackageVersion Include="RedLock.net" Version="2.3.2" />
+  </ItemGroup>
+  <ItemGroup Label="Search">
+    <PackageVersion Include="MeiliSearch" Version="0.16.0" />
   </ItemGroup>
   <ItemGroup Label="Cloud Storage">
     <PackageVersion Include="AWSSDK.S3" Version="4.0.16.2" />

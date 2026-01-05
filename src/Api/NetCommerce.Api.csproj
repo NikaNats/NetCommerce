@@ -21,6 +21,7 @@
     <PackageReference Include="Aspire.StackExchange.Redis"/>
     <PackageReference Include="Aspire.Azure.Storage.Blobs"/>
     <PackageReference Include="Aspire.Seq"/>
+    <PackageReference Include="CommunityToolkit.Aspire.Meilisearch"/>
 
     <!-- FluentValidation -->
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>

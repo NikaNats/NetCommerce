@@ -59,6 +59,9 @@ if (!string.IsNullOrEmpty(seqServerUrl))
     builder.AddSeqEndpoint("seq");
 }
 
+// Meilisearch for product search (read model)
+builder.AddMeilisearchClient("meilisearch");
+
 // ============================================================================
 // Authentication with Keycloak
 // ============================================================================
