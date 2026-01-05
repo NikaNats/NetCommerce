@@ -82,12 +82,17 @@ public static class OrderFaker
         var faker = new Faker();
 
         for (var i = 0; i < itemCount; i++)
+        {
+            var basePrice = MoneyFaker.Generate(faker.Finance.Amount(10), currency);
+            var breakdown = PriceBreakdown.Create(basePrice.Amount, 0, 0, 0, "None", currency);
             order.AddItem(
                 Guid.NewGuid(),
                 faker.Commerce.ProductName(),
-                MoneyFaker.Generate(faker.Finance.Amount(10), currency),
+                basePrice,
                 faker.Random.Int(1, 5),
-                2.0m);
+                2.0m,
+                breakdown);
+        }
 
         return order;
     }

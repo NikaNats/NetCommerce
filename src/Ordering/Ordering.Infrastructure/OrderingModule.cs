@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.BackgroundJobs;
 using NetCommerce.Ordering.Infrastructure.Metrics;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
+using NetCommerce.Ordering.Infrastructure.Services;
 using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.Ordering.Infrastructure;
@@ -36,6 +38,15 @@ public static class OrderingModule
 
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();
+
+        // ============================================================================
+        // Triple-Pass Pricing Services
+        // ============================================================================
+        // Tax Provider - using local fallback for resilience
+        services.AddScoped<ITaxProvider, LocalTaxProvider>();
+        
+        // Promotion Engine - simple implementation (can be replaced with external service)
+        services.AddScoped<IPromotionEngine, SimplePromotionEngine>();
 
         // Grace Period configuration and background service
         services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));

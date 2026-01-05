@@ -3,8 +3,8 @@ using NetCommerce.SharedKernel.Domain;
 namespace NetCommerce.Ordering.Domain.Orders;
 
 /// <summary>
-///     Order line item with Price Snapshotting.
-///     AppliedPrice and AppliedTitle are captured at order time and never change.
+///     Order line item with Price Snapshotting and Triple-Pass Pricing Pattern.
+///     AppliedPrice, AppliedTitle, and PriceBreakdown are captured at order time and never change.
 /// </summary>
 public sealed class OrderItem : Entity<Guid>
 {
@@ -15,7 +15,8 @@ public sealed class OrderItem : Entity<Guid>
         Money appliedPrice,
         int quantity,
         decimal appliedWeightKg,
-        string? sku)
+        string? sku,
+        PriceBreakdown priceBreakdown)
     {
         Id = id;
         ProductId = productId;
@@ -24,6 +25,7 @@ public sealed class OrderItem : Entity<Guid>
         Quantity = quantity;
         AppliedWeightKg = appliedWeightKg;
         Sku = sku;
+        PriceBreakdown = priceBreakdown;
     }
 
     private OrderItem()
@@ -38,7 +40,7 @@ public sealed class OrderItem : Entity<Guid>
     public string AppliedTitle { get; private set; } = string.Empty;
 
     /// <summary>
-    ///     Price captured at order time (snapshot).
+    ///     Price captured at order time (snapshot). This represents the final price (for backward compatibility).
     /// </summary>
     public Money AppliedPrice { get; } = default!;
 
@@ -52,7 +54,23 @@ public sealed class OrderItem : Entity<Guid>
     public string? Sku { get; private set; }
 
     /// <summary>
-    ///     Calculated line total.
+    ///     Complete pricing breakdown for audit compliance and transparency.
+    ///     Stores base price, discount, tax calculation, and rates used at order time.
+    /// </summary>
+    public PriceBreakdown PriceBreakdown { get; private set; } = default!;
+
+    /// <summary>
+    ///     The discount amount applied to this line item (convenience property).
+    /// </summary>
+    public decimal DiscountAmount => PriceBreakdown.DiscountAmount * Quantity;
+
+    /// <summary>
+    ///     The tax amount applied to this line item (convenience property).
+    /// </summary>
+    public decimal TaxAmount => PriceBreakdown.TaxAmount * Quantity;
+
+    /// <summary>
+    ///     Calculated line total based on the final price.
     /// </summary>
     public Money LineTotal => AppliedPrice.Multiply(Quantity);
 

@@ -21,7 +21,9 @@ public class OrderTests
             ShippingAddressFaker.Generate(),
             Guid.NewGuid().ToString());
 
-        order.AddItem(Guid.NewGuid(), "PS5", Money.Create(499.99m), 1, 4.5m);
+        var price = Money.Create(499.99m);
+        var breakdown = PriceBreakdown.Create(price.Amount, 0, 0, 0, "None", price.Currency);
+        order.AddItem(Guid.NewGuid(), "PS5", price, 1, 4.5m, breakdown);
         order.Status.ShouldBe(OrderStatus.Submitted);
 
         // Grace period confirmation
@@ -101,7 +103,8 @@ public class OrderTests
         var quantity = 2;
 
         // Act
-        order.AddItem(productId, snapshotTitle, snapshotPrice, quantity, 2.5m);
+        var breakdown = PriceBreakdown.Create(snapshotPrice.Amount, 0, 0, 0, "None", snapshotPrice.Currency);
+        order.AddItem(productId, snapshotTitle, snapshotPrice, quantity, 2.5m, breakdown);
 
         // Assert
         order.Items.ShouldHaveSingleItem();
@@ -120,8 +123,9 @@ public class OrderTests
         var price = Money.Create(100m);
 
         // Act
-        order.AddItem(Guid.NewGuid(), "Product 1", price, 2, 1.0m);
-        order.AddItem(Guid.NewGuid(), "Product 2", price, 3, 1.5m);
+        var breakdown = PriceBreakdown.Create(price.Amount, 0, 0, 0, "None", price.Currency);
+        order.AddItem(Guid.NewGuid(), "Product 1", price, 2, 1.0m, breakdown);
+        order.AddItem(Guid.NewGuid(), "Product 2", price, 3, 1.5m, breakdown);
 
         // Assert
         order.TotalAmount.Amount.ShouldBe(500m); // (100*2) + (100*3)
@@ -136,8 +140,9 @@ public class OrderTests
         var price = Money.Create(100m);
 
         // Act
-        order.AddItem(productId, "Product", price, 2, 1.0m);
-        order.AddItem(productId, "Product", price, 3, 1.0m);
+        var breakdown = PriceBreakdown.Create(price.Amount, 0, 0, 0, "None", price.Currency);
+        order.AddItem(productId, "Product", price, 2, 1.0m, breakdown);
+        order.AddItem(productId, "Product", price, 3, 1.0m, breakdown);
 
         // Assert
         order.Items.ShouldHaveSingleItem();
@@ -153,8 +158,10 @@ public class OrderTests
         order.MarkAsPaid(Guid.NewGuid().ToString());
 
         // Act & Assert
+        var testPrice = Money.Create(10);
+        var breakdown = PriceBreakdown.Create(testPrice.Amount, 0, 0, 0, "None", testPrice.Currency);
         Should.Throw<InvalidOperationException>(() =>
-                order.AddItem(Guid.NewGuid(), "New Product", Money.Create(10), 1, 0.5m))
+                order.AddItem(Guid.NewGuid(), "New Product", testPrice, 1, 0.5m, breakdown))
             .Message.ShouldContain("non-submitted");
     }
 

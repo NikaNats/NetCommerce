@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Domain;
@@ -11,7 +12,10 @@ using Wolverine.Attributes;
 namespace NetCommerce.Ordering.Infrastructure.Handlers;
 
 /// <summary>
-///     Wolverine handler for CreateOrderCommand.
+///     Wolverine handler for CreateOrderCommand implementing Triple-Pass Pricing Pattern.
+///     Pass 1: Fetch RAW price from Catalog (Source of Truth)
+///     Pass 2: Apply Promotions & Discounts
+///     Pass 3: Calculate Taxes based on Shipping Address
 ///     Uses static method pattern with method injection for testability.
 ///     Transactional outbox ensures domain events are atomically persisted.
 /// </summary>
@@ -19,13 +23,15 @@ namespace NetCommerce.Ordering.Infrastructure.Handlers;
 public static class CreateOrderHandler
 {
     /// <summary>
-    ///     Handles order creation and returns the order ID.
+    ///     Handles order creation with Triple-Pass Pricing and returns the order ID.
     ///     Wolverine auto-wraps this in a transaction via EF Core middleware.
     /// </summary>
     public static async Task<Result<Guid>> HandleAsync(
         CreateOrderCommand command,
         OrderingDbContext db,
         IPriceLookupService priceLookup,
+        IPromotionEngine promotionEngine,
+        ITaxProvider taxProvider,
         ILogger<CreateOrderCommand> logger,
         CancellationToken cancellationToken)
     {
@@ -56,6 +62,7 @@ public static class CreateOrderHandler
             command.ShippingAddress.PostalCode,
             command.ShippingAddress.PhoneNumber);
 
+        // PASS 1: Fetch RAW prices from Catalog (Source of Truth)
         var productIds = command.Items.Select(x => x.ProductId).Distinct();
         var priceMap = await priceLookup.GetPricesAsync(productIds, cancellationToken);
 
@@ -75,27 +82,74 @@ public static class CreateOrderHandler
 
         foreach (var item in command.Items)
         {
-            if (!priceMap.TryGetValue(item.ProductId, out var meta))
+            if (!priceMap.TryGetValue(item.ProductId, out var catalogMeta))
                 return Result.Failure<Guid>(Error.NotFound("Product", item.ProductId));
 
-            if (item.ExpectedPrice.HasValue && meta.Price.Amount != item.ExpectedPrice.Value)
+            var basePrice = catalogMeta.Price.Amount;
+
+            // Server-side price guard: Detect price changes between cart and checkout
+            if (item.ExpectedPrice.HasValue && basePrice != item.ExpectedPrice.Value)
             {
                 logger.LogWarning(
-                    "Price guard triggered for product {ProductId}: expected {Expected}, resolved {Resolved}",
+                    "Price guard triggered for product {ProductId}: expected {Expected}, actual {Actual}",
                     item.ProductId,
                     item.ExpectedPrice.Value,
-                    meta.Price);
+                    basePrice);
 
-                return Result.Failure<Guid>(Error.Conflict("Price has changed. Please review your cart."));
+                return Result.Failure<Guid>(Error.Conflict(
+                    $"Price for {catalogMeta.Name} has changed. Expected {item.ExpectedPrice.Value:C}, but current price is {basePrice:C}. Please review your cart."));
             }
 
+            // PASS 2: Apply Promotions & Discounts
+            var promotionResult = await promotionEngine.CalculateDiscountAsync(
+                item.ProductId,
+                basePrice,
+                item.Quantity,
+                command.CustomerId,
+                command.CouponCode,
+                cancellationToken);
+
+            var subTotal = (basePrice * item.Quantity) - promotionResult.DiscountAmount;
+
+            // PASS 3: Calculate Taxes based on Shipping Address
+            var taxResult = await taxProvider.GetTaxAsync(
+                subTotal,
+                command.ShippingAddress.Country,
+                catalogMeta.Category,
+                cancellationToken);
+
+            // Create Audit-Ready Price Breakdown (per unit)
+            var unitDiscount = promotionResult.DiscountAmount / item.Quantity;
+            var unitTax = taxResult.Amount / item.Quantity;
+            
+            var priceBreakdown = PriceBreakdown.Create(
+                basePrice,
+                unitDiscount,
+                unitTax,
+                taxResult.Rate,
+                taxResult.Type,
+                catalogMeta.Price.Currency);
+
+            // Calculate final unit price
+            var finalUnitPrice = Money.Create(priceBreakdown.FinalPrice, catalogMeta.Price.Currency);
+
+            logger.LogInformation(
+                "Pricing calculated for {Product}: Base={Base}, Discount={Discount}, Tax={Tax}, Final={Final}",
+                catalogMeta.Name,
+                priceBreakdown.BasePrice,
+                priceBreakdown.DiscountAmount,
+                priceBreakdown.TaxAmount,
+                priceBreakdown.FinalPrice);
+
+            // Add item with complete pricing breakdown
             order.AddItem(
                 item.ProductId,
-                meta.Name,
-                meta.Price,
+                catalogMeta.Name,
+                finalUnitPrice,
                 item.Quantity,
-                meta.WeightKg,
-                meta.Sku);
+                catalogMeta.WeightKg,
+                priceBreakdown,
+                catalogMeta.Sku);
         }
 
         try
@@ -104,8 +158,8 @@ public static class CreateOrderHandler
             // Wolverine's transactional middleware handles SaveChangesAsync
 
             logger.LogInformation(
-                "Order {OrderId} created for customer {CustomerId} with idempotency key {Key}",
-                order.Id, command.CustomerId, command.IdempotencyKey);
+                "Order {OrderId} created for customer {CustomerId} with total {Total}. Idempotency key: {Key}",
+                order.Id, command.CustomerId, order.TotalAmount, command.IdempotencyKey);
 
             return order.Id;
         }

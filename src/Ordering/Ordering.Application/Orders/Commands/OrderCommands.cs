@@ -19,7 +19,8 @@ public record CreateOrderCommand(
     AddressDto ShippingAddress,
     AddressDto BillingAddress,
     string PaymentMethod,
-    string IdempotencyKey) : ICommand<Guid>, IIdempotentCommand;
+    string IdempotencyKey,
+    string? CouponCode = null) : ICommand<Guid>, IIdempotentCommand;
 
 /// <summary>
 ///     Command to add an item to an existing order.

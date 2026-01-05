@@ -173,12 +173,15 @@ public class GracePeriodWorkflowTests
             ShippingAddressFaker.Generate(),
             Guid.NewGuid().ToString());
 
+        var price = Money.Create(99.99m);
+        var breakdown = PriceBreakdown.Create(price.Amount, 0, 0, 0, "None", price.Currency);
         order.AddItem(
             Guid.NewGuid(),
             "Test Product",
-            Money.Create(99.99m),
+            price,
             2,
-            3.0m);
+            3.0m,
+            breakdown);
 
         return order;
     }

@@ -67,15 +67,17 @@ public sealed class Order : AggregateRoot<Guid>
     }
 
     /// <summary>
-    ///     Adds an item with SNAPSHOTTED price, title, and weight.
-    ///     This ensures historical order data is preserved, including physical weight for accurate shipping.
+    ///     Adds an item with SNAPSHOTTED price, title, weight, and pricing breakdown.
+    ///     This ensures historical order data is preserved, including physical weight for accurate shipping
+    ///     and complete pricing breakdown for audit compliance.
     /// </summary>
     public void AddItem(
         Guid productId,
         string appliedTitle, // Snapshot: product name at order time
-        Money appliedPrice, // Snapshot: price at order time
+        Money appliedPrice, // Snapshot: final price at order time
         int quantity,
         decimal appliedWeightKg, // Snapshot: weight at order time
+        PriceBreakdown priceBreakdown, // Snapshot: pricing breakdown at order time
         string? sku = null)
     {
         if (Status != OrderStatus.Submitted)
@@ -95,7 +97,8 @@ public sealed class Order : AggregateRoot<Guid>
                 appliedPrice,
                 quantity,
                 appliedWeightKg,
-                sku);
+                sku,
+                priceBreakdown);
 
             _items.Add(item);
         }

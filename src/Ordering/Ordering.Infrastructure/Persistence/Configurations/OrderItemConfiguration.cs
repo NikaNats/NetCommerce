@@ -26,7 +26,7 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasMaxLength(500)
             .IsRequired();
 
-        // Price Snapshotting - preserve the price at order time
+        // Price Snapshotting - preserve the final price at order time (for backward compatibility)
         builder.OwnsOne(oi => oi.AppliedPrice, money =>
         {
             money.Property(m => m.Amount)
@@ -48,7 +48,56 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasColumnName("sku")
             .HasMaxLength(100);
 
-        // LineTotal is a computed property, not persisted
+        builder.Property(oi => oi.AppliedWeightKg)
+            .HasColumnName("applied_weight_kg")
+            .HasPrecision(10, 3)
+            .IsRequired();
+
+        // ============================================================================
+        // Triple-Pass Pricing Pattern - Audit-Ready Price Breakdown
+        // ============================================================================
+        // Store complete pricing breakdown for legal compliance and transparency
+        builder.OwnsOne(oi => oi.PriceBreakdown, breakdown =>
+        {
+            breakdown.Property(pb => pb.BasePrice)
+                .HasColumnName("base_price")
+                .HasPrecision(18, 2)
+                .IsRequired()
+                .HasComment("Original price from catalog at order time");
+
+            breakdown.Property(pb => pb.DiscountAmount)
+                .HasColumnName("discount_amount")
+                .HasPrecision(18, 2)
+                .IsRequired()
+                .HasComment("Total discount applied from promotions and coupons");
+
+            breakdown.Property(pb => pb.TaxAmount)
+                .HasColumnName("tax_amount")
+                .HasPrecision(18, 2)
+                .IsRequired()
+                .HasComment("Calculated tax amount based on jurisdiction");
+
+            breakdown.Property(pb => pb.TaxRate)
+                .HasColumnName("tax_rate")
+                .HasPrecision(10, 4)
+                .IsRequired()
+                .HasComment("Tax rate applied (e.g., 0.18 for 18% VAT) - crucial for legal audits");
+
+            breakdown.Property(pb => pb.TaxType)
+                .HasColumnName("tax_type")
+                .HasMaxLength(50)
+                .IsRequired()
+                .HasComment("Type of tax applied (VAT, SALES_TAX, GST, etc.)");
+
+            breakdown.Property(pb => pb.Currency)
+                .HasColumnName("breakdown_currency")
+                .HasMaxLength(3)
+                .IsRequired();
+        });
+
+        // Computed properties - not persisted
         builder.Ignore(oi => oi.LineTotal);
+        builder.Ignore(oi => oi.DiscountAmount);
+        builder.Ignore(oi => oi.TaxAmount);
     }
 }
