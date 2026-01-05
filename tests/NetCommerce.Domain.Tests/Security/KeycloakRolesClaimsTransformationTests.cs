@@ -1,10 +1,10 @@
-#nullable enable
+#region
+
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
-using NSubstitute;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Security;
 
@@ -26,13 +26,13 @@ public class KeycloakRolesClaimsTransformationTests
     public async Task TransformAsync_WithRealmRoles_FlattensToRoleClaims()
     {
         // Arrange
-        var realmAccessJson = """{"roles":["admin","customer","vendor"]}""";
+        string realmAccessJson = """{"roles":["admin","customer","vendor"]}""";
         var identity = new ClaimsIdentity("Bearer");
         identity.AddClaim(new Claim("realm_access", realmAccessJson));
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         result.IsInRole("admin").ShouldBeTrue();
@@ -45,19 +45,19 @@ public class KeycloakRolesClaimsTransformationTests
     public async Task TransformAsync_WithClientRoles_FlattensToPermissionsClaims()
     {
         // Arrange
-        var resourceAccessJson = """
-        {
-            "netcommerce-api": {
-                "roles": ["catalog:read", "catalog:write", "orders:read"]
-            }
-        }
-        """;
+        string resourceAccessJson = """
+                                    {
+                                        "netcommerce-api": {
+                                            "roles": ["catalog:read", "catalog:write", "orders:read"]
+                                        }
+                                    }
+                                    """;
         var identity = new ClaimsIdentity("Bearer");
         identity.AddClaim(new Claim("resource_access", resourceAccessJson));
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         result.HasClaim("permissions", "catalog:read").ShouldBeTrue();
@@ -70,24 +70,24 @@ public class KeycloakRolesClaimsTransformationTests
     public async Task TransformAsync_WithBothRealmAndClientRoles_FlattensAll()
     {
         // Arrange
-        var realmAccessJson = """{"roles":["admin"]}""";
-        var resourceAccessJson = """
-        {
-            "netcommerce-api": {
-                "roles": ["catalog:read"]
-            },
-            "other-service": {
-                "roles": ["service:access"]
-            }
-        }
-        """;
+        string realmAccessJson = """{"roles":["admin"]}""";
+        string resourceAccessJson = """
+                                    {
+                                        "netcommerce-api": {
+                                            "roles": ["catalog:read"]
+                                        },
+                                        "other-service": {
+                                            "roles": ["service:access"]
+                                        }
+                                    }
+                                    """;
         var identity = new ClaimsIdentity("Bearer");
         identity.AddClaim(new Claim("realm_access", realmAccessJson));
         identity.AddClaim(new Claim("resource_access", resourceAccessJson));
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         // Realm role
@@ -108,7 +108,7 @@ public class KeycloakRolesClaimsTransformationTests
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         result.Claims.Count().ShouldBe(2);
@@ -125,7 +125,7 @@ public class KeycloakRolesClaimsTransformationTests
         var principal = new ClaimsPrincipal(identity);
 
         // Act & Assert - should not throw
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
         result.ShouldNotBeNull();
     }
 
@@ -133,13 +133,13 @@ public class KeycloakRolesClaimsTransformationTests
     public async Task TransformAsync_WithEmptyRolesArray_AddsNoRoleClaims()
     {
         // Arrange
-        var realmAccessJson = """{"roles":[]}""";
+        string realmAccessJson = """{"roles":[]}""";
         var identity = new ClaimsIdentity("Bearer");
         identity.AddClaim(new Claim("realm_access", realmAccessJson));
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         result.Claims.Where(c => c.Type == ClaimTypes.Role).ShouldBeEmpty();
@@ -149,7 +149,7 @@ public class KeycloakRolesClaimsTransformationTests
     public async Task TransformAsync_PreventsDuplicateClaims()
     {
         // Arrange - role appears in both realm and client access
-        var realmAccessJson = """{"roles":["admin"]}""";
+        string realmAccessJson = """{"roles":["admin"]}""";
         var identity = new ClaimsIdentity("Bearer");
         identity.AddClaim(new Claim("realm_access", realmAccessJson));
         // Add the same role again to test deduplication
@@ -157,10 +157,10 @@ public class KeycloakRolesClaimsTransformationTests
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert - should only have one "admin" role claim
-        var adminClaims = result.Claims.Where(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        IEnumerable<Claim> adminClaims = result.Claims.Where(c => c.Type == ClaimTypes.Role && c.Value == "admin");
         adminClaims.Count().ShouldBe(1);
     }
 
@@ -171,7 +171,7 @@ public class KeycloakRolesClaimsTransformationTests
         var principal = new ClaimsPrincipal();
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         result.ShouldBeSameAs(principal);
@@ -186,13 +186,13 @@ public class KeycloakRolesClaimsTransformationTests
     public async Task TransformAsync_WithVariousRoleNames_AllAreFlattenedCorrectly(string roleName)
     {
         // Arrange
-        var realmAccessJson = $$"""{"roles":["{{roleName}}"]}""";
+        string realmAccessJson = $$"""{"roles":["{{roleName}}"]}""";
         var identity = new ClaimsIdentity("Bearer");
         identity.AddClaim(new Claim("realm_access", realmAccessJson));
         var principal = new ClaimsPrincipal(identity);
 
         // Act
-        var result = await _transformer.TransformAsync(principal);
+        ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
         result.IsInRole(roleName).ShouldBeTrue();

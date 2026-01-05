@@ -1,5 +1,8 @@
-#nullable enable
+#region
+
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -7,28 +10,28 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#endregion
+
 namespace NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 
 /// <summary>
 ///     RFC 8693 Token Exchange Delegating Handler.
-///
 ///     Purpose: When NetCommerce.Api needs to call downstream services (e.g., Inventory, Payments),
 ///     it should NOT reuse the user's original token. This creates security risks:
 ///     - Audience mismatch (token was intended for API, not downstream service)
 ///     - Leaked token replay attacks
 ///     - Violation of principle of least privilege
-///
 ///     Instead, this handler exchanges the user's token for a NEW token specifically
 ///     scoped to the target service (audience), maintaining the user's identity while
 ///     limiting the blast radius of a compromised token.
 /// </summary>
 public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
 {
-    private readonly IHttpContextAccessor _contextAccessor;
-    private readonly IHttpClientFactory _clientFactory;
-    private readonly IOptions<ZeroTrustAuthOptions> _options;
     private readonly IDistributedCache? _cache;
+    private readonly IHttpClientFactory _clientFactory;
+    private readonly IHttpContextAccessor _contextAccessor;
     private readonly ILogger<TokenExchangeDelegatingHandler> _logger;
+    private readonly IOptions<ZeroTrustAuthOptions> _options;
     private readonly string _targetAudience;
 
     /// <summary>
@@ -60,23 +63,20 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var authOptions = _options.Value;
+        ZeroTrustAuthOptions authOptions = _options.Value;
 
         // Skip exchange if disabled
-        if (!authOptions.TokenExchangeEnabled)
-        {
-            return await base.SendAsync(request, cancellationToken);
-        }
+        if (!authOptions.TokenExchangeEnabled) return await base.SendAsync(request, cancellationToken);
 
         // Get incoming user token
-        var httpContext = _contextAccessor.HttpContext;
+        HttpContext? httpContext = _contextAccessor.HttpContext;
         if (httpContext is null)
         {
             _logger.LogWarning("No HttpContext available for token exchange");
             return await base.SendAsync(request, cancellationToken);
         }
 
-        var incomingToken = await httpContext.GetTokenAsync("access_token");
+        string? incomingToken = await httpContext.GetTokenAsync("access_token");
         if (string.IsNullOrEmpty(incomingToken))
         {
             _logger.LogDebug("No access token available for exchange, proceeding without authorization");
@@ -84,22 +84,21 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
         }
 
         // Try to get cached exchanged token
-        var cacheKey = $"token_exchange:{ComputeTokenHash(incomingToken)}:{_targetAudience}";
+        string cacheKey = $"token_exchange:{ComputeTokenHash(incomingToken)}:{_targetAudience}";
         string? exchangedToken = null;
 
         if (_cache is not null)
         {
             exchangedToken = await _cache.GetStringAsync(cacheKey, cancellationToken);
             if (!string.IsNullOrEmpty(exchangedToken))
-            {
                 _logger.LogDebug("Using cached exchanged token for audience {Audience}", _targetAudience);
-            }
         }
 
         // Perform token exchange if not cached
         if (string.IsNullOrEmpty(exchangedToken))
         {
-            var exchangeResult = await ExchangeTokenAsync(incomingToken, _targetAudience, cancellationToken);
+            TokenExchangeResult exchangeResult =
+                await ExchangeTokenAsync(incomingToken, _targetAudience, cancellationToken);
 
             if (!exchangeResult.Success)
             {
@@ -118,7 +117,7 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
                 // Cache the exchanged token
                 if (_cache is not null && exchangeResult.ExpiresIn > 0)
                 {
-                    var cacheSeconds = Math.Max(exchangeResult.ExpiresIn - 30, 30);
+                    int cacheSeconds = Math.Max(exchangeResult.ExpiresIn - 30, 30);
                     var cacheOptions = new DistributedCacheEntryOptions
                     {
                         // Cache for slightly less than token lifetime
@@ -145,16 +144,14 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
         string targetAudience,
         CancellationToken cancellationToken)
     {
-        var authOptions = _options.Value;
+        ZeroTrustAuthOptions authOptions = _options.Value;
 
         if (string.IsNullOrEmpty(authOptions.TokenEndpoint))
-        {
             return TokenExchangeResult.Failed("Token endpoint not configured");
-        }
 
         try
         {
-            var client = _clientFactory.CreateClient("KeycloakTokenExchange");
+            HttpClient client = _clientFactory.CreateClient("KeycloakTokenExchange");
 
             var request = new HttpRequestMessage(HttpMethod.Post, authOptions.TokenEndpoint);
 
@@ -172,25 +169,23 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
 
             request.Content = new FormUrlEncodedContent(data);
 
-            var response = await client.SendAsync(request, cancellationToken);
+            HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
-                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                string errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 return TokenExchangeResult.Failed($"HTTP {response.StatusCode}: {errorContent}");
             }
 
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            string content = await response.Content.ReadAsStringAsync(cancellationToken);
             using var jsonDoc = JsonDocument.Parse(content);
-            var json = jsonDoc.RootElement;
+            JsonElement json = jsonDoc.RootElement;
 
-            if (!json.TryGetProperty("access_token", out var accessTokenElement))
-            {
+            if (!json.TryGetProperty("access_token", out JsonElement accessTokenElement))
                 return TokenExchangeResult.Failed("Response missing access_token");
-            }
 
-            var accessToken = accessTokenElement.GetString()!;
-            var expiresIn = json.TryGetProperty("expires_in", out var expiresInElement)
+            string accessToken = accessTokenElement.GetString()!;
+            int expiresIn = json.TryGetProperty("expires_in", out JsonElement expiresInElement)
                 ? expiresInElement.GetInt32()
                 : 300; // Default 5 minutes
 
@@ -205,7 +200,7 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
 
     private static string ComputeTokenHash(string token)
     {
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         return Convert.ToBase64String(hash)[..16];
     }
 
@@ -216,10 +211,14 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
         string? Error)
     {
         public static TokenExchangeResult Succeeded(string accessToken, int expiresIn)
-            => new(true, accessToken, expiresIn, null);
+        {
+            return new TokenExchangeResult(true, accessToken, expiresIn, null);
+        }
 
         public static TokenExchangeResult Failed(string error)
-            => new(false, null, 0, error);
+        {
+            return new TokenExchangeResult(false, null, 0, error);
+        }
     }
 }
 
@@ -228,11 +227,11 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
 /// </summary>
 public sealed class TokenExchangeHandlerFactory
 {
-    private readonly IHttpContextAccessor _contextAccessor;
-    private readonly IHttpClientFactory _clientFactory;
-    private readonly IOptions<ZeroTrustAuthOptions> _options;
     private readonly IDistributedCache? _cache;
+    private readonly IHttpClientFactory _clientFactory;
+    private readonly IHttpContextAccessor _contextAccessor;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IOptions<ZeroTrustAuthOptions> _options;
 
     public TokenExchangeHandlerFactory(
         IHttpContextAccessor contextAccessor,

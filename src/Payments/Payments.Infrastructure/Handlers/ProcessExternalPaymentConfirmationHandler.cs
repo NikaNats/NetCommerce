@@ -1,37 +1,37 @@
+#region
+
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.SharedKernel.Events;
 using Wolverine.Attributes;
 
+#endregion
+
 namespace NetCommerce.Payments.Infrastructure.Handlers;
 
 /// <summary>
-/// Handler for external payment confirmations from payment provider webhooks.
-///
-/// WEBHOOK-FIRST PATTERN (2025 Gold Standard)
-/// - ProcessPaymentAsync returns "Pending" (not "Succeeded")
-/// - Webhook calls this handler with actual payment status
-/// - Handler is idempotent (safe to process duplicate webhooks)
-/// - Uses [Transactional] for exactly-once processing
-///
-/// Prevents "Ghost Charge" vulnerability where customer is charged but order is lost.
+///     Handler for external payment confirmations from payment provider webhooks.
+///     WEBHOOK-FIRST PATTERN (2025 Gold Standard)
+///     - ProcessPaymentAsync returns "Pending" (not "Succeeded")
+///     - Webhook calls this handler with actual payment status
+///     - Handler is idempotent (safe to process duplicate webhooks)
+///     - Uses [Transactional] for exactly-once processing
+///     Prevents "Ghost Charge" vulnerability where customer is charged but order is lost.
 /// </summary>
 [WolverineHandler]
 public static class ProcessExternalPaymentConfirmationHandler
 {
     /// <summary>
-    /// Process payment confirmation from external provider webhook.
-    ///
-    /// Idempotency Strategy:
-    /// - If payment already Completed, ignore (duplicate webhook)
-    /// - If payment not found, log warning (webhook for old deployment)
-    /// - Uses ExternalTransactionId as natural idempotency key
-    ///
-    /// Flow:
-    /// 1. Find PaymentTransaction by ExternalTransactionId
-    /// 2. Check if already completed (idempotency)
-    /// 3. Update status based on webhook event
-    /// 4. PaymentCompletedDomainEvent triggers saga continuation
+    ///     Process payment confirmation from external provider webhook.
+    ///     Idempotency Strategy:
+    ///     - If payment already Completed, ignore (duplicate webhook)
+    ///     - If payment not found, log warning (webhook for old deployment)
+    ///     - Uses ExternalTransactionId as natural idempotency key
+    ///     Flow:
+    ///     1. Find PaymentTransaction by ExternalTransactionId
+    ///     2. Check if already completed (idempotency)
+    ///     3. Update status based on webhook event
+    ///     4. PaymentCompletedDomainEvent triggers saga continuation
     /// </summary>
     [Transactional] // Wolverine ensures exactly-once processing
     public static async Task Handle(
@@ -47,7 +47,8 @@ public static class ProcessExternalPaymentConfirmationHandler
             command.WebhookEventId);
 
         // Find payment by ExternalTransactionId
-        var payment = await repository.GetByExternalIdAsync(command.ExternalTransactionId, cancellationToken);
+        PaymentTransaction? payment =
+            await repository.GetByExternalIdAsync(command.ExternalTransactionId, cancellationToken);
 
         if (payment == null)
         {

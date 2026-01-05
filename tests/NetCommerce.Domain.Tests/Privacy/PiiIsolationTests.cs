@@ -1,10 +1,11 @@
-#nullable enable
+#region
 
+using System.Text;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Security;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Privacy;
 
@@ -17,8 +18,8 @@ public class EncryptionPrimitivesTests
     public void BlindIndex_Compute_ShouldProduceDeterministicHash()
     {
         // Arrange
-        var plaintext = "555-1234";
-        var salt = System.Text.Encoding.UTF8.GetBytes("test-salt-12345678901234567890");
+        string plaintext = "555-1234";
+        byte[] salt = Encoding.UTF8.GetBytes("test-salt-12345678901234567890");
 
         // Act
         var index1 = BlindIndex.Compute(plaintext, salt);
@@ -34,9 +35,9 @@ public class EncryptionPrimitivesTests
     public void BlindIndex_Compute_DifferentSalt_ShouldProduceDifferentHash()
     {
         // Arrange
-        var plaintext = "555-1234";
-        var salt1 = System.Text.Encoding.UTF8.GetBytes("salt1-12345678901234567890");
-        var salt2 = System.Text.Encoding.UTF8.GetBytes("salt2-12345678901234567890");
+        string plaintext = "555-1234";
+        byte[] salt1 = Encoding.UTF8.GetBytes("salt1-12345678901234567890");
+        byte[] salt2 = Encoding.UTF8.GetBytes("salt2-12345678901234567890");
 
         // Act
         var index1 = BlindIndex.Compute(plaintext, salt1);
@@ -50,13 +51,13 @@ public class EncryptionPrimitivesTests
     public void EncryptedData_ToStorageFormat_ShouldSerializeCorrectly()
     {
         // Arrange
-        var ciphertext = new byte[] { 1, 2, 3, 4, 5 };
-        var keyId = "test-key-v1";
-        var iv = new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
+        byte[] ciphertext = new byte[] { 1, 2, 3, 4, 5 };
+        string keyId = "test-key-v1";
+        byte[] iv = new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
         var encryptedData = EncryptedData.Create(ciphertext, keyId, iv);
 
         // Act
-        var storageFormat = encryptedData.ToStorageFormat();
+        string storageFormat = encryptedData.ToStorageFormat();
 
         // Assert
         storageFormat.ShouldContain(keyId);
@@ -68,11 +69,11 @@ public class EncryptionPrimitivesTests
     public void EncryptedData_FromStorageFormat_ShouldDeserializeCorrectly()
     {
         // Arrange
-        var ciphertext = new byte[] { 1, 2, 3, 4, 5 };
-        var keyId = "test-key-v1";
-        var iv = new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
+        byte[] ciphertext = new byte[] { 1, 2, 3, 4, 5 };
+        string keyId = "test-key-v1";
+        byte[] iv = new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
         var original = EncryptedData.Create(ciphertext, keyId, iv);
-        var storageFormat = original.ToStorageFormat();
+        string storageFormat = original.ToStorageFormat();
 
         // Act
         var deserialized = EncryptedData.FromStorageFormat(storageFormat);
@@ -87,10 +88,10 @@ public class EncryptionPrimitivesTests
     public void EncryptedData_CreateWithEnvelope_ShouldIncludeDek()
     {
         // Arrange
-        var ciphertext = new byte[] { 1, 2, 3 };
-        var keyId = "kek-v1";
-        var iv = new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
-        var encryptedDek = new byte[] { 100, 101, 102 };
+        byte[] ciphertext = new byte[] { 1, 2, 3 };
+        string keyId = "kek-v1";
+        byte[] iv = new byte[] { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 };
+        byte[] encryptedDek = new byte[] { 100, 101, 102 };
 
         // Act
         var encrypted = EncryptedData.CreateWithEnvelope(ciphertext, keyId, iv, encryptedDek);
@@ -119,11 +120,11 @@ public class EncryptionServiceTests
     public async Task EncryptAsync_Decrypt_ShouldRoundTripCorrectly()
     {
         // Arrange
-        var plaintext = "Sensitive customer data";
+        string plaintext = "Sensitive customer data";
 
         // Act
-        var encrypted = await _encryptionService.EncryptAsync(plaintext);
-        var decrypted = await _encryptionService.DecryptAsync(encrypted);
+        EncryptedData encrypted = await _encryptionService.EncryptAsync(plaintext);
+        string decrypted = await _encryptionService.DecryptAsync(encrypted);
 
         // Assert
         decrypted.ShouldBe(plaintext);
@@ -135,11 +136,11 @@ public class EncryptionServiceTests
     public async Task EncryptAsync_Deterministic_ShouldProduceSameCiphertext()
     {
         // Arrange
-        var plaintext = "555-1234";
+        string plaintext = "555-1234";
 
         // Act
-        var encrypted1 = await _encryptionService.EncryptAsync(plaintext, isDeterministic: true);
-        var encrypted2 = await _encryptionService.EncryptAsync(plaintext, isDeterministic: true);
+        EncryptedData encrypted1 = await _encryptionService.EncryptAsync(plaintext, true);
+        EncryptedData encrypted2 = await _encryptionService.EncryptAsync(plaintext, true);
 
         // Assert
         encrypted1.Ciphertext.ShouldBe(encrypted2.Ciphertext); // Same input → same output
@@ -150,11 +151,11 @@ public class EncryptionServiceTests
     public async Task EncryptAsync_Probabilistic_ShouldProduceDifferentCiphertext()
     {
         // Arrange
-        var plaintext = "Order notes: Customer requested gift wrapping";
+        string plaintext = "Order notes: Customer requested gift wrapping";
 
         // Act
-        var encrypted1 = await _encryptionService.EncryptAsync(plaintext, isDeterministic: false);
-        var encrypted2 = await _encryptionService.EncryptAsync(plaintext, isDeterministic: false);
+        EncryptedData encrypted1 = await _encryptionService.EncryptAsync(plaintext);
+        EncryptedData encrypted2 = await _encryptionService.EncryptAsync(plaintext);
 
         // Assert
         encrypted1.Ciphertext.ShouldNotBe(encrypted2.Ciphertext); // Different ciphertext each time
@@ -165,11 +166,11 @@ public class EncryptionServiceTests
     public async Task ComputeBlindIndexAsync_ShouldBeDeterministic()
     {
         // Arrange
-        var plaintext = "alice@example.com";
+        string plaintext = "alice@example.com";
 
         // Act
-        var index1 = await _encryptionService.ComputeBlindIndexAsync(plaintext);
-        var index2 = await _encryptionService.ComputeBlindIndexAsync(plaintext);
+        BlindIndex index1 = await _encryptionService.ComputeBlindIndexAsync(plaintext);
+        BlindIndex index2 = await _encryptionService.ComputeBlindIndexAsync(plaintext);
 
         // Assert
         index1.Value.ShouldBe(index2.Value); // Deterministic for search
@@ -179,18 +180,18 @@ public class EncryptionServiceTests
     public async Task CreateSecureValueAsync_ShouldIncludeEncryptedAndBlindIndex()
     {
         // Arrange
-        var plaintext = "555-1234";
+        string plaintext = "555-1234";
 
         // Act
-        var secureValue = await _encryptionService.CreateSecureValueAsync(
+        SecureValue secureValue = await _encryptionService.CreateSecureValueAsync(
             plaintext,
-            isDeterministic: true);
+            true);
 
         // Assert
         secureValue.Encrypted.ShouldNotBeNull();
         secureValue.SearchIndex.ShouldNotBeNull();
 
-        var decrypted = await _encryptionService.DecryptAsync(secureValue.Encrypted);
+        string decrypted = await _encryptionService.DecryptAsync(secureValue.Encrypted);
         decrypted.ShouldBe(plaintext);
     }
 
@@ -198,12 +199,12 @@ public class EncryptionServiceTests
     public async Task ReEncryptAsync_ShouldPreservePlaintext()
     {
         // Arrange
-        var plaintext = "Original sensitive data";
-        var encrypted = await _encryptionService.EncryptAsync(plaintext);
+        string plaintext = "Original sensitive data";
+        EncryptedData encrypted = await _encryptionService.EncryptAsync(plaintext);
 
         // Act
-        var reEncrypted = await _encryptionService.ReEncryptAsync(encrypted);
-        var decrypted = await _encryptionService.DecryptAsync(reEncrypted);
+        EncryptedData reEncrypted = await _encryptionService.ReEncryptAsync(encrypted);
+        string decrypted = await _encryptionService.DecryptAsync(reEncrypted);
 
         // Assert
         decrypted.ShouldBe(plaintext);
@@ -237,7 +238,7 @@ public class PiiVaultEntryTests
     {
         // Arrange
         var profileId = Guid.NewGuid();
-        var userId = "user123";
+        string userId = "user123";
 
         // Act
         var entry = PiiVaultEntry.Create(
@@ -314,8 +315,8 @@ public class PiiVaultEntryTests
             "encrypted-address");
         entry.MarkAsDeleted();
 
-        var originalName = entry.EncryptedFullName;
-        var originalEmail = entry.EncryptedEmail;
+        string originalName = entry.EncryptedFullName;
+        string originalEmail = entry.EncryptedEmail;
 
         // Act
         entry.PurgeData();
@@ -358,8 +359,8 @@ public class PiiVaultEntryTests
             "phone-index",
             "encrypted-address");
 
-        var originalAccess = entry.LastAccessedAt;
-        System.Threading.Thread.Sleep(100); // Ensure time difference
+        DateTime originalAccess = entry.LastAccessedAt;
+        Thread.Sleep(100); // Ensure time difference
 
         // Act
         entry.RecordAccess();
@@ -420,7 +421,7 @@ public class PiiVaultEntryTests
             "new-encrypted-address",
             null,
             null,
-            newKeyVersion: 2);
+            2);
 
         // Assert
         entry.KeyVersion.ShouldBe(2);

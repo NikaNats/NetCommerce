@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace NetCommerce.Ordering.Application.Orders.Services;
 
 /// <summary>

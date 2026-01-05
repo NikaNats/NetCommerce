@@ -1,29 +1,32 @@
+#region
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.SharedKernel.Events;
+using NetCommerce.SharedKernel.Results;
 using Wolverine;
+
+#endregion
 
 namespace NetCommerce.Payments.Infrastructure.BackgroundJobs;
 
 /// <summary>
-/// Background job that reconciles pending payments with payment provider status.
-///
-/// WEBHOOK-FIRST PATTERN - SAFETY NET
-/// - Webhooks can fail or be delayed
-/// - This job polls payment provider API for payments stuck in Pending >10 minutes
-/// - If provider shows "succeeded" but webhook never arrived, triggers manual confirmation
-///
-/// Prevents permanent "stuck" orders when webhooks are lost.
+///     Background job that reconciles pending payments with payment provider status.
+///     WEBHOOK-FIRST PATTERN - SAFETY NET
+///     - Webhooks can fail or be delayed
+///     - This job polls payment provider API for payments stuck in Pending >10 minutes
+///     - If provider shows "succeeded" but webhook never arrived, triggers manual confirmation
+///     Prevents permanent "stuck" orders when webhooks are lost.
 /// </summary>
 public class PaymentReconciliationJob : BackgroundService
 {
-    private readonly IServiceProvider _services;
-    private readonly ILogger<PaymentReconciliationJob> _logger;
     private readonly TimeSpan _interval = TimeSpan.FromMinutes(5); // Run every 5 minutes
+    private readonly ILogger<PaymentReconciliationJob> _logger;
     private readonly TimeSpan _pendingThreshold = TimeSpan.FromMinutes(10); // Check payments >10 minutes old
+    private readonly IServiceProvider _services;
 
     public PaymentReconciliationJob(
         IServiceProvider services,
@@ -35,7 +38,8 @@ public class PaymentReconciliationJob : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Payment Reconciliation Job started. Running every {Interval} minutes.", _interval.TotalMinutes);
+        _logger.LogInformation("Payment Reconciliation Job started. Running every {Interval} minutes.",
+            _interval.TotalMinutes);
 
         // Wait 30 seconds before first run (give app time to start)
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
@@ -59,17 +63,19 @@ public class PaymentReconciliationJob : BackgroundService
 
     private async Task ReconcilePendingPaymentsAsync(CancellationToken cancellationToken)
     {
-        using var scope = _services.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IPaymentTransactionRepository>();
-        var gateway = scope.ServiceProvider.GetRequiredService<IPaymentGateway>();
-        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        using IServiceScope scope = _services.CreateScope();
+        IPaymentTransactionRepository repository =
+            scope.ServiceProvider.GetRequiredService<IPaymentTransactionRepository>();
+        IPaymentGateway gateway = scope.ServiceProvider.GetRequiredService<IPaymentGateway>();
+        IMessageBus bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
 
-        var olderThan = DateTime.UtcNow - _pendingThreshold;
+        DateTime olderThan = DateTime.UtcNow - _pendingThreshold;
 
         try
         {
             // Find payments stuck in Pending for >10 minutes
-            var stuckPayments = await repository.GetPendingPaymentsAsync(olderThan, cancellationToken);
+            IReadOnlyList<PaymentTransaction>? stuckPayments =
+                await repository.GetPendingPaymentsAsync(olderThan, cancellationToken);
 
             if (stuckPayments.Count == 0)
             {
@@ -82,7 +88,7 @@ public class PaymentReconciliationJob : BackgroundService
                 stuckPayments.Count,
                 _pendingThreshold.TotalMinutes);
 
-            foreach (var payment in stuckPayments)
+            foreach (PaymentTransaction payment in stuckPayments)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
@@ -116,7 +122,7 @@ public class PaymentReconciliationJob : BackgroundService
             }
 
             // Query payment provider API for current status
-            var statusResult = await gateway.GetPaymentStatusAsync(
+            Result<PaymentResult> statusResult = await gateway.GetPaymentStatusAsync(
                 payment.ExternalTransactionId,
                 cancellationToken);
 
@@ -131,7 +137,7 @@ public class PaymentReconciliationJob : BackgroundService
                 return;
             }
 
-            var currentStatus = statusResult.Value.Status;
+            PaymentResultStatus currentStatus = statusResult.Value.Status;
 
             // If succeeded but webhook never arrived, trigger manual confirmation
             if (currentStatus == PaymentResultStatus.Succeeded)
@@ -145,9 +151,9 @@ public class PaymentReconciliationJob : BackgroundService
                     (DateTime.UtcNow - payment.CreatedAt).TotalMinutes);
 
                 await bus.InvokeAsync(new ProcessExternalPaymentConfirmation(
-                    ExternalTransactionId: payment.ExternalTransactionId,
-                    Status: "Succeeded",
-                    WebhookEventId: $"reconciliation_{DateTime.UtcNow.Ticks}"
+                    payment.ExternalTransactionId,
+                    "Succeeded",
+                    $"reconciliation_{DateTime.UtcNow.Ticks}"
                 ), cancellationToken);
             }
             // If failed, trigger failure confirmation
@@ -161,9 +167,9 @@ public class PaymentReconciliationJob : BackgroundService
                     payment.ExternalTransactionId);
 
                 await bus.InvokeAsync(new ProcessExternalPaymentConfirmation(
-                    ExternalTransactionId: payment.ExternalTransactionId,
-                    Status: "Failed",
-                    WebhookEventId: $"reconciliation_{DateTime.UtcNow.Ticks}"
+                    payment.ExternalTransactionId,
+                    "Failed",
+                    $"reconciliation_{DateTime.UtcNow.Ticks}"
                 ), cancellationToken);
             }
             // If still pending, log but don't act (wait longer)

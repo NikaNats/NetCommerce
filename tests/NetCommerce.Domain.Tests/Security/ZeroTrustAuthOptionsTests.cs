@@ -1,7 +1,8 @@
-#nullable enable
+#region
+
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Security;
 
@@ -15,11 +16,7 @@ public class ZeroTrustAuthOptionsTests
     public void RealmUrl_WithValidAuthorityAndRealm_ConstructsCorrectUrl()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "https://keycloak.example.com",
-            Realm = "netcommerce"
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "https://keycloak.example.com", Realm = "netcommerce" };
 
         // Act & Assert
         options.RealmUrl.ShouldBe("https://keycloak.example.com/realms/netcommerce");
@@ -29,11 +26,7 @@ public class ZeroTrustAuthOptionsTests
     public void RealmUrl_WithTrailingSlash_HandlesCorrectly()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "https://keycloak.example.com/",
-            Realm = "netcommerce"
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "https://keycloak.example.com/", Realm = "netcommerce" };
 
         // Act & Assert
         options.RealmUrl.ShouldBe("https://keycloak.example.com/realms/netcommerce");
@@ -43,11 +36,7 @@ public class ZeroTrustAuthOptionsTests
     public void RealmUrl_WithEmptyAuthority_ReturnsEmptyString()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "",
-            Realm = "netcommerce"
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "", Realm = "netcommerce" };
 
         // Act & Assert
         options.RealmUrl.ShouldBeEmpty();
@@ -57,11 +46,7 @@ public class ZeroTrustAuthOptionsTests
     public void RealmUrl_WithEmptyRealm_ReturnsEmptyString()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "https://keycloak.example.com",
-            Realm = ""
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "https://keycloak.example.com", Realm = "" };
 
         // Act & Assert
         options.RealmUrl.ShouldBeEmpty();
@@ -71,11 +56,7 @@ public class ZeroTrustAuthOptionsTests
     public void TokenEndpoint_WithValidRealmUrl_ConstructsCorrectUrl()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "https://keycloak.example.com",
-            Realm = "netcommerce"
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "https://keycloak.example.com", Realm = "netcommerce" };
 
         // Act & Assert
         options.TokenEndpoint.ShouldBe(
@@ -86,11 +67,7 @@ public class ZeroTrustAuthOptionsTests
     public void IntrospectionEndpoint_WithValidRealmUrl_ConstructsCorrectUrl()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "https://keycloak.example.com",
-            Realm = "netcommerce"
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "https://keycloak.example.com", Realm = "netcommerce" };
 
         // Act & Assert
         options.IntrospectionEndpoint.ShouldBe(
@@ -101,11 +78,7 @@ public class ZeroTrustAuthOptionsTests
     public void TokenEndpoint_WithEmptyRealmUrl_ReturnsEmptyString()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "",
-            Realm = ""
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "", Realm = "" };
 
         // Act & Assert
         options.TokenEndpoint.ShouldBeEmpty();
@@ -115,11 +88,7 @@ public class ZeroTrustAuthOptionsTests
     public void IntrospectionEndpoint_WithEmptyRealmUrl_ReturnsEmptyString()
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = "",
-            Realm = ""
-        };
+        var options = new ZeroTrustAuthOptions { Authority = "", Realm = "" };
 
         // Act & Assert
         options.IntrospectionEndpoint.ShouldBeEmpty();
@@ -149,11 +118,7 @@ public class ZeroTrustAuthOptionsTests
         string authority, string realm, string expected)
     {
         // Arrange
-        var options = new ZeroTrustAuthOptions
-        {
-            Authority = authority,
-            Realm = realm
-        };
+        var options = new ZeroTrustAuthOptions { Authority = authority, Realm = realm };
 
         // Act & Assert
         options.RealmUrl.ShouldBe(expected);

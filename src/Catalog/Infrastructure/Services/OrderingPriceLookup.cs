@@ -1,12 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+#region
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Ordering.Domain.Orders;
+
+#endregion
 
 namespace NetCommerce.Catalog.Infrastructure.Services;
 
@@ -23,12 +22,12 @@ public sealed class OrderingPriceLookup : IPriceLookupService
         IEnumerable<Guid> productIds,
         CancellationToken cancellationToken = default)
     {
-        var requestedIds = productIds as Guid[] ?? productIds?.ToArray() ?? Array.Empty<Guid>();
+        Guid[] requestedIds = productIds as Guid[] ?? productIds?.ToArray() ?? Array.Empty<Guid>();
 
         if (requestedIds.Length == 0)
             return new Dictionary<Guid, PriceSnapshot>();
 
-        var db = _serviceProvider.GetRequiredService<CatalogDbContext>();
+        CatalogDbContext db = _serviceProvider.GetRequiredService<CatalogDbContext>();
 
         return await db.Products
             .AsNoTracking()

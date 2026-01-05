@@ -1,15 +1,11 @@
-#nullable enable
-
 namespace NetCommerce.SharedKernel.Application;
 
 /// <summary>
 ///     2025 Elite Pattern: User context service for extracting claims from JWT tokens.
-///     
 ///     In production, this is typically populated by:
 ///     - ASP.NET Core JWT middleware (from HttpContext.User)
 ///     - API Gateway forwarded headers (X-User-Id, X-User-Role)
 ///     - Service-to-service authentication (client credentials flow)
-///     
 ///     For audit logging, we need to capture WHO performed the action.
 /// </summary>
 public interface IUserContext

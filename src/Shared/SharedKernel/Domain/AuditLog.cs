@@ -1,12 +1,9 @@
-#nullable enable
-
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>
 ///     2025 Elite Pattern: Immutable Business Event Store for Legal Compliance.
 ///     This is NOT a technical log (that's Seq/OpenTelemetry).
 ///     This is a LEGAL RECORD that must persist for years and be tamper-proof.
-///     
 ///     Key Principles:
 ///     - Store INTENT, not just data changes ("Order.Cancelled by Admin: Fraud suspect")
 ///     - Correlation with technical logs via CorrelationId

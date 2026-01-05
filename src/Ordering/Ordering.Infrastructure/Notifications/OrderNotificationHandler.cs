@@ -1,17 +1,17 @@
-#nullable enable
+#region
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Application.Notifications;
 using NetCommerce.SharedKernel.Events;
-using Wolverine;
 using Wolverine.Attributes;
+
+#endregion
 
 namespace NetCommerce.Ordering.Infrastructure.Notifications;
 
 /// <summary>
 ///     Handles order notification events using the "Event-Driven Notification Sidecar" pattern.
 ///     Follows 2025 best practices: Async, Decoupled, Resilient.
-///
 ///     Key Benefits:
 ///     - Transactional Integrity: Email only sent if order successfully saved (Wolverine Outbox)
 ///     - Performance: 2-second email send doesn't block user checkout
@@ -22,8 +22,8 @@ namespace NetCommerce.Ordering.Infrastructure.Notifications;
 public class OrderNotificationHandler
 {
     private readonly IEmailProvider _emailProvider;
-    private readonly ITemplateEngine _templates;
     private readonly ILogger<OrderNotificationHandler> _logger;
+    private readonly ITemplateEngine _templates;
 
     public OrderNotificationHandler(
         IEmailProvider emailProvider,
@@ -49,14 +49,15 @@ public class OrderNotificationHandler
         try
         {
             // 1. Render the HTML Template
-            var htmlBody = await _templates.RenderAsync("OrderConfirmation", new
-            {
-                CustomerName = @event.CustomerName,
-                OrderId = @event.OrderId,
-                OrderNumber = @event.OrderNumber,
-                TotalAmount = @event.TotalAmount.Amount,
-                Currency = @event.TotalAmount.Currency
-            }, cancellationToken);
+            string htmlBody = await _templates.RenderAsync("OrderConfirmation",
+                new
+                {
+                    @event.CustomerName,
+                    @event.OrderId,
+                    @event.OrderNumber,
+                    TotalAmount = @event.TotalAmount.Amount,
+                    @event.TotalAmount.Currency
+                }, cancellationToken);
 
             // 2. Send via external provider (with resilience handled by HTTP client)
             await _emailProvider.SendEmailAsync(

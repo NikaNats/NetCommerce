@@ -1,27 +1,26 @@
-#nullable enable
+#region
 
 using System.Text.Json;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using Wolverine;
 
+#endregion
+
 namespace NetCommerce.SharedKernel.Infrastructure.Messaging;
 
 /// <summary>
 ///     2025 Elite Pattern: Wolverine Middleware for Automatic Audit Logging.
-///     
 ///     How it works:
 ///     1. Wolverine detects any command implementing IAuditableCommand
 ///     2. BEFORE the handler executes, this middleware captures the audit entry
 ///     3. The audit entry is stored in the immutable ledger
 ///     4. The original command proceeds to its handler
-///     
 ///     Why middleware instead of manual logging?
 ///     - Zero coupling: Business logic never calls audit code
 ///     - Guaranteed execution: Cannot be forgotten by developers
 ///     - Centralized policy: Change audit format in one place
 ///     - Cross-cutting concern: Separated from domain logic
-///     
 ///     Security Note:
 ///     This runs BEFORE the command handler, so even if the handler fails or is denied,
 ///     the audit entry shows that someone ATTEMPTED the action.
@@ -30,7 +29,6 @@ public static class AuditMiddleware
 {
     /// <summary>
     ///     Wolverine "Before" middleware: Runs automatically before any IAuditableCommand handler.
-    ///     
     ///     Method signature is special:
     ///     - Wolverine detects the "Before" name
     ///     - Parameters are injected from DI container
@@ -45,31 +43,28 @@ public static class AuditMiddleware
         try
         {
             // Extract the action name from the command type
-            var actionName = command.GetType().Name
+            string actionName = command.GetType().Name
                 .Replace("Command", string.Empty)
                 .Replace("Query", string.Empty);
 
             // Serialize the command payload for the Context field
             // This captures the complete business intent (e.g., "Reason: Fraud suspect")
             // We serialize the actual command type, not the interface, to capture all properties
-            var commandType = command.GetType();
-            var contextJson = JsonSerializer.Serialize(command, commandType, new JsonSerializerOptions
-            {
-                WriteIndented = false,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
+            Type commandType = command.GetType();
+            string contextJson = JsonSerializer.Serialize(command, commandType,
+                new JsonSerializerOptions { WriteIndented = false, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
             // Create the immutable audit entry
             var auditEntry = AuditEntry.Create(
-                userId: userContext.UserId,
-                userRole: userContext.Role,
-                action: $"{command.Module}.{actionName}",
-                resourceId: command.GetResourceId(),
-                module: command.Module,
-                context: contextJson,
-                correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString(),
-                ipAddress: userContext.IpAddress,
-                userAgent: userContext.UserAgent
+                userContext.UserId,
+                userContext.Role,
+                $"{command.Module}.{actionName}",
+                command.GetResourceId(),
+                command.Module,
+                contextJson,
+                envelope.CorrelationId ?? Guid.NewGuid().ToString(),
+                userContext.IpAddress,
+                userContext.UserAgent
             );
 
             // Store in the append-only ledger
@@ -105,7 +100,7 @@ public static class AuditMiddleware
         // You can optionally log a "Success" audit entry here
         // This creates a two-phase audit: "Attempted" (Before) + "Completed" (After)
         // Useful for tracking failed vs successful operations separately
-        
+
         // For now, we only audit the INTENT (Before), not the outcome
         await Task.CompletedTask;
     }

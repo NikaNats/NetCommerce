@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace NetCommerce.Ordering.Domain.Orders;
 
 /// <summary>

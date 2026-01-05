@@ -1,10 +1,12 @@
-#nullable enable
+#region
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -19,7 +21,8 @@ using Shouldly;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
 using WireMock.Server;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Integration.Tests.Api;
 
@@ -29,11 +32,11 @@ namespace NetCommerce.Integration.Tests.Api;
 /// </summary>
 public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
 {
-    private WireMockServer _keycloakMock = null!;
-    private IHost _host = null!;
     private HttpClient _client = null!;
-    private RSA _rsa = null!;
+    private IHost _host = null!;
+    private WireMockServer _keycloakMock = null!;
     private string _publicKeyJwk = null!;
+    private RSA _rsa = null!;
 
     public async Task InitializeAsync()
     {
@@ -66,11 +69,11 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     public async Task AuthenticatedRequest_WithValidToken_Returns200()
     {
         // Arrange
-        var token = CreateValidJwtToken(roles: ["customer"]);
+        string token = CreateValidJwtToken(["customer"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await _client.GetAsync("/api/test/protected");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/protected");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -83,7 +86,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
         _client.DefaultRequestHeaders.Authorization = null;
 
         // Act
-        var response = await _client.GetAsync("/api/test/protected");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/protected");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -93,15 +96,15 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     public async Task AuthenticatedRequest_WithExpiredToken_Returns401()
     {
         // Arrange
-        var token = CreateExpiredJwtToken();
+        string token = CreateExpiredJwtToken();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await _client.GetAsync("/api/test/protected");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/protected");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
-        response.Headers.TryGetValues("Token-Expired", out var values).ShouldBeTrue();
+        response.Headers.TryGetValues("Token-Expired", out IEnumerable<string>? values).ShouldBeTrue();
         values!.First().ShouldBe("true");
     }
 
@@ -109,11 +112,11 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     public async Task AuthenticatedRequest_WithInvalidAudience_Returns401()
     {
         // Arrange
-        var token = CreateJwtTokenWithWrongAudience();
+        string token = CreateJwtTokenWithWrongAudience();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await _client.GetAsync("/api/test/protected");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/protected");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -123,11 +126,11 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     public async Task AdminEndpoint_WithAdminRole_Returns200()
     {
         // Arrange
-        var token = CreateValidJwtToken(roles: ["admin"]);
+        string token = CreateValidJwtToken(["admin"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await _client.GetAsync("/api/test/admin");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/admin");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -137,11 +140,11 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     public async Task AdminEndpoint_WithCustomerRole_Returns403()
     {
         // Arrange
-        var token = CreateValidJwtToken(roles: ["customer"]);
+        string token = CreateValidJwtToken(["customer"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await _client.GetAsync("/api/test/admin");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/admin");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -151,19 +154,17 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     public async Task RolesClaimsTransformation_FlattensKeycloakRoles()
     {
         // Arrange
-        var token = CreateValidJwtToken(roles: ["admin", "vendor"], clientRoles: ["catalog:read", "catalog:write"]);
+        string token = CreateValidJwtToken(["admin", "vendor"], ["catalog:read", "catalog:write"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await _client.GetAsync("/api/test/roles");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/roles");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        var content = await response.Content.ReadAsStringAsync();
-        var roles = JsonSerializer.Deserialize<RolesResponse>(content, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        string content = await response.Content.ReadAsStringAsync();
+        RolesResponse? roles = JsonSerializer.Deserialize<RolesResponse>(content,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         roles.ShouldNotBeNull();
         roles.Roles.ShouldContain("admin");
@@ -178,17 +179,17 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
         // Arrange - Enable introspection for this test
         await _host.StopAsync();
         _host.Dispose();
-        _host = await CreateTestHost(introspectionEnabled: true);
+        _host = await CreateTestHost(true);
         _client = _host.GetTestClient();
 
-        var token = CreateValidJwtToken(roles: ["customer"]);
+        string token = CreateValidJwtToken(["customer"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Setup introspection to return inactive
         _keycloakMock.Given(
-            Request.Create()
-                .WithPath("/realms/test/protocol/openid-connect/token/introspect")
-                .UsingPost())
+                Request.Create()
+                    .WithPath("/realms/test/protocol/openid-connect/token/introspect")
+                    .UsingPost())
             .RespondWith(
                 Response.Create()
                     .WithStatusCode(200)
@@ -196,7 +197,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                     .WithHeader("Content-Type", "application/json"));
 
         // Act
-        var response = await _client.GetAsync("/api/test/protected");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/protected");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
@@ -208,17 +209,17 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
         // Arrange - Enable introspection for this test
         await _host.StopAsync();
         _host.Dispose();
-        _host = await CreateTestHost(introspectionEnabled: true);
+        _host = await CreateTestHost(true);
         _client = _host.GetTestClient();
 
-        var token = CreateValidJwtToken(roles: ["customer"]);
+        string token = CreateValidJwtToken(["customer"]);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         // Setup introspection to return active
         _keycloakMock.Given(
-            Request.Create()
-                .WithPath("/realms/test/protocol/openid-connect/token/introspect")
-                .UsingPost())
+                Request.Create()
+                    .WithPath("/realms/test/protocol/openid-connect/token/introspect")
+                    .UsingPost())
             .RespondWith(
                 Response.Create()
                     .WithStatusCode(200)
@@ -226,7 +227,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                     .WithHeader("Content-Type", "application/json"));
 
         // Act
-        var response = await _client.GetAsync("/api/test/protected");
+        HttpResponseMessage response = await _client.GetAsync("/api/test/protected");
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -234,7 +235,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
 
     private async Task<IHost> CreateTestHost(bool introspectionEnabled = false)
     {
-        var builder = Host.CreateDefaultBuilder()
+        IHostBuilder builder = Host.CreateDefaultBuilder()
             .ConfigureWebHost(webBuilder =>
             {
                 webBuilder.UseTestServer();
@@ -294,7 +295,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                         });
 
                     // Add claims transformation
-                    services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation,
+                    services.AddTransient<IClaimsTransformation,
                         KeycloakRolesClaimsTransformation>();
 
                     // Add HTTP client factory for introspection
@@ -311,22 +312,16 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                     app.UseAuthentication();
                     app.UseAuthorization();
 
-                    if (introspectionEnabled)
-                    {
-                        app.UseZeroTrustMiddleware();
-                    }
+                    if (introspectionEnabled) app.UseZeroTrustMiddleware();
 
                     app.UseEndpoints(endpoints =>
                     {
-                        endpoints.MapGet("/api/test/protected", async context =>
-                        {
-                            await context.Response.WriteAsync("OK");
-                        }).RequireAuthorization();
+                        endpoints.MapGet("/api/test/protected",
+                            async context => { await context.Response.WriteAsync("OK"); }).RequireAuthorization();
 
-                        endpoints.MapGet("/api/test/admin", async context =>
-                        {
-                            await context.Response.WriteAsync("Admin OK");
-                        }).RequireAuthorization("AdminOnly");
+                        endpoints.MapGet("/api/test/admin",
+                                async context => { await context.Response.WriteAsync("Admin OK"); })
+                            .RequireAuthorization("AdminOnly");
 
                         endpoints.MapGet("/api/test/roles", async context =>
                         {
@@ -345,7 +340,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                 });
             });
 
-        var host = builder.Build();
+        IHost host = builder.Build();
         await host.StartAsync();
         return host;
     }
@@ -354,29 +349,29 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     {
         // OIDC Discovery document
         _keycloakMock.Given(
-            Request.Create()
-                .WithPath("/realms/test/.well-known/openid-configuration")
-                .UsingGet())
+                Request.Create()
+                    .WithPath("/realms/test/.well-known/openid-configuration")
+                    .UsingGet())
             .RespondWith(
                 Response.Create()
                     .WithStatusCode(200)
                     .WithHeader("Content-Type", "application/json")
                     .WithBody($$"""
-                    {
-                        "issuer": "{{_keycloakMock.Url}}/realms/test",
-                        "authorization_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/auth",
-                        "token_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/token",
-                        "introspection_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/token/introspect",
-                        "userinfo_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/userinfo",
-                        "jwks_uri": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/certs"
-                    }
-                    """));
+                                {
+                                    "issuer": "{{_keycloakMock.Url}}/realms/test",
+                                    "authorization_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/auth",
+                                    "token_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/token",
+                                    "introspection_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/token/introspect",
+                                    "userinfo_endpoint": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/userinfo",
+                                    "jwks_uri": "{{_keycloakMock.Url}}/realms/test/protocol/openid-connect/certs"
+                                }
+                                """));
 
         // JWKS endpoint
         _keycloakMock.Given(
-            Request.Create()
-                .WithPath("/realms/test/protocol/openid-connect/certs")
-                .UsingGet())
+                Request.Create()
+                    .WithPath("/realms/test/protocol/openid-connect/certs")
+                    .UsingGet())
             .RespondWith(
                 Response.Create()
                     .WithStatusCode(200)
@@ -386,33 +381,31 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
 
     private string CreateJwksResponse()
     {
-        var parameters = _rsa.ExportParameters(false);
-        var n = Base64UrlEncoder.Encode(parameters.Modulus);
-        var e = Base64UrlEncoder.Encode(parameters.Exponent);
+        RSAParameters parameters = _rsa.ExportParameters(false);
+        string? n = Base64UrlEncoder.Encode(parameters.Modulus);
+        string? e = Base64UrlEncoder.Encode(parameters.Exponent);
 
         return $$"""
-        {
-            "keys": [
-                {
-                    "kty": "RSA",
-                    "alg": "RS256",
-                    "use": "sig",
-                    "kid": "test-key-id",
-                    "n": "{{n}}",
-                    "e": "{{e}}"
-                }
-            ]
-        }
-        """;
+                 {
+                     "keys": [
+                         {
+                             "kty": "RSA",
+                             "alg": "RS256",
+                             "use": "sig",
+                             "kid": "test-key-id",
+                             "n": "{{n}}",
+                             "e": "{{e}}"
+                         }
+                     ]
+                 }
+                 """;
     }
 
     private string CreateValidJwtToken(string[]? roles = null, string[]? clientRoles = null)
     {
         var claims = new List<Claim>
         {
-            new("sub", "user-123"),
-            new("preferred_username", "testuser"),
-            new("email", "test@example.com")
+            new("sub", "user-123"), new("preferred_username", "testuser"), new("email", "test@example.com")
         };
 
         // Add realm_access claim with roles
@@ -425,10 +418,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
         // Add resource_access claim with client roles
         if (clientRoles?.Length > 0)
         {
-            var resourceAccess = new Dictionary<string, object>
-            {
-                ["netcommerce-api"] = new { roles = clientRoles }
-            };
+            var resourceAccess = new Dictionary<string, object> { ["netcommerce-api"] = new { roles = clientRoles } };
             claims.Add(new Claim("resource_access", JsonSerializer.Serialize(resourceAccess)));
         }
 
@@ -437,30 +427,22 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
 
     private string CreateExpiredJwtToken()
     {
-        var claims = new List<Claim>
-        {
-            new("sub", "user-123"),
-            new("preferred_username", "testuser")
-        };
+        var claims = new List<Claim> { new("sub", "user-123"), new("preferred_username", "testuser") };
 
         return CreateJwtToken(claims, DateTime.UtcNow.AddHours(-1));
     }
 
     private string CreateJwtTokenWithWrongAudience()
     {
-        var claims = new List<Claim>
-        {
-            new("sub", "user-123"),
-            new("preferred_username", "testuser")
-        };
+        var claims = new List<Claim> { new("sub", "user-123"), new("preferred_username", "testuser") };
 
         var securityKey = new RsaSecurityKey(_rsa);
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(
-            issuer: $"{_keycloakMock.Url}/realms/test",
-            audience: "wrong-audience",
-            claims: claims,
+            $"{_keycloakMock.Url}/realms/test",
+            "wrong-audience",
+            claims,
             expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: credentials);
 
@@ -475,9 +457,9 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(
-            issuer: $"{_keycloakMock.Url}/realms/test",
-            audience: "netcommerce-api",
-            claims: claims,
+            $"{_keycloakMock.Url}/realms/test",
+            "netcommerce-api",
+            claims,
             expires: expires,
             signingCredentials: credentials);
 

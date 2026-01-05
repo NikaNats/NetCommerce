@@ -1,19 +1,19 @@
-#nullable enable
+#region
 
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 
+#endregion
+
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
 /// <summary>
 ///     2025 Elite Pattern: PostgreSQL implementation of the Immutable Audit Ledger.
-///     
 ///     Security Hardening (configured at DB level):
 ///     - GRANT INSERT, SELECT ON audit_logs TO app_user
 ///     - REVOKE UPDATE, DELETE ON audit_logs FROM app_user
 ///     - Even compromised admin users cannot tamper with history
-///     
 ///     Performance Optimizations:
 ///     - Partitioned by timestamp (monthly/yearly)
 ///     - Composite indexes on common query patterns
@@ -21,8 +21,8 @@ namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 /// </summary>
 public class AuditRepository : IAuditRepository
 {
-    private readonly DbContext _dbContext;
     private readonly DbSet<AuditEntry> _auditLogs;
+    private readonly DbContext _dbContext;
 
     public AuditRepository(DbContext dbContext)
     {
@@ -49,12 +49,9 @@ public class AuditRepository : IAuditRepository
         string? module = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _auditLogs.Where(a => a.ResourceId == resourceId);
+        IQueryable<AuditEntry> query = _auditLogs.Where(a => a.ResourceId == resourceId);
 
-        if (!string.IsNullOrEmpty(module))
-        {
-            query = query.Where(a => a.Module == module);
-        }
+        if (!string.IsNullOrEmpty(module)) query = query.Where(a => a.Module == module);
 
         return await query
             .OrderBy(a => a.Timestamp)
@@ -75,32 +72,17 @@ public class AuditRepository : IAuditRepository
         int limit = 100,
         CancellationToken cancellationToken = default)
     {
-        var query = _auditLogs.AsQueryable();
+        IQueryable<AuditEntry> query = _auditLogs.AsQueryable();
 
-        if (startDate.HasValue)
-        {
-            query = query.Where(a => a.Timestamp >= startDate.Value);
-        }
+        if (startDate.HasValue) query = query.Where(a => a.Timestamp >= startDate.Value);
 
-        if (endDate.HasValue)
-        {
-            query = query.Where(a => a.Timestamp <= endDate.Value);
-        }
+        if (endDate.HasValue) query = query.Where(a => a.Timestamp <= endDate.Value);
 
-        if (!string.IsNullOrEmpty(userId))
-        {
-            query = query.Where(a => a.UserId == userId);
-        }
+        if (!string.IsNullOrEmpty(userId)) query = query.Where(a => a.UserId == userId);
 
-        if (!string.IsNullOrEmpty(module))
-        {
-            query = query.Where(a => a.Module == module);
-        }
+        if (!string.IsNullOrEmpty(module)) query = query.Where(a => a.Module == module);
 
-        if (!string.IsNullOrEmpty(action))
-        {
-            query = query.Where(a => a.Action == action);
-        }
+        if (!string.IsNullOrEmpty(action)) query = query.Where(a => a.Action == action);
 
         return await query
             .OrderByDescending(a => a.Timestamp)

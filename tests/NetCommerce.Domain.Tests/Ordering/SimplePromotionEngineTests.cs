@@ -1,5 +1,9 @@
+#region
+
+using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Infrastructure.Services;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Ordering;
 
@@ -8,9 +12,9 @@ namespace NetCommerce.Domain.Tests.Ordering;
 /// </summary>
 public class SimplePromotionEngineTests
 {
+    private readonly Guid _customerId = Guid.NewGuid();
     private readonly SimplePromotionEngine _engine;
     private readonly Guid _productId = Guid.NewGuid();
-    private readonly Guid _customerId = Guid.NewGuid();
 
     public SimplePromotionEngineTests()
     {
@@ -30,7 +34,7 @@ public class SimplePromotionEngineTests
         string expectedPromotionName)
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             basePrice,
             quantity,
@@ -48,7 +52,7 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithInvalidCoupon_ShouldReturnNoDiscount()
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             100m,
             1,
@@ -65,12 +69,11 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithNoCoupon_ShouldReturnNoDiscount()
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             100m,
             1,
-            _customerId,
-            null);
+            _customerId);
 
         // Assert
         result.DiscountAmount.ShouldBe(0m);
@@ -82,12 +85,12 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithMultipleQuantity_ShouldCalculateOnTotalPrice()
     {
         // Arrange
-        var basePrice = 50m;
-        var quantity = 3;
-        var couponCode = "SAVE20"; // 20% off
+        decimal basePrice = 50m;
+        int quantity = 3;
+        string couponCode = "SAVE20"; // 20% off
 
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             basePrice,
             quantity,
@@ -105,7 +108,7 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithZeroPrice_ShouldReturnNoDiscount()
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             0m,
             1,
@@ -120,7 +123,7 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithNegativePrice_ShouldReturnNoDiscount()
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             -100m,
             1,
@@ -135,7 +138,7 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithZeroQuantity_ShouldReturnNoDiscount()
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             100m,
             0,
@@ -150,9 +153,9 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_CaseInsensitiveCoupon_ShouldWork()
     {
         // Act
-        var result1 = await _engine.CalculateDiscountAsync(_productId, 100m, 1, _customerId, "save20");
-        var result2 = await _engine.CalculateDiscountAsync(_productId, 100m, 1, _customerId, "SAVE20");
-        var result3 = await _engine.CalculateDiscountAsync(_productId, 100m, 1, _customerId, "Save20");
+        PromotionResult result1 = await _engine.CalculateDiscountAsync(_productId, 100m, 1, _customerId, "save20");
+        PromotionResult result2 = await _engine.CalculateDiscountAsync(_productId, 100m, 1, _customerId, "SAVE20");
+        PromotionResult result3 = await _engine.CalculateDiscountAsync(_productId, 100m, 1, _customerId, "Save20");
 
         // Assert
         result1.DiscountAmount.ShouldBe(result2.DiscountAmount);
@@ -164,12 +167,12 @@ public class SimplePromotionEngineTests
     public async Task CalculateDiscountAsync_WithRealWorldScenario_ShouldCalculateCorrectly()
     {
         // Arrange - Customer buying 2 items at 85.50 each with WELCOME10 coupon
-        var basePrice = 85.50m;
-        var quantity = 2;
-        var couponCode = "WELCOME10";
+        decimal basePrice = 85.50m;
+        int quantity = 2;
+        string couponCode = "WELCOME10";
 
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             basePrice,
             quantity,
@@ -185,7 +188,7 @@ public class SimplePromotionEngineTests
     }
 
     [Theory]
-    [InlineData(99.99, "SAVE20", 19.998)]   // Should round to 20.00
+    [InlineData(99.99, "SAVE20", 19.998)] // Should round to 20.00
     [InlineData(33.33, "WELCOME10", 3.333)] // Should round to 3.33
     public async Task CalculateDiscountAsync_WithRoundingScenarios_ShouldRoundCorrectly(
         decimal basePrice,
@@ -193,7 +196,7 @@ public class SimplePromotionEngineTests
         decimal expectedBeforeRound)
     {
         // Act
-        var result = await _engine.CalculateDiscountAsync(
+        PromotionResult result = await _engine.CalculateDiscountAsync(
             _productId,
             basePrice,
             1,

@@ -1,8 +1,8 @@
 namespace NetCommerce.Catalog.Infrastructure.Models;
 
 /// <summary>
-/// Meilisearch read model for product search.
-/// Optimized for <50ms search latency with typo tolerance, faceting, and highlighting.
+///     Meilisearch read model for product search.
+///     Optimized for <50ms search latency with typo tolerance, faceting, and highlighting.
 /// </summary>
 public sealed record ProductSearchDocument(
     string Id,

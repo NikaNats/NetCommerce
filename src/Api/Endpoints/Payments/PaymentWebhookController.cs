@@ -1,23 +1,25 @@
+#region
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Stripe;
 using Microsoft.Extensions.Options;
-using Wolverine;
 using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.SharedKernel.Events;
+using Stripe;
+using Wolverine;
+
+#endregion
 
 namespace NetCommerce.Api.Endpoints.Payments;
 
 /// <summary>
-/// Stripe webhook endpoint for asynchronous payment confirmation.
-///
-/// WEBHOOK-FIRST PATTERN (2025 Gold Standard)
-/// - ProcessPaymentAsync returns "Pending" (not "Succeeded")
-/// - THIS endpoint receives actual payment confirmation from Stripe
-/// - Webhook signature verification prevents tampering
-/// - Idempotent handling prevents duplicate processing
-///
-/// Prevents "Ghost Charge" vulnerability where customer is charged but order is lost.
+///     Stripe webhook endpoint for asynchronous payment confirmation.
+///     WEBHOOK-FIRST PATTERN (2025 Gold Standard)
+///     - ProcessPaymentAsync returns "Pending" (not "Succeeded")
+///     - THIS endpoint receives actual payment confirmation from Stripe
+///     - Webhook signature verification prevents tampering
+///     - Idempotent handling prevents duplicate processing
+///     Prevents "Ghost Charge" vulnerability where customer is charged but order is lost.
 /// </summary>
 [ApiController]
 [Route("api/webhooks")]
@@ -38,29 +40,26 @@ public class PaymentWebhookController : ControllerBase
     }
 
     /// <summary>
-    /// Handle Stripe webhook events for payment confirmation.
-    ///
-    /// Security:
-    /// - Signature verification (prevents tampering)
-    /// - IP whitelisting (TODO: optional hardening)
-    /// - Rate limiting (TODO: prevent DoS)
-    ///
-    /// Events handled:
-    /// - payment_intent.succeeded → Payment completed successfully
-    /// - payment_intent.payment_failed → Payment declined by bank
-    ///
-    /// Flow:
-    /// 1. Verify webhook signature (anti-tamper)
-    /// 2. Parse event payload
-    /// 3. Dispatch ProcessExternalPaymentConfirmation command
-    /// 4. Return 200 OK immediately (Stripe retries on 4xx/5xx)
+    ///     Handle Stripe webhook events for payment confirmation.
+    ///     Security:
+    ///     - Signature verification (prevents tampering)
+    ///     - IP whitelisting (TODO: optional hardening)
+    ///     - Rate limiting (TODO: prevent DoS)
+    ///     Events handled:
+    ///     - payment_intent.succeeded → Payment completed successfully
+    ///     - payment_intent.payment_failed → Payment declined by bank
+    ///     Flow:
+    ///     1. Verify webhook signature (anti-tamper)
+    ///     2. Parse event payload
+    ///     3. Dispatch ProcessExternalPaymentConfirmation command
+    ///     4. Return 200 OK immediately (Stripe retries on 4xx/5xx)
     /// </summary>
     [HttpPost("stripe")]
     [AllowAnonymous]
     public async Task<IActionResult> HandleStripeWebhook()
     {
-        var json = await new StreamReader(Request.Body).ReadToEndAsync();
-        var signatureHeader = Request.Headers["Stripe-Signature"].ToString();
+        string json = await new StreamReader(Request.Body).ReadToEndAsync();
+        string signatureHeader = Request.Headers["Stripe-Signature"].ToString();
 
         if (string.IsNullOrEmpty(signatureHeader))
         {
@@ -72,7 +71,7 @@ public class PaymentWebhookController : ControllerBase
         {
             // CRITICAL: Verify signature to prevent tampering
             // If signature invalid, StripeException thrown
-            var stripeEvent = EventUtility.ConstructEvent(
+            Event? stripeEvent = EventUtility.ConstructEvent(
                 json,
                 signatureHeader,
                 _stripeOptions.WebhookSecret,
@@ -98,16 +97,16 @@ public class PaymentWebhookController : ControllerBase
 
                 // Dispatch command via Wolverine (transactional outbox ensures exactly-once)
                 await _bus.InvokeAsync(new ProcessExternalPaymentConfirmation(
-                    ExternalTransactionId: intent.Id,
-                    Status: "Succeeded",
-                    WebhookEventId: stripeEvent.Id
+                    intent.Id,
+                    "Succeeded",
+                    stripeEvent.Id
                 ));
             }
             // Handle payment_intent.payment_failed
             else if (stripeEvent.Type == "payment_intent.payment_failed")
             {
                 var intent = (PaymentIntent)stripeEvent.Data.Object;
-                var errorMessage = intent.LastPaymentError?.Message ?? "Unknown error";
+                string errorMessage = intent.LastPaymentError?.Message ?? "Unknown error";
 
                 _logger.LogWarning(
                     "Payment failed for PaymentIntent {PaymentIntentId}: {ErrorMessage}",
@@ -115,9 +114,9 @@ public class PaymentWebhookController : ControllerBase
                     errorMessage);
 
                 await _bus.InvokeAsync(new ProcessExternalPaymentConfirmation(
-                    ExternalTransactionId: intent.Id,
-                    Status: "Failed",
-                    WebhookEventId: stripeEvent.Id
+                    intent.Id,
+                    "Failed",
+                    stripeEvent.Id
                 ));
             }
             // Handle payment_intent.canceled
@@ -130,9 +129,9 @@ public class PaymentWebhookController : ControllerBase
                     intent.Id);
 
                 await _bus.InvokeAsync(new ProcessExternalPaymentConfirmation(
-                    ExternalTransactionId: intent.Id,
-                    Status: "Canceled",
-                    WebhookEventId: stripeEvent.Id
+                    intent.Id,
+                    "Canceled",
+                    stripeEvent.Id
                 ));
             }
             else

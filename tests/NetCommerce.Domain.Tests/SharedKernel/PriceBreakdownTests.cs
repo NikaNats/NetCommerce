@@ -1,5 +1,8 @@
+#region
+
 using NetCommerce.SharedKernel.Domain;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.SharedKernel;
 
@@ -12,12 +15,12 @@ public class PriceBreakdownTests
     public void Create_WithValidValues_ShouldCreatePriceBreakdown()
     {
         // Arrange
-        var basePrice = 100m;
-        var discount = 10m;
-        var taxAmount = 16.2m; // 18% of (100-10) = 18% of 90
-        var taxRate = 0.18m;
-        var taxType = "VAT";
-        var currency = "GEL";
+        decimal basePrice = 100m;
+        decimal discount = 10m;
+        decimal taxAmount = 16.2m; // 18% of (100-10) = 18% of 90
+        decimal taxRate = 0.18m;
+        string taxType = "VAT";
+        string currency = "GEL";
 
         // Act
         var breakdown = PriceBreakdown.Create(basePrice, discount, taxAmount, taxRate, taxType, currency);
@@ -38,8 +41,8 @@ public class PriceBreakdownTests
     public void Create_WithNegativeBasePrice_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(-100m, 0, 0, 0, "NONE", "GEL"))
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(-100m, 0, 0, 0, "NONE"))
             .Message.ShouldContain("Base price cannot be negative");
     }
 
@@ -47,8 +50,8 @@ public class PriceBreakdownTests
     public void Create_WithNegativeDiscount_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(100m, -10m, 0, 0, "NONE", "GEL"))
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(100m, -10m, 0, 0, "NONE"))
             .Message.ShouldContain("Discount amount cannot be negative");
     }
 
@@ -56,8 +59,8 @@ public class PriceBreakdownTests
     public void Create_WithNegativeTax_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(100m, 0, -10m, 0, "NONE", "GEL"))
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(100m, 0, -10m, 0, "NONE"))
             .Message.ShouldContain("Tax amount cannot be negative");
     }
 
@@ -65,12 +68,12 @@ public class PriceBreakdownTests
     public void Create_WithInvalidTaxRate_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(100m, 0, 0, -0.1m, "NONE", "GEL"))
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(100m, 0, 0, -0.1m, "NONE"))
             .Message.ShouldContain("Tax rate must be between 0 and 1");
-            
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(100m, 0, 0, 1.5m, "NONE", "GEL"))
+
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(100m, 0, 0, 1.5m, "NONE"))
             .Message.ShouldContain("Tax rate must be between 0 and 1");
     }
 
@@ -78,8 +81,8 @@ public class PriceBreakdownTests
     public void Create_WithEmptyTaxType_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(100m, 0, 0, 0, "", "GEL"))
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(100m, 0, 0, 0, ""))
             .Message.ShouldContain("Tax type is required");
     }
 
@@ -87,8 +90,8 @@ public class PriceBreakdownTests
     public void Create_WithEmptyCurrency_ShouldThrowException()
     {
         // Act & Assert
-        Should.Throw<ArgumentException>(() => 
-            PriceBreakdown.Create(100m, 0, 0, 0, "NONE", ""))
+        Should.Throw<ArgumentException>(() =>
+                PriceBreakdown.Create(100m, 0, 0, 0, "NONE", ""))
             .Message.ShouldContain("Currency is required");
     }
 
@@ -114,23 +117,22 @@ public class PriceBreakdownTests
     {
         // Arrange - Real-world scenario
         var breakdown = PriceBreakdown.Create(
-            basePrice: 120m,
-            discountAmount: 20m,    // 20 GEL discount
-            taxAmount: 18m,         // 18% VAT on (120-20)
-            taxRate: 0.18m,
-            taxType: "VAT",
-            currency: "GEL");
+            120m,
+            20m, // 20 GEL discount
+            18m, // 18% VAT on (120-20)
+            0.18m,
+            "VAT");
 
         // Assert
-        breakdown.SubTotal.ShouldBe(100m);       // 120 - 20
-        breakdown.FinalPrice.ShouldBe(118m);     // 100 + 18
+        breakdown.SubTotal.ShouldBe(100m); // 120 - 20
+        breakdown.FinalPrice.ShouldBe(118m); // 100 + 18
     }
 
     [Fact]
     public void ToMoney_ShouldConvertToMoneyValueObject()
     {
         // Arrange
-        var breakdown = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT", "GEL");
+        var breakdown = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT");
 
         // Act
         var money = breakdown.ToMoney();
@@ -157,7 +159,7 @@ public class PriceBreakdownTests
         var breakdown = PriceBreakdown.Create(basePrice, discount, tax, taxRate, taxType, currency);
 
         // Act
-        var result = breakdown.ToString();
+        string result = breakdown.ToString();
 
         // Assert
         result.ShouldBe(expected);
@@ -167,8 +169,8 @@ public class PriceBreakdownTests
     public void EqualityComparison_WithSameValues_ShouldBeEqual()
     {
         // Arrange
-        var breakdown1 = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT", "GEL");
-        var breakdown2 = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT", "GEL");
+        var breakdown1 = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT");
+        var breakdown2 = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT");
 
         // Assert
         breakdown1.ShouldBe(breakdown2);
@@ -179,8 +181,8 @@ public class PriceBreakdownTests
     public void EqualityComparison_WithDifferentValues_ShouldNotBeEqual()
     {
         // Arrange
-        var breakdown1 = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT", "GEL");
-        var breakdown2 = PriceBreakdown.Create(100m, 20m, 14.4m, 0.18m, "VAT", "GEL");
+        var breakdown1 = PriceBreakdown.Create(100m, 10m, 16.2m, 0.18m, "VAT");
+        var breakdown2 = PriceBreakdown.Create(100m, 20m, 14.4m, 0.18m, "VAT");
 
         // Assert
         breakdown1.ShouldNotBe(breakdown2);
@@ -192,12 +194,11 @@ public class PriceBreakdownTests
     {
         // Arrange - Values that might cause rounding issues
         var breakdown = PriceBreakdown.Create(
-            basePrice: 99.999m,
-            discountAmount: 9.999m,
-            taxAmount: 16.199m,
-            taxRate: 0.1799m,
-            taxType: "VAT",
-            currency: "GEL");
+            99.999m,
+            9.999m,
+            16.199m,
+            0.1799m,
+            "VAT");
 
         // Assert - Should round to 2 decimal places for prices, 4 for rates
         breakdown.BasePrice.ShouldBe(100.00m);

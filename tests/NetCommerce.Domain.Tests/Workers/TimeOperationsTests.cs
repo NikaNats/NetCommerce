@@ -1,8 +1,9 @@
-// FILE: tests/NetCommerce.Domain.Tests/Workers/TimeOperationsTests.cs
+#region
 
 using Microsoft.Extensions.Time.Testing;
 using NetCommerce.Inventory.Domain.Stock;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Workers;
 
@@ -19,7 +20,7 @@ public class TimeOperationsTests
     {
         // Verifies the background worker scheduling primitive
         // Arrange
-        var fireCount = 0;
+        int fireCount = 0;
         var interval = TimeSpan.FromMinutes(5);
 
         using var timer = new PeriodicTimer(interval, _timeProvider);
@@ -49,18 +50,18 @@ public class TimeOperationsTests
     {
         // Verifies logical ordering of timestamps in a workflow
         // Arrange
-        var creationTime = _timeProvider.GetUtcNow();
+        DateTimeOffset creationTime = _timeProvider.GetUtcNow();
 
         // Simulate: Created
-        var orderCreated = creationTime;
+        DateTimeOffset orderCreated = creationTime;
 
         // Simulate: Paid 10 mins later
         _timeProvider.Advance(TimeSpan.FromMinutes(10));
-        var orderPaid = _timeProvider.GetUtcNow();
+        DateTimeOffset orderPaid = _timeProvider.GetUtcNow();
 
         // Simulate: Shipped 1 day later
         _timeProvider.Advance(TimeSpan.FromDays(1));
-        var orderShipped = _timeProvider.GetUtcNow();
+        DateTimeOffset orderShipped = _timeProvider.GetUtcNow();
 
         // Assert
         orderPaid.ShouldBeGreaterThan(orderCreated);
@@ -73,7 +74,7 @@ public class TimeOperationsTests
     {
         // Verifies domain entities use the injected time provider
         var stock = Stock.Create(Guid.NewGuid(), "TIME-TEST", 100, timeProvider: _timeProvider);
-        var initial = stock.LastUpdatedAt;
+        DateTime initial = stock.LastUpdatedAt;
 
         _timeProvider.Advance(TimeSpan.FromHours(1));
         stock.Reserve(Guid.NewGuid(), 1, _timeProvider);

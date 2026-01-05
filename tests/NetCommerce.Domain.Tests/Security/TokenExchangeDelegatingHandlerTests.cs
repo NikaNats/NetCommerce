@@ -1,4 +1,5 @@
-#nullable enable
+#region
+
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -9,9 +10,8 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
-using NSubstitute;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Security;
 
@@ -24,12 +24,12 @@ public class TokenExchangeDelegatingHandlerTests
     private const string IncomingToken = "incoming-user-token";
     private const string ExchangedToken = "exchanged-service-token";
     private const string TargetAudience = "inventory-service";
+    private readonly IDistributedCache _cache;
+    private readonly IHttpClientFactory _clientFactory;
 
     private readonly IHttpContextAccessor _contextAccessor;
-    private readonly IHttpClientFactory _clientFactory;
-    private readonly IOptions<ZeroTrustAuthOptions> _options;
-    private readonly IDistributedCache _cache;
     private readonly ILogger<TokenExchangeDelegatingHandler> _logger;
+    private readonly IOptions<ZeroTrustAuthOptions> _options;
 
     public TokenExchangeDelegatingHandlerTests()
     {
@@ -52,15 +52,16 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenTokenExchangeDisabled_DoesNotExchange()
     {
         // Arrange
-        var options = Options.Create(new ZeroTrustAuthOptions { TokenExchangeEnabled = false });
-        var handler = CreateHandler(options);
+        IOptions<ZeroTrustAuthOptions> options =
+            Options.Create(new ZeroTrustAuthOptions { TokenExchangeEnabled = false });
+        TokenExchangeDelegatingHandler handler = CreateHandler(options);
         var invoker = new HttpMessageInvoker(handler);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
         SetupHttpContext(IncomingToken);
 
         // Act
-        var response = await invoker.SendAsync(request, CancellationToken.None);
+        HttpResponseMessage response = await invoker.SendAsync(request, CancellationToken.None);
 
         // Assert
         request.Headers.Authorization.ShouldBeNull();
@@ -70,7 +71,7 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenNoHttpContext_DoesNotExchange()
     {
         // Arrange
-        var handler = CreateHandler();
+        TokenExchangeDelegatingHandler handler = CreateHandler();
         var invoker = new HttpMessageInvoker(handler);
 
         _contextAccessor.HttpContext.Returns((HttpContext?)null);
@@ -78,7 +79,7 @@ public class TokenExchangeDelegatingHandlerTests
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
 
         // Act
-        var response = await invoker.SendAsync(request, CancellationToken.None);
+        HttpResponseMessage response = await invoker.SendAsync(request, CancellationToken.None);
 
         // Assert
         request.Headers.Authorization.ShouldBeNull();
@@ -88,14 +89,14 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenNoAccessToken_DoesNotExchange()
     {
         // Arrange
-        var handler = CreateHandler();
+        TokenExchangeDelegatingHandler handler = CreateHandler();
         var invoker = new HttpMessageInvoker(handler);
-        SetupHttpContext(token: null);
+        SetupHttpContext(null);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
 
         // Act
-        var response = await invoker.SendAsync(request, CancellationToken.None);
+        HttpResponseMessage response = await invoker.SendAsync(request, CancellationToken.None);
 
         // Assert
         request.Headers.Authorization.ShouldBeNull();
@@ -105,7 +106,7 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenCachedTokenExists_UsesCachedToken()
     {
         // Arrange
-        var handler = CreateHandler();
+        TokenExchangeDelegatingHandler handler = CreateHandler();
         var invoker = new HttpMessageInvoker(handler);
         SetupHttpContext(IncomingToken);
 
@@ -116,7 +117,7 @@ public class TokenExchangeDelegatingHandlerTests
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
 
         // Act
-        var response = await invoker.SendAsync(request, CancellationToken.None);
+        HttpResponseMessage response = await invoker.SendAsync(request, CancellationToken.None);
 
         // Assert
         request.Headers.Authorization.ShouldNotBeNull();
@@ -131,7 +132,7 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenExchangeSucceeds_AttachesExchangedToken()
     {
         // Arrange
-        var handler = CreateHandler();
+        TokenExchangeDelegatingHandler handler = CreateHandler();
         var invoker = new HttpMessageInvoker(handler);
         SetupHttpContext(IncomingToken);
 
@@ -139,12 +140,12 @@ public class TokenExchangeDelegatingHandlerTests
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((byte[]?)null);
 
-        SetupSuccessfulTokenExchange(ExchangedToken, expiresIn: 300);
+        SetupSuccessfulTokenExchange(ExchangedToken, 300);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
 
         // Act
-        var response = await invoker.SendAsync(request, CancellationToken.None);
+        HttpResponseMessage response = await invoker.SendAsync(request, CancellationToken.None);
 
         // Assert
         request.Headers.Authorization.ShouldNotBeNull();
@@ -156,7 +157,7 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenExchangeSucceeds_CachesToken()
     {
         // Arrange
-        var handler = CreateHandler();
+        TokenExchangeDelegatingHandler handler = CreateHandler();
         var invoker = new HttpMessageInvoker(handler);
         SetupHttpContext(IncomingToken);
 
@@ -164,7 +165,7 @@ public class TokenExchangeDelegatingHandlerTests
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((byte[]?)null);
 
-        SetupSuccessfulTokenExchange(ExchangedToken, expiresIn: 300);
+        SetupSuccessfulTokenExchange(ExchangedToken, 300);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
 
@@ -184,7 +185,7 @@ public class TokenExchangeDelegatingHandlerTests
     public async Task SendAsync_WhenExchangeFails_FallsBackToOriginalToken()
     {
         // Arrange
-        var handler = CreateHandler();
+        TokenExchangeDelegatingHandler handler = CreateHandler();
         var invoker = new HttpMessageInvoker(handler);
         SetupHttpContext(IncomingToken);
 
@@ -196,7 +197,7 @@ public class TokenExchangeDelegatingHandlerTests
         var request = new HttpRequestMessage(HttpMethod.Get, "http://inventory-service/api/stock");
 
         // Act
-        var response = await invoker.SendAsync(request, CancellationToken.None);
+        HttpResponseMessage response = await invoker.SendAsync(request, CancellationToken.None);
 
         // Assert - falls back to original token
         request.Headers.Authorization.ShouldNotBeNull();
@@ -213,10 +214,7 @@ public class TokenExchangeDelegatingHandlerTests
             _options,
             null, // No cache
             _logger,
-            TargetAudience)
-        {
-            InnerHandler = new MockInnerHandler()
-        };
+            TargetAudience) { InnerHandler = new MockInnerHandler() };
 
         SetupHttpContext(IncomingToken);
         SetupSuccessfulTokenExchange(ExchangedToken, 300);
@@ -240,10 +238,7 @@ public class TokenExchangeDelegatingHandlerTests
             options ?? _options,
             _cache,
             _logger,
-            TargetAudience)
-        {
-            InnerHandler = new MockInnerHandler()
-        };
+            TargetAudience) { InnerHandler = new MockInnerHandler() };
 
         return handler;
     }
@@ -253,7 +248,7 @@ public class TokenExchangeDelegatingHandlerTests
         var context = new DefaultHttpContext();
 
         // Setup service provider with authentication service
-        var authService = Substitute.For<IAuthenticationService>();
+        IAuthenticationService? authService = Substitute.For<IAuthenticationService>();
 
         if (token != null)
         {
@@ -275,7 +270,7 @@ public class TokenExchangeDelegatingHandlerTests
                 .Returns(AuthenticateResult.NoResult());
         }
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider? serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IAuthenticationService)).Returns(authService);
         context.RequestServices = serviceProvider;
 
@@ -284,11 +279,9 @@ public class TokenExchangeDelegatingHandlerTests
 
     private void SetupSuccessfulTokenExchange(string accessToken, int expiresIn)
     {
-        var responseJson = JsonSerializer.Serialize(new
+        string responseJson = JsonSerializer.Serialize(new
         {
-            access_token = accessToken,
-            token_type = "Bearer",
-            expires_in = expiresIn
+            access_token = accessToken, token_type = "Bearer", expires_in = expiresIn
         });
 
         var mockHandler = new MockHttpMessageHandler(HttpStatusCode.OK, responseJson);
@@ -317,8 +310,8 @@ public class TokenExchangeDelegatingHandlerTests
 
     private class MockHttpMessageHandler : HttpMessageHandler
     {
-        private readonly HttpStatusCode _statusCode;
         private readonly string _content;
+        private readonly HttpStatusCode _statusCode;
 
         public MockHttpMessageHandler(HttpStatusCode statusCode, string content)
         {

@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace NetCommerce.SharedKernel.Application.Notifications;
 
 /// <summary>

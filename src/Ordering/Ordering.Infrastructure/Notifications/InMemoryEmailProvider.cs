@@ -1,8 +1,10 @@
-#nullable enable
+#region
 
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Application.Notifications;
-using System.Collections.Concurrent;
+
+#endregion
 
 namespace NetCommerce.Ordering.Infrastructure.Notifications;
 
@@ -21,17 +23,18 @@ public class InMemoryEmailProvider : IEmailProvider
         _logger = logger;
     }
 
-    public Task SendEmailAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default)
+    public Task SendEmailAsync(string to, string subject, string htmlBody,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
             "[IN-MEMORY EMAIL] To: {To}, Subject: {Subject}",
             to, subject);
 
         var email = new SentEmail(
-            To: to,
-            Subject: subject,
-            HtmlBody: htmlBody,
-            SentAt: DateTimeOffset.UtcNow);
+            to,
+            subject,
+            htmlBody,
+            DateTimeOffset.UtcNow);
 
         _sentEmails.Add(email);
 
@@ -41,12 +44,18 @@ public class InMemoryEmailProvider : IEmailProvider
     /// <summary>
     ///     Gets all sent emails for testing/inspection.
     /// </summary>
-    public IReadOnlyCollection<SentEmail> GetSentEmails() => _sentEmails.ToList();
+    public IReadOnlyCollection<SentEmail> GetSentEmails()
+    {
+        return _sentEmails.ToList();
+    }
 
     /// <summary>
     ///     Clears all sent emails (useful for test cleanup).
     /// </summary>
-    public void Clear() => _sentEmails.Clear();
+    public void Clear()
+    {
+        _sentEmails.Clear();
+    }
 }
 
 /// <summary>

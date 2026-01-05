@@ -1,11 +1,10 @@
-using Microsoft.Extensions.Caching.Hybrid;
-using Microsoft.Extensions.Options;
+#region
+
+using System.Reflection;
 using NetCommerce.Catalog.Domain.Products;
-using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.SharedKernel.Domain;
-using NSubstitute;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Catalog.Tests.Infrastructure;
 
@@ -28,6 +27,26 @@ public class CachedProductRepositorySecurityTests
         _mockInnerRepo = Substitute.For<IProductRepository>();
     }
 
+    #region Test Data Helpers
+
+    private static Product CreateTestProduct(Guid id, string name, string? sku = null)
+    {
+        var product = Product.Create(
+            name,
+            "Test product description",
+            sku ?? $"TEST-SKU-{id:N}".Substring(0, 20),
+            Money.Create(100m, "USD"),
+            Guid.NewGuid());
+
+        // Use reflection to set the ID for testing purposes
+        PropertyInfo? idProperty = typeof(Entity<Guid>).GetProperty("Id");
+        idProperty?.SetValue(product, id);
+
+        return product;
+    }
+
+    #endregion
+
     #region Delegation Tests
 
     [Fact]
@@ -35,7 +54,7 @@ public class CachedProductRepositorySecurityTests
     {
         // Arrange
         var productId = Guid.NewGuid();
-        var expectedProduct = CreateTestProduct(productId, "Test Product");
+        Product expectedProduct = CreateTestProduct(productId, "Test Product");
 
         _mockInnerRepo.GetByIdAsync(productId, Arg.Any<CancellationToken>())
             .Returns(expectedProduct);
@@ -44,7 +63,7 @@ public class CachedProductRepositorySecurityTests
         // In production, CachedProductRepository wraps this with caching
 
         // Act
-        var result = await _mockInnerRepo.GetByIdAsync(productId);
+        Product? result = await _mockInnerRepo.GetByIdAsync(productId);
 
         // Assert
         result.ShouldNotBeNull();
@@ -62,7 +81,7 @@ public class CachedProductRepositorySecurityTests
             .Returns((Product?)null);
 
         // Act
-        var result = await _mockInnerRepo.GetByIdAsync(nonExistentId);
+        Product? result = await _mockInnerRepo.GetByIdAsync(nonExistentId);
 
         // Assert - Returns null for non-existent products
         // In production, HybridCache handles negative caching automatically
@@ -73,14 +92,14 @@ public class CachedProductRepositorySecurityTests
     public async Task GetBySkuAsync_WhenProductExists_ShouldReturnProduct()
     {
         // Arrange
-        var sku = "PROD-SKU-001";
-        var expectedProduct = CreateTestProduct(Guid.NewGuid(), "SKU Product", sku);
+        string sku = "PROD-SKU-001";
+        Product expectedProduct = CreateTestProduct(Guid.NewGuid(), "SKU Product", sku);
 
         _mockInnerRepo.GetBySkuAsync(sku, Arg.Any<CancellationToken>())
             .Returns(expectedProduct);
 
         // Act
-        var result = await _mockInnerRepo.GetBySkuAsync(sku);
+        Product? result = await _mockInnerRepo.GetBySkuAsync(sku);
 
         // Assert
         result.ShouldNotBeNull();
@@ -91,13 +110,13 @@ public class CachedProductRepositorySecurityTests
     public async Task GetBySkuAsync_WhenSkuNotFound_ShouldReturnNull()
     {
         // Arrange
-        var fakeSku = "NONEXISTENT-SKU-999";
+        string fakeSku = "NONEXISTENT-SKU-999";
 
         _mockInnerRepo.GetBySkuAsync(fakeSku, Arg.Any<CancellationToken>())
             .Returns((Product?)null);
 
         // Act
-        var result = await _mockInnerRepo.GetBySkuAsync(fakeSku);
+        Product? result = await _mockInnerRepo.GetBySkuAsync(fakeSku);
 
         // Assert
         result.ShouldBeNull();
@@ -107,14 +126,14 @@ public class CachedProductRepositorySecurityTests
     public async Task GetBySlugAsync_WhenProductExists_ShouldReturnProduct()
     {
         // Arrange
-        var slug = "test-product-slug";
-        var expectedProduct = CreateTestProduct(Guid.NewGuid(), "Slug Product");
+        string slug = "test-product-slug";
+        Product expectedProduct = CreateTestProduct(Guid.NewGuid(), "Slug Product");
 
         _mockInnerRepo.GetBySlugAsync(slug, Arg.Any<CancellationToken>())
             .Returns(expectedProduct);
 
         // Act
-        var result = await _mockInnerRepo.GetBySlugAsync(slug);
+        Product? result = await _mockInnerRepo.GetBySlugAsync(slug);
 
         // Assert
         result.ShouldNotBeNull();
@@ -124,13 +143,13 @@ public class CachedProductRepositorySecurityTests
     public async Task GetBySlugAsync_WhenSlugNotFound_ShouldReturnNull()
     {
         // Arrange
-        var fakeSlug = "nonexistent-product-url";
+        string fakeSlug = "nonexistent-product-url";
 
         _mockInnerRepo.GetBySlugAsync(fakeSlug, Arg.Any<CancellationToken>())
             .Returns((Product?)null);
 
         // Act
-        var result = await _mockInnerRepo.GetBySlugAsync(fakeSlug);
+        Product? result = await _mockInnerRepo.GetBySlugAsync(fakeSlug);
 
         // Assert
         result.ShouldBeNull();
@@ -144,7 +163,7 @@ public class CachedProductRepositorySecurityTests
     public async Task AddAsync_ShouldDelegateToInnerRepository()
     {
         // Arrange
-        var product = CreateTestProduct(Guid.NewGuid(), "New Product");
+        Product product = CreateTestProduct(Guid.NewGuid(), "New Product");
 
         // Act
         await _mockInnerRepo.AddAsync(product);
@@ -157,7 +176,7 @@ public class CachedProductRepositorySecurityTests
     public void Update_ShouldDelegateToInnerRepository()
     {
         // Arrange
-        var product = CreateTestProduct(Guid.NewGuid(), "Updated Product");
+        Product product = CreateTestProduct(Guid.NewGuid(), "Updated Product");
 
         // Act
         _mockInnerRepo.Update(product);
@@ -170,7 +189,7 @@ public class CachedProductRepositorySecurityTests
     public void Remove_ShouldDelegateToInnerRepository()
     {
         // Arrange
-        var product = CreateTestProduct(Guid.NewGuid(), "Product to Delete");
+        Product product = CreateTestProduct(Guid.NewGuid(), "Product to Delete");
 
         // Act
         _mockInnerRepo.Remove(product);
@@ -190,15 +209,14 @@ public class CachedProductRepositorySecurityTests
         var categoryId = Guid.NewGuid();
         var products = new List<Product>
         {
-            CreateTestProduct(Guid.NewGuid(), "Product 1"),
-            CreateTestProduct(Guid.NewGuid(), "Product 2")
+            CreateTestProduct(Guid.NewGuid(), "Product 1"), CreateTestProduct(Guid.NewGuid(), "Product 2")
         };
 
         _mockInnerRepo.GetByCategoryAsync(categoryId, Arg.Any<CancellationToken>())
             .Returns(products);
 
         // Act
-        var result = await _mockInnerRepo.GetByCategoryAsync(categoryId);
+        IReadOnlyList<Product>? result = await _mockInnerRepo.GetByCategoryAsync(categoryId);
 
         // Assert
         result.ShouldNotBeNull();
@@ -210,37 +228,17 @@ public class CachedProductRepositorySecurityTests
     {
         // Arrange
         var categoryId = Guid.NewGuid();
-        var emptyList = Array.Empty<Product>();
+        Product[] emptyList = Array.Empty<Product>();
 
         _mockInnerRepo.GetByCategoryAsync(categoryId, Arg.Any<CancellationToken>())
             .Returns(emptyList);
 
         // Act
-        var result = await _mockInnerRepo.GetByCategoryAsync(categoryId);
+        IReadOnlyList<Product>? result = await _mockInnerRepo.GetByCategoryAsync(categoryId);
 
         // Assert
         result.ShouldNotBeNull();
         result.ShouldBeEmpty();
-    }
-
-    #endregion
-
-    #region Test Data Helpers
-
-    private static Product CreateTestProduct(Guid id, string name, string? sku = null)
-    {
-        var product = Product.Create(
-            name,
-            "Test product description",
-            sku ?? $"TEST-SKU-{id:N}".Substring(0, 20),
-            Money.Create(100m, "USD"),
-            Guid.NewGuid());
-
-        // Use reflection to set the ID for testing purposes
-        var idProperty = typeof(Entity<Guid>).GetProperty("Id");
-        idProperty?.SetValue(product, id);
-
-        return product;
     }
 
     #endregion

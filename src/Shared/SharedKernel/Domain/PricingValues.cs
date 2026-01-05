@@ -1,4 +1,8 @@
-#nullable enable
+#region
+
+using System.Globalization;
+
+#endregion
 
 namespace NetCommerce.SharedKernel.Domain;
 
@@ -57,63 +61,63 @@ public sealed class PriceBreakdown : ValueObject
         Quantity = quantity;
 
         // 2025 Elite Refinement: Store line totals to avoid penny variance
-        LineDiscountTotal = Math.Round(lineDiscountTotal ?? (discountAmount * quantity), 2);
-        LineTaxTotal = Math.Round(lineTaxTotal ?? (taxAmount * quantity), 2);
+        LineDiscountTotal = Math.Round(lineDiscountTotal ?? discountAmount * quantity, 2);
+        LineTaxTotal = Math.Round(lineTaxTotal ?? taxAmount * quantity, 2);
     }
 
     /// <summary>
     ///     The original price from the Catalog (source of truth) - PER UNIT.
     /// </summary>
-    public decimal BasePrice { get; private set; }
+    public decimal BasePrice { get; }
 
     /// <summary>
     ///     Discount amount PER UNIT (for backward compatibility).
     ///     For accurate totals, use LineDiscountTotal instead.
     /// </summary>
-    public decimal DiscountAmount { get; private set; }
+    public decimal DiscountAmount { get; }
 
     /// <summary>
     ///     Tax amount PER UNIT (for backward compatibility).
     ///     For accurate totals, use LineTaxTotal instead.
     /// </summary>
-    public decimal TaxAmount { get; private set; }
+    public decimal TaxAmount { get; }
 
     /// <summary>
     ///     The tax rate applied (e.g., 0.18 for 18% VAT). Stored for legal audit purposes.
     /// </summary>
-    public decimal TaxRate { get; private set; }
+    public decimal TaxRate { get; }
 
     /// <summary>
     ///     The type of tax applied (e.g., "VAT", "SALES_TAX", "GST").
     /// </summary>
-    public string TaxType { get; private set; }
+    public string TaxType { get; }
 
     /// <summary>
     ///     The currency code (e.g., "GEL", "USD", "EUR").
     /// </summary>
-    public string Currency { get; private set; }
+    public string Currency { get; }
 
     /// <summary>
     ///     Quantity of items this price breakdown applies to.
     /// </summary>
-    public int Quantity { get; private set; }
+    public int Quantity { get; }
 
     /// <summary>
     ///     2025 Elite Refinement: LINE-ITEM TOTAL discount to avoid penny variance.
     ///     This is the PRIMARY source of truth for discount totals.
     /// </summary>
-    public decimal LineDiscountTotal { get; private set; }
+    public decimal LineDiscountTotal { get; }
 
     /// <summary>
     ///     2025 Elite Refinement: LINE-ITEM TOTAL tax to avoid penny variance.
     ///     This is the PRIMARY source of truth for tax totals.
     /// </summary>
-    public decimal LineTaxTotal { get; private set; }
+    public decimal LineTaxTotal { get; }
 
     /// <summary>
     ///     LINE-ITEM SUBTOTAL: (BasePrice * Quantity) - LineDiscountTotal
     /// </summary>
-    public decimal LineSubTotal => Math.Round((BasePrice * Quantity) - LineDiscountTotal, 2);
+    public decimal LineSubTotal => Math.Round(BasePrice * Quantity - LineDiscountTotal, 2);
 
     /// <summary>
     ///     LINE-ITEM TOTAL: LineSubTotal + LineTaxTotal
@@ -124,7 +128,7 @@ public sealed class PriceBreakdown : ValueObject
     ///     The final price PER UNIT after applying discounts and adding taxes (for backward compatibility).
     ///     Formula: (BasePrice - DiscountAmount) + TaxAmount
     /// </summary>
-    public decimal FinalPrice => Math.Round((BasePrice - DiscountAmount) + TaxAmount, 2);
+    public decimal FinalPrice => Math.Round(BasePrice - DiscountAmount + TaxAmount, 2);
 
     /// <summary>
     ///     The subtotal PER UNIT before tax is applied (after discounts, for backward compatibility).
@@ -144,7 +148,7 @@ public sealed class PriceBreakdown : ValueObject
         string taxType,
         string currency = "GEL")
     {
-        return new PriceBreakdown(basePrice, discountAmount, taxAmount, taxRate, taxType, currency, quantity: 1);
+        return new PriceBreakdown(basePrice, discountAmount, taxAmount, taxRate, taxType, currency, 1);
     }
 
     /// <summary>
@@ -168,8 +172,8 @@ public sealed class PriceBreakdown : ValueObject
         string currency = "GEL")
     {
         // Calculate per-unit values for backward compatibility (but they're not the source of truth)
-        var unitDiscount = quantity > 0 ? lineDiscountTotal / quantity : 0;
-        var unitTax = quantity > 0 ? lineTaxTotal / quantity : 0;
+        decimal unitDiscount = quantity > 0 ? lineDiscountTotal / quantity : 0;
+        decimal unitTax = quantity > 0 ? lineTaxTotal / quantity : 0;
 
         return new PriceBreakdown(
             basePrice,
@@ -188,7 +192,7 @@ public sealed class PriceBreakdown : ValueObject
     /// </summary>
     public static PriceBreakdown CreateSimple(decimal basePrice, string currency = "GEL")
     {
-        return new PriceBreakdown(basePrice, 0, 0, 0, "NONE", currency, quantity: 1);
+        return new PriceBreakdown(basePrice, 0, 0, 0, "NONE", currency);
     }
 
     /// <summary>
@@ -215,11 +219,11 @@ public sealed class PriceBreakdown : ValueObject
     public override string ToString()
     {
         if (DiscountAmount == 0 && TaxAmount == 0)
-            return $"{FinalPrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)} {Currency}";
+            return $"{FinalPrice.ToString("N2", CultureInfo.InvariantCulture)} {Currency}";
 
-        return $"{FinalPrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)} {Currency} " +
-               $"(Base: {BasePrice.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)}, " +
-               $"Discount: -{DiscountAmount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)}, " +
-               $"Tax: +{TaxAmount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)})";
+        return $"{FinalPrice.ToString("N2", CultureInfo.InvariantCulture)} {Currency} " +
+               $"(Base: {BasePrice.ToString("N2", CultureInfo.InvariantCulture)}, " +
+               $"Discount: -{DiscountAmount.ToString("N2", CultureInfo.InvariantCulture)}, " +
+               $"Tax: +{TaxAmount.ToString("N2", CultureInfo.InvariantCulture)})";
     }
 }

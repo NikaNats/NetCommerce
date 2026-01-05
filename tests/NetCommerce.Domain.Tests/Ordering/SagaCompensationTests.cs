@@ -1,9 +1,11 @@
+#region
+
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Events;
-using NSubstitute;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Ordering;
 
@@ -26,13 +28,14 @@ public class SagaCompensationTests
     public void InventoryConfirmationFailed_ShouldTransitionToCompensating_WithoutMarkingComplete()
     {
         // Arrange - Create a saga that has reached the "ConfirmingInventory" state
-        var saga = CreateSagaInConfirmingInventoryState();
+        OrderFulfillmentSaga saga = CreateSagaInConfirmingInventoryState();
         var @event = new InventoryConfirmationFailed(
             saga.Id,
             "Warehouse system outage - stock count mismatch");
 
         // Act
-        var result = saga.Handle(@event, _logger);
+        (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
+            FailCommand, OrderStatusChanged Notification) result = saga.Handle(@event, _logger);
 
         // Assert - The saga should NOT be completed
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);
@@ -52,7 +55,7 @@ public class SagaCompensationTests
     public void RefundCompleted_ShouldMarkSagaAsCompleted_AndTransitionToFailed()
     {
         // Arrange - Saga in Compensating state awaiting refund confirmation
-        var saga = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga saga = CreateSagaInCompensatingState();
         var refundTransactionId = Guid.NewGuid();
         var @event = new RefundCompleted(
             saga.Id,
@@ -77,7 +80,7 @@ public class SagaCompensationTests
     public void RefundFailed_ShouldTransitionToManualIntervention_WithoutMarkingComplete()
     {
         // Arrange - Saga in Compensating state
-        var saga = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga saga = CreateSagaInCompensatingState();
         var @event = new RefundFailed(
             saga.Id,
             "Stripe API returned 500 - Service temporarily unavailable");
@@ -96,14 +99,14 @@ public class SagaCompensationTests
     public void RefundFailed_MultipleTimes_ShouldRemainInManualInterventionState()
     {
         // Arrange
-        var saga = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga saga = CreateSagaInCompensatingState();
 
         // Act - Simulate multiple refund attempts failing
         saga.Handle(new RefundFailed(saga.Id, "Attempt 1: Network timeout"), _logger);
-        var firstState = saga.State;
+        OrderFulfillmentState firstState = saga.State;
 
         saga.Handle(new RefundFailed(saga.Id, "Attempt 2: Invalid merchant account"), _logger);
-        var secondState = saga.State;
+        OrderFulfillmentState secondState = saga.State;
 
         // Assert - Should remain in ManualInterventionRequired
         firstState.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
@@ -115,7 +118,7 @@ public class SagaCompensationTests
     public void Compensating_ShouldNotTransitionTo_Completed_DirectlyWithoutRefundConfirmation()
     {
         // Arrange
-        var saga = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga saga = CreateSagaInCompensatingState();
 
         // Act & Assert - Verify saga cannot be manually completed
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);
@@ -134,8 +137,8 @@ public class SagaCompensationTests
     {
         // Arrange - Create saga, simulate happy path until payment succeeds
         var orderId = Guid.NewGuid();
-        var command = CreateStartCommand(orderId);
-        var (saga, _, _) = OrderFulfillmentSaga.Start(command, _logger);
+        StartOrderFulfillmentCommand command = CreateStartCommand(orderId);
+        (OrderFulfillmentSaga? saga, _, _) = OrderFulfillmentSaga.Start(command, _logger);
 
         // Simulate: Inventory Reserved
         var reservedItems = new List<ReservedItem>
@@ -146,7 +149,7 @@ public class SagaCompensationTests
         saga.Handle(new InventoryLocked(orderId, reservedItems), _logger);
 
         // Simulate: Payment Succeeded
-        var transactionId = "stripe_ch_" + Guid.NewGuid().ToString("N");
+        string transactionId = "stripe_ch_" + Guid.NewGuid().ToString("N");
         saga.Handle(new PaymentSucceeded(orderId, transactionId, saga.TotalAmount), _logger);
 
         saga.IsPaid.ShouldBeTrue();
@@ -154,7 +157,8 @@ public class SagaCompensationTests
 
         // Act - Inventory confirmation fails AFTER payment
         var failureEvent = new InventoryConfirmationFailed(orderId, "Stock count mismatch");
-        var result = saga.Handle(failureEvent, _logger);
+        (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
+            FailCommand, OrderStatusChanged Notification) result = saga.Handle(failureEvent, _logger);
 
         // Assert - Must issue refund for the captured payment
         result.RefundCommand.ShouldNotBeNull();
@@ -169,13 +173,14 @@ public class SagaCompensationTests
     public void RefundAmount_ShouldExactlyMatchPaymentAmount()
     {
         // Arrange
-        var saga = CreateSagaInConfirmingInventoryState();
-        var originalAmount = saga.TotalAmount;
+        OrderFulfillmentSaga saga = CreateSagaInConfirmingInventoryState();
+        Money? originalAmount = saga.TotalAmount;
 
         // Act
-        var result = saga.Handle(
-            new InventoryConfirmationFailed(saga.Id, "Test failure"),
-            _logger);
+        (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
+            FailCommand, OrderStatusChanged Notification) result = saga.Handle(
+                new InventoryConfirmationFailed(saga.Id, "Test failure"),
+                _logger);
 
         // Assert - Financial integrity check
         result.RefundCommand.Amount.Amount.ShouldBe(originalAmount.Amount);
@@ -190,8 +195,8 @@ public class SagaCompensationTests
     public void ManualInterventionRequired_ShouldNotTransitionToAnyOtherState()
     {
         // Arrange
-        var saga = CreateSagaInManualInterventionState();
-        var initialState = saga.State;
+        OrderFulfillmentSaga saga = CreateSagaInManualInterventionState();
+        OrderFulfillmentState initialState = saga.State;
 
         // Act & Assert - Try various events, should remain in ManualInterventionRequired
         // In production, only admin actions can resolve this state
@@ -209,14 +214,15 @@ public class SagaCompensationTests
     public void Compensating_CanOnlyTransitionTo_FailedOrManualIntervention()
     {
         // Arrange
-        var saga = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga saga = CreateSagaInCompensatingState();
 
         // Act & Assert - Valid transitions
-        var sagaForSuccess = CreateSagaInCompensatingState();
-        sagaForSuccess.Handle(new RefundCompleted(sagaForSuccess.Id, Guid.NewGuid(), sagaForSuccess.TotalAmount), _logger);
+        OrderFulfillmentSaga sagaForSuccess = CreateSagaInCompensatingState();
+        sagaForSuccess.Handle(new RefundCompleted(sagaForSuccess.Id, Guid.NewGuid(), sagaForSuccess.TotalAmount),
+            _logger);
         sagaForSuccess.State.ShouldBe(OrderFulfillmentState.Failed);
 
-        var sagaForFailure = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga sagaForFailure = CreateSagaInCompensatingState();
         sagaForFailure.Handle(new RefundFailed(sagaForFailure.Id, "Refund API error"), _logger);
         sagaForFailure.State.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
     }
@@ -232,16 +238,13 @@ public class SagaCompensationTests
             Guid.NewGuid(),
             "ORD-TEST-" + Guid.NewGuid().ToString("N")[..8],
             Money.Create(299.99m, "USD"),
-            new List<OrderItemReservation>
-            {
-                new(Guid.NewGuid(), 1, "TEST-SKU-001")
-            });
+            new List<OrderItemReservation> { new(Guid.NewGuid(), 1, "TEST-SKU-001") });
     }
 
     private OrderFulfillmentSaga CreateSagaInConfirmingInventoryState()
     {
-        var command = CreateStartCommand();
-        var (saga, _, _) = OrderFulfillmentSaga.Start(command, _logger);
+        StartOrderFulfillmentCommand command = CreateStartCommand();
+        (OrderFulfillmentSaga? saga, _, _) = OrderFulfillmentSaga.Start(command, _logger);
 
         // Advance to ConfirmingInventory state
         var reservedItems = new List<ReservedItem>
@@ -258,7 +261,7 @@ public class SagaCompensationTests
 
     private OrderFulfillmentSaga CreateSagaInCompensatingState()
     {
-        var saga = CreateSagaInConfirmingInventoryState();
+        OrderFulfillmentSaga saga = CreateSagaInConfirmingInventoryState();
         saga.Handle(new InventoryConfirmationFailed(saga.Id, "Test failure"), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);
         return saga;
@@ -266,7 +269,7 @@ public class SagaCompensationTests
 
     private OrderFulfillmentSaga CreateSagaInManualInterventionState()
     {
-        var saga = CreateSagaInCompensatingState();
+        OrderFulfillmentSaga saga = CreateSagaInCompensatingState();
         saga.Handle(new RefundFailed(saga.Id, "Test refund failure"), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
         return saga;
@@ -288,7 +291,8 @@ public class SagaCompensationTests
         var failureEvent = new InventoryConfirmationFailed(saga.Id, "Stock Count Mismatch");
 
         // Act
-        var result = saga.Handle(failureEvent, _logger);
+        (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
+            FailCommand, OrderStatusChanged Notification) result = saga.Handle(failureEvent, _logger);
 
         // Assert
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);
@@ -308,15 +312,13 @@ public class SagaCompensationTests
         // Arrange
         var saga = new OrderFulfillmentSaga
         {
-            Id = Guid.NewGuid(),
-            State = OrderFulfillmentState.ProcessingPayment,
-            IsInventoryLockedForPayment = true
+            Id = Guid.NewGuid(), State = OrderFulfillmentState.ProcessingPayment, IsInventoryLockedForPayment = true
         };
 
         var failureEvent = new PaymentFailed(saga.Id, "Card Declined", "DECLINED");
 
         // Act
-        var (releaseCmd, _, _) = saga.Handle(failureEvent, _logger);
+        (ReleaseInventoryReservationCommand? releaseCmd, _, _) = saga.Handle(failureEvent, _logger);
 
         // Assert
         saga.State.ShouldBe(OrderFulfillmentState.Failed);

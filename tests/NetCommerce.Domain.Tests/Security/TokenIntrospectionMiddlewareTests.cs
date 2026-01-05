@@ -1,4 +1,5 @@
-#nullable enable
+#region
+
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -9,9 +10,8 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
-using NSubstitute;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Security;
 
@@ -22,12 +22,12 @@ namespace NetCommerce.Domain.Tests.Security;
 /// </summary>
 public class TokenIntrospectionMiddlewareTests
 {
-    private readonly TokenIntrospectionMiddleware _middleware;
-    private readonly IHttpClientFactory _clientFactory;
-    private readonly IOptions<ZeroTrustAuthOptions> _options;
     private readonly IDistributedCache _cache;
+    private readonly IHttpClientFactory _clientFactory;
     private readonly ILogger<TokenIntrospectionMiddleware> _logger;
+    private readonly TokenIntrospectionMiddleware _middleware;
     private readonly RequestDelegate _next;
+    private readonly IOptions<ZeroTrustAuthOptions> _options;
     private bool _nextWasCalled;
 
     public TokenIntrospectionMiddlewareTests()
@@ -59,8 +59,9 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenIntrospectionDisabled_PassesThrough()
     {
         // Arrange
-        var options = Options.Create(new ZeroTrustAuthOptions { IntrospectionEnabled = false });
-        var context = CreateHttpContext();
+        IOptions<ZeroTrustAuthOptions> options =
+            Options.Create(new ZeroTrustAuthOptions { IntrospectionEnabled = false });
+        DefaultHttpContext context = CreateHttpContext();
 
         // Act
         await _middleware.InvokeAsync(context, _clientFactory, options, _cache);
@@ -73,7 +74,7 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenNoToken_PassesThrough()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: null);
+        DefaultHttpContext context = CreateHttpContextWithServices(null);
 
         // Act
         await _middleware.InvokeAsync(context, _clientFactory, _options, _cache);
@@ -86,7 +87,7 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenTokenCachedAsActive_PassesThroughWithoutIntrospection()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "valid-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("valid-token");
 
         // Mock GetAsync (not GetStringAsync as that's an extension method)
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -105,7 +106,7 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenTokenCachedAsRevoked_Rejects()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "revoked-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("revoked-token");
 
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(Encoding.UTF8.GetBytes("revoked"));
@@ -122,13 +123,13 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenIntrospectionReturnsActive_PassesThroughAndCaches()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "active-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("active-token");
 
         // Cache miss
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((byte[]?)null);
 
-        var mockHttpClient = CreateMockHttpClient(new { active = true });
+        HttpClient mockHttpClient = CreateMockHttpClient(new { active = true });
         _clientFactory.CreateClient("KeycloakIntrospection").Returns(mockHttpClient);
 
         // Act
@@ -147,13 +148,13 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenIntrospectionReturnsInactive_RejectsAndCaches()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "revoked-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("revoked-token");
 
         // Cache miss
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((byte[]?)null);
 
-        var mockHttpClient = CreateMockHttpClient(new { active = false });
+        HttpClient mockHttpClient = CreateMockHttpClient(new { active = false });
         _clientFactory.CreateClient("KeycloakIntrospection").Returns(mockHttpClient);
 
         // Act
@@ -173,7 +174,7 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenIntrospectionEndpointUnavailable_FailsOpen()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "some-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("some-token");
 
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((byte[]?)null);
@@ -194,7 +195,7 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WhenExceptionDuringIntrospection_FailsOpen()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "some-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("some-token");
 
         _cache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((byte[]?)null);
@@ -214,20 +215,20 @@ public class TokenIntrospectionMiddlewareTests
     public async Task InvokeAsync_WithNullCache_StillPerformsIntrospection()
     {
         // Arrange
-        var context = CreateHttpContextWithServices(token: "valid-token");
+        DefaultHttpContext context = CreateHttpContextWithServices("valid-token");
 
-        var mockHttpClient = CreateMockHttpClient(new { active = true });
+        HttpClient mockHttpClient = CreateMockHttpClient(new { active = true });
         _clientFactory.CreateClient("KeycloakIntrospection").Returns(mockHttpClient);
 
         // Act - pass null cache
-        await _middleware.InvokeAsync(context, _clientFactory, _options, null);
+        await _middleware.InvokeAsync(context, _clientFactory, _options);
 
         // Assert
         _nextWasCalled.ShouldBeTrue();
     }
 
     /// <summary>
-    /// Creates a basic HttpContext without services (for testing introspection disabled case)
+    ///     Creates a basic HttpContext without services (for testing introspection disabled case)
     /// </summary>
     private static DefaultHttpContext CreateHttpContext()
     {
@@ -237,7 +238,7 @@ public class TokenIntrospectionMiddlewareTests
     }
 
     /// <summary>
-    /// Creates an HttpContext with proper service mocking for token retrieval
+    ///     Creates an HttpContext with proper service mocking for token retrieval
     /// </summary>
     private static DefaultHttpContext CreateHttpContextWithServices(string? token)
     {
@@ -245,7 +246,7 @@ public class TokenIntrospectionMiddlewareTests
         context.Response.Body = new MemoryStream();
 
         // Setup service provider with authentication service
-        var authService = Substitute.For<IAuthenticationService>();
+        IAuthenticationService? authService = Substitute.For<IAuthenticationService>();
 
         if (token != null)
         {
@@ -267,7 +268,7 @@ public class TokenIntrospectionMiddlewareTests
                 .Returns(AuthenticateResult.NoResult());
         }
 
-        var serviceProvider = Substitute.For<IServiceProvider>();
+        IServiceProvider? serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IAuthenticationService)).Returns(authService);
         context.RequestServices = serviceProvider;
 
@@ -276,15 +277,15 @@ public class TokenIntrospectionMiddlewareTests
 
     private static HttpClient CreateMockHttpClient(object response)
     {
-        var json = JsonSerializer.Serialize(response);
+        string json = JsonSerializer.Serialize(response);
         var mockHandler = new MockHttpMessageHandler(HttpStatusCode.OK, json);
         return new HttpClient(mockHandler);
     }
 
     private class MockHttpMessageHandler : HttpMessageHandler
     {
-        private readonly HttpStatusCode _statusCode;
         private readonly string _content;
+        private readonly HttpStatusCode _statusCode;
 
         public MockHttpMessageHandler(HttpStatusCode statusCode, string content)
         {

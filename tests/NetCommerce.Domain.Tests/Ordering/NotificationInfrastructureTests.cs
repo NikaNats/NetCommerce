@@ -1,9 +1,9 @@
-#nullable enable
+#region
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Infrastructure.Notifications;
-using NSubstitute;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Ordering;
 
@@ -19,7 +19,7 @@ public class NotificationInfrastructureTests
     public async Task InMemoryEmailProvider_SendEmail_ShouldStoreInMemory()
     {
         // Arrange
-        var logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
+        ILogger<InMemoryEmailProvider>? logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
         var provider = new InMemoryEmailProvider(logger);
 
         // Act
@@ -30,10 +30,10 @@ public class NotificationInfrastructureTests
             CancellationToken.None);
 
         // Assert
-        var sentEmails = provider.GetSentEmails();
+        IReadOnlyCollection<SentEmail> sentEmails = provider.GetSentEmails();
         sentEmails.ShouldHaveSingleItem();
 
-        var email = sentEmails.First();
+        SentEmail email = sentEmails.First();
         email.To.ShouldBe("test@example.com");
         email.Subject.ShouldBe("Test Subject");
         email.HtmlBody.ShouldContain("Test Body");
@@ -46,7 +46,7 @@ public class NotificationInfrastructureTests
     public async Task InMemoryEmailProvider_MultipleSends_ShouldStoreAll()
     {
         // Arrange
-        var logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
+        ILogger<InMemoryEmailProvider>? logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
         var provider = new InMemoryEmailProvider(logger);
 
         // Act
@@ -55,7 +55,7 @@ public class NotificationInfrastructureTests
         await provider.SendEmailAsync("user3@test.com", "Subject 3", "Body 3");
 
         // Assert
-        var sentEmails = provider.GetSentEmails();
+        IReadOnlyCollection<SentEmail> sentEmails = provider.GetSentEmails();
         sentEmails.Count.ShouldBe(3);
         sentEmails.Select(e => e.To).ShouldContain("user1@test.com");
         sentEmails.Select(e => e.To).ShouldContain("user2@test.com");
@@ -66,7 +66,7 @@ public class NotificationInfrastructureTests
     public async Task InMemoryEmailProvider_Clear_ShouldRemoveAllEmails()
     {
         // Arrange
-        var logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
+        ILogger<InMemoryEmailProvider>? logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
         var provider = new InMemoryEmailProvider(logger);
 
         await provider.SendEmailAsync("test@example.com", "Subject", "Body");
@@ -83,18 +83,18 @@ public class NotificationInfrastructureTests
     public async Task InMemoryEmailProvider_ThreadSafe_ShouldHandleConcurrentSends()
     {
         // Arrange
-        var logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
+        ILogger<InMemoryEmailProvider>? logger = Substitute.For<ILogger<InMemoryEmailProvider>>();
         var provider = new InMemoryEmailProvider(logger);
 
         // Act - Send 100 emails concurrently
-        var tasks = Enumerable.Range(1, 100)
+        Task[] tasks = Enumerable.Range(1, 100)
             .Select(i => provider.SendEmailAsync($"user{i}@test.com", $"Subject {i}", $"Body {i}"))
             .ToArray();
 
         await Task.WhenAll(tasks);
 
         // Assert
-        var sentEmails = provider.GetSentEmails();
+        IReadOnlyCollection<SentEmail> sentEmails = provider.GetSentEmails();
         sentEmails.Count.ShouldBe(100);
         sentEmails.Select(e => e.To).Distinct().Count().ShouldBe(100);
     }
@@ -118,7 +118,7 @@ public class NotificationInfrastructureTests
         };
 
         // Act
-        var html = await engine.RenderAsync("OrderConfirmation", model);
+        string html = await engine.RenderAsync("OrderConfirmation", model);
 
         // Assert
         html.ShouldContain("Jane Smith");
@@ -146,7 +146,7 @@ public class NotificationInfrastructureTests
         };
 
         // Act
-        var html = await engine.RenderAsync("OrderConfirmation", model);
+        string html = await engine.RenderAsync("OrderConfirmation", model);
 
         // Assert - Verify HTML structure
         html.ShouldContain("<html>");
@@ -190,7 +190,7 @@ public class NotificationInfrastructureTests
         };
 
         // Act
-        var html = await engine.RenderAsync("OrderConfirmation", model);
+        string html = await engine.RenderAsync("OrderConfirmation", model);
 
         // Assert - Check decimal formatting
         html.ShouldContain("1,234.56"); // Formatted with thousands separator
@@ -216,7 +216,7 @@ public class NotificationInfrastructureTests
         };
 
         // Act
-        var html = await engine.RenderAsync("OrderConfirmation", model);
+        string html = await engine.RenderAsync("OrderConfirmation", model);
 
         // Assert
         html.ShouldContain(name);

@@ -1,13 +1,14 @@
-#nullable enable
+#region
 
 using NetCommerce.SharedKernel.Application;
+
+#endregion
 
 namespace NetCommerce.SharedKernel.Infrastructure.Security;
 
 /// <summary>
 ///     2025 Elite Pattern: System/Background Job user context.
 ///     Used when no authenticated user exists (e.g., scheduled jobs, event handlers).
-///     
 ///     In production, you'd have:
 ///     - HttpUserContext (extracts from HttpContext.User)
 ///     - ApiKeyUserContext (validates API key headers)
@@ -28,17 +29,16 @@ public class SystemUserContext : IUserContext
 /// </summary>
 public class DevelopmentUserContext : IUserContext
 {
-    private readonly string _userId;
-    private readonly string _role;
-
     public DevelopmentUserContext(string userId = "dev_user", string role = "Admin")
     {
-        _userId = userId;
-        _role = role;
+        UserId = userId;
+        Role = role;
     }
 
-    public string UserId => _userId;
-    public string Role => _role;
+    public string UserId { get; }
+
+    public string Role { get; }
+
     public string? IpAddress => "127.0.0.1";
     public string? UserAgent => "NetCommerce/Development";
     public bool IsAuthenticated => true;

@@ -1,7 +1,8 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
+#region
+
 using NetCommerce.SharedKernel.Domain;
+
+#endregion
 
 namespace NetCommerce.Ordering.Domain.Orders;
 
@@ -20,8 +21,8 @@ public interface IPriceLookupService
 ///     Includes physical weight for shipping label accuracy and category for tax calculation.
 /// </summary>
 public record PriceSnapshot(
-    string Name, 
-    Money Price, 
-    string Sku, 
-    decimal WeightKg, 
+    string Name,
+    Money Price,
+    string Sku,
+    decimal WeightKg,
     string? Category = null);

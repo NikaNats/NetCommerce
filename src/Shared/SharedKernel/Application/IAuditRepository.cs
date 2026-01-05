@@ -1,17 +1,17 @@
-#nullable enable
+#region
 
 using NetCommerce.SharedKernel.Domain;
+
+#endregion
 
 namespace NetCommerce.SharedKernel.Application;
 
 /// <summary>
 ///     2025 Elite Pattern: Repository for the Immutable Business Event Store.
-///
 ///     Security Model:
 ///     - Application user has INSERT and SELECT permissions ONLY
 ///     - NO UPDATE or DELETE permissions (enforced at DB level)
 ///     - This creates a "WORM" (Write Once, Read Many) ledger
-///
 ///     Performance Considerations:
 ///     - Partitioned by timestamp (monthly or yearly)
 ///     - Indexed on: ResourceId, Module, Action, Timestamp

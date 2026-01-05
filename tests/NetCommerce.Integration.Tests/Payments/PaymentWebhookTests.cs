@@ -1,27 +1,31 @@
+#region
+
 using System.Net;
-using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Amazon.S3;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Gateways;
+using NetCommerce.SharedKernel.Application.Notifications;
+using NSubstitute;
 using Shouldly;
-using Stripe;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Integration.Tests.Payments;
 
 /// <summary>
-/// Integration tests for Stripe webhook endpoint.
-/// Tests the complete webhook-first payment pattern implementation.
+///     Integration tests for Stripe webhook endpoint.
+///     Tests the complete webhook-first payment pattern implementation.
 /// </summary>
 [Collection("IntegrationTests")]
 public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
-    private readonly HttpClient _client;
     private const string WebhookSecret = "whsec_test_secret";
+    private readonly HttpClient _client;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public PaymentWebhookTests(WebApplicationFactory<Program> factory)
     {
@@ -38,13 +42,13 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
                 });
 
                 // Register fake S3 service for tests (Media module requires IAmazonS3)
-                services.AddScoped<Amazon.S3.IAmazonS3>(_ => NSubstitute.Substitute.For<Amazon.S3.IAmazonS3>());
+                services.AddScoped<IAmazonS3>(_ => Substitute.For<IAmazonS3>());
 
                 // Register OrderNotificationHandler dependencies
-                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>(_ =>
-                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>());
-                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>(_ =>
-                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>());
+                services.AddScoped<IEmailProvider>(_ =>
+                    Substitute.For<IEmailProvider>());
+                services.AddScoped<ITemplateEngine>(_ =>
+                    Substitute.For<ITemplateEngine>());
             });
         });
         _client = _factory.CreateClient();
@@ -54,9 +58,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_ValidSignature_ShouldReturn200()
     {
         // Arrange
-        var paymentIntentId = "pi_test_123456789";
-        var webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
-        var signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
+        string paymentIntentId = "pi_test_123456789";
+        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
+        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -65,7 +69,7 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         request.Headers.Add("Stripe-Signature", signature);
 
         // Act
-        var response = await _client.SendAsync(request);
+        HttpResponseMessage response = await _client.SendAsync(request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -75,9 +79,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_InvalidSignature_ShouldReturn400()
     {
         // Arrange
-        var paymentIntentId = "pi_test_123456789";
-        var webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
-        var invalidSignature = "t=1234567890,v1=invalid_signature_hash";
+        string paymentIntentId = "pi_test_123456789";
+        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
+        string invalidSignature = "t=1234567890,v1=invalid_signature_hash";
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -86,7 +90,7 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         request.Headers.Add("Stripe-Signature", invalidSignature);
 
         // Act
-        var response = await _client.SendAsync(request);
+        HttpResponseMessage response = await _client.SendAsync(request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -96,8 +100,8 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_MissingSignature_ShouldReturn400()
     {
         // Arrange
-        var paymentIntentId = "pi_test_123456789";
-        var webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
+        string paymentIntentId = "pi_test_123456789";
+        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -106,7 +110,7 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         // No Stripe-Signature header
 
         // Act
-        var response = await _client.SendAsync(request);
+        HttpResponseMessage response = await _client.SendAsync(request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
@@ -116,9 +120,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_PaymentSucceeded_ShouldProcessSuccessfully()
     {
         // Arrange
-        var paymentIntentId = "pi_test_succeeded_123";
-        var webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
-        var signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
+        string paymentIntentId = "pi_test_succeeded_123";
+        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
+        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -127,7 +131,7 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         request.Headers.Add("Stripe-Signature", signature);
 
         // Act
-        var response = await _client.SendAsync(request);
+        HttpResponseMessage response = await _client.SendAsync(request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -140,9 +144,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_PaymentFailed_ShouldProcessSuccessfully()
     {
         // Arrange
-        var paymentIntentId = "pi_test_failed_123";
-        var webhookPayload = CreateStripeWebhookPayload("payment_intent.payment_failed", paymentIntentId);
-        var signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
+        string paymentIntentId = "pi_test_failed_123";
+        string webhookPayload = CreateStripeWebhookPayload("payment_intent.payment_failed", paymentIntentId);
+        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -151,7 +155,7 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         request.Headers.Add("Stripe-Signature", signature);
 
         // Act
-        var response = await _client.SendAsync(request);
+        HttpResponseMessage response = await _client.SendAsync(request);
 
         // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -161,9 +165,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_UnknownEventType_ShouldReturn200()
     {
         // Arrange - Stripe sends various event types, we should gracefully ignore unknown ones
-        var paymentIntentId = "pi_test_123";
-        var webhookPayload = CreateStripeWebhookPayload("customer.subscription.updated", paymentIntentId);
-        var signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
+        string paymentIntentId = "pi_test_123";
+        string webhookPayload = CreateStripeWebhookPayload("customer.subscription.updated", paymentIntentId);
+        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -172,7 +176,7 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         request.Headers.Add("Stripe-Signature", signature);
 
         // Act
-        var response = await _client.SendAsync(request);
+        HttpResponseMessage response = await _client.SendAsync(request);
 
         // Assert - Should still return 200 to prevent Stripe retries
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -182,9 +186,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task WebhookEndpoint_DuplicateEvent_ShouldBeIdempotent()
     {
         // Arrange - Same event sent twice (Stripe retry scenario)
-        var paymentIntentId = "pi_test_duplicate_123";
-        var webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
-        var signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
+        string paymentIntentId = "pi_test_duplicate_123";
+        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
+        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
 
         var request1 = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
         {
@@ -199,8 +203,8 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
         request2.Headers.Add("Stripe-Signature", signature);
 
         // Act - Send same webhook twice
-        var response1 = await _client.SendAsync(request1);
-        var response2 = await _client.SendAsync(request2);
+        HttpResponseMessage response1 = await _client.SendAsync(request1);
+        HttpResponseMessage response2 = await _client.SendAsync(request2);
 
         // Assert - Both should return 200 (idempotent handling)
         response1.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -237,12 +241,12 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
 
     private string GenerateStripeSignature(string payload, string secret)
     {
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var signedPayload = $"{timestamp}.{payload}";
+        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string signedPayload = $"{timestamp}.{payload}";
 
-        using var hmac = new System.Security.Cryptography.HMACSHA256(Encoding.UTF8.GetBytes(secret));
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(signedPayload));
-        var signature = BitConverter.ToString(hash).Replace("-", "").ToLower();
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(signedPayload));
+        string signature = BitConverter.ToString(hash).Replace("-", "").ToLower();
 
         return $"t={timestamp},v1={signature}";
     }

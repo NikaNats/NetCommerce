@@ -1,22 +1,23 @@
-#nullable enable
+#region
+
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Handlers;
+using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Events;
-using NSubstitute;
-using Shouldly;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Payments;
 
 /// <summary>
-/// Unit tests for ProcessExternalPaymentConfirmationHandler.
-/// Tests idempotency, status updates, and domain event publishing.
+///     Unit tests for ProcessExternalPaymentConfirmationHandler.
+///     Tests idempotency, status updates, and domain event publishing.
 /// </summary>
 public class ProcessExternalPaymentConfirmationHandlerTests
 {
-    private readonly IPaymentTransactionRepository _mockRepository;
     private readonly ILogger _mockLogger;
+    private readonly IPaymentTransactionRepository _mockRepository;
 
     public ProcessExternalPaymentConfirmationHandlerTests()
     {
@@ -28,17 +29,17 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_SuccessfulPayment_ShouldMarkAsCompleted()
     {
         // Arrange
-        var externalTransactionId = "pi_test_123";
+        string externalTransactionId = "pi_test_123";
         var orderId = Guid.NewGuid();
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Succeeded",
-            WebhookEventId: "evt_123");
+            externalTransactionId,
+            "Succeeded",
+            "evt_123");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -57,17 +58,17 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_FailedPayment_ShouldMarkAsFailed()
     {
         // Arrange
-        var externalTransactionId = "pi_test_failed_123";
+        string externalTransactionId = "pi_test_failed_123";
         var orderId = Guid.NewGuid();
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Failed",
-            WebhookEventId: "evt_456");
+            externalTransactionId,
+            "Failed",
+            "evt_456");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -86,17 +87,17 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_AlreadyCompletedPayment_ShouldBeIdempotent()
     {
         // Arrange - Payment already completed
-        var externalTransactionId = "pi_test_already_completed";
+        string externalTransactionId = "pi_test_already_completed";
         var orderId = Guid.NewGuid();
-        var payment = CreateCompletedPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreateCompletedPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Succeeded",
-            WebhookEventId: "evt_duplicate_789");
+            externalTransactionId,
+            "Succeeded",
+            "evt_duplicate_789");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -121,17 +122,17 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_AlreadyFailedPayment_ShouldBeIdempotent()
     {
         // Arrange - Payment already failed
-        var externalTransactionId = "pi_test_already_failed";
+        string externalTransactionId = "pi_test_already_failed";
         var orderId = Guid.NewGuid();
-        var payment = CreateFailedPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreateFailedPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Failed",
-            WebhookEventId: "evt_duplicate_fail");
+            externalTransactionId,
+            "Failed",
+            "evt_duplicate_fail");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -148,15 +149,15 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_PaymentNotFound_ShouldLogWarningAndReturn()
     {
         // Arrange - Payment doesn't exist (webhook for old deployment or test)
-        var externalTransactionId = "pi_test_not_found";
+        string externalTransactionId = "pi_test_not_found";
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns((PaymentTransaction?)null);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Succeeded",
-            WebhookEventId: "evt_not_found");
+            externalTransactionId,
+            "Succeeded",
+            "evt_not_found");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -180,17 +181,17 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_CanceledPayment_ShouldMarkAsFailed()
     {
         // Arrange
-        var externalTransactionId = "pi_test_canceled_123";
+        string externalTransactionId = "pi_test_canceled_123";
         var orderId = Guid.NewGuid();
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Canceled",
-            WebhookEventId: "evt_cancel");
+            externalTransactionId,
+            "Canceled",
+            "evt_cancel");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -209,17 +210,17 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_UnknownStatus_ShouldLogWarningAndNotUpdate()
     {
         // Arrange
-        var externalTransactionId = "pi_test_unknown_status";
+        string externalTransactionId = "pi_test_unknown_status";
         var orderId = Guid.NewGuid();
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "UnknownStatus",
-            WebhookEventId: "evt_unknown");
+            externalTransactionId,
+            "UnknownStatus",
+            "evt_unknown");
 
         // Act
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -244,22 +245,22 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     public async Task Handle_MultipleSuccessWebhooks_ShouldProcessOnlyFirst()
     {
         // Arrange - Simulate Stripe retry scenario
-        var externalTransactionId = "pi_test_retry_123";
+        string externalTransactionId = "pi_test_retry_123";
         var orderId = Guid.NewGuid();
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
 
-        _mockRepository.GetByExternalIdAsync(externalTransactionId, default)
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
             .Returns(payment);
 
         var command1 = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Succeeded",
-            WebhookEventId: "evt_first");
+            externalTransactionId,
+            "Succeeded",
+            "evt_first");
 
         var command2 = new ProcessExternalPaymentConfirmation(
-            ExternalTransactionId: externalTransactionId,
-            Status: "Succeeded",
-            WebhookEventId: "evt_retry");
+            externalTransactionId,
+            "Succeeded",
+            "evt_retry");
 
         // Act - Process first webhook
         await ProcessExternalPaymentConfirmationHandler.Handle(
@@ -288,7 +289,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     {
         var payment = PaymentTransaction.Create(
             orderId,
-            NetCommerce.SharedKernel.Domain.Money.Create(100m, "USD"),
+            Money.Create(100m, "USD"),
             PaymentProvider.Stripe,
             $"idempotency_{Guid.NewGuid()}");
 
@@ -299,14 +300,14 @@ public class ProcessExternalPaymentConfirmationHandlerTests
 
     private PaymentTransaction CreateCompletedPayment(Guid orderId, string externalTransactionId)
     {
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
         payment.MarkAsCompleted(externalTransactionId);
         return payment;
     }
 
     private PaymentTransaction CreateFailedPayment(Guid orderId, string externalTransactionId)
     {
-        var payment = CreatePendingPayment(orderId, externalTransactionId);
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
         payment.MarkAsFailed("Card declined");
         return payment;
     }

@@ -1,6 +1,8 @@
-#nullable enable
+#region
 
 using NetCommerce.Ordering.Application.Orders.Services;
+
+#endregion
 
 namespace NetCommerce.Ordering.Infrastructure.Services;
 
@@ -13,10 +15,10 @@ public sealed class SimplePromotionEngine : IPromotionEngine
     // Simple coupon code table - in production, this would be in a database
     private readonly Dictionary<string, CouponRule> _coupons = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["WELCOME10"] = new(0.10m, "Welcome 10% Off"),
-        ["SAVE20"] = new(0.20m, "Save 20%"),
-        ["SUMMER15"] = new(0.15m, "Summer Sale 15%"),
-        ["FIRSTORDER"] = new(0.25m, "First Order 25% Off"),
+        ["WELCOME10"] = new CouponRule(0.10m, "Welcome 10% Off"),
+        ["SAVE20"] = new CouponRule(0.20m, "Save 20%"),
+        ["SUMMER15"] = new CouponRule(0.15m, "Summer Sale 15%"),
+        ["FIRSTORDER"] = new CouponRule(0.25m, "First Order 25% Off")
     };
 
     public Task<PromotionResult> CalculateDiscountAsync(
@@ -30,13 +32,13 @@ public sealed class SimplePromotionEngine : IPromotionEngine
         if (basePrice <= 0 || quantity <= 0)
             return Task.FromResult(PromotionResult.NoDiscount());
 
-        var totalPrice = basePrice * quantity;
+        decimal totalPrice = basePrice * quantity;
 
         // Check for coupon code discount
-        if (!string.IsNullOrWhiteSpace(couponCode) && 
-            _coupons.TryGetValue(couponCode, out var coupon))
+        if (!string.IsNullOrWhiteSpace(couponCode) &&
+            _coupons.TryGetValue(couponCode, out CouponRule? coupon))
         {
-            var discountAmount = Math.Round(totalPrice * coupon.DiscountPercentage, 2);
+            decimal discountAmount = Math.Round(totalPrice * coupon.DiscountPercentage, 2);
             return Task.FromResult(PromotionResult.WithDiscount(
                 discountAmount,
                 coupon.Name,

@@ -1,6 +1,10 @@
+#region
+
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.SharedKernel.Events;
+
+#endregion
 
 namespace NetCommerce.Ordering.Application.Handlers;
 
@@ -10,8 +14,8 @@ namespace NetCommerce.Ordering.Application.Handlers;
 /// </summary>
 public sealed class PublishOrderReadyForShippingHandler
 {
-    private readonly IOrderRepository _orderRepository;
     private readonly ILogger<PublishOrderReadyForShippingHandler> _logger;
+    private readonly IOrderRepository _orderRepository;
 
     public PublishOrderReadyForShippingHandler(
         IOrderRepository orderRepository,
@@ -33,7 +37,7 @@ public sealed class PublishOrderReadyForShippingHandler
             "Order {OrderId} finalized. Fetching order details for shipping.",
             command.OrderId);
 
-        var order = await _orderRepository.GetByIdAsync(command.OrderId, cancellationToken);
+        Order? order = await _orderRepository.GetByIdAsync(command.OrderId, cancellationToken);
         if (order is null)
         {
             _logger.LogWarning(

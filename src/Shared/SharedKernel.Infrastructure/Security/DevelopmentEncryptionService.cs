@@ -1,23 +1,22 @@
-#nullable enable
+#region
 
 using System.Security.Cryptography;
 using System.Text;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 
+#endregion
+
 namespace NetCommerce.SharedKernel.Infrastructure.Security;
 
 /// <summary>
 ///     Development/Testing implementation of IEncryptionService.
-///
 ///     SECURITY WARNING:
 ///     This implementation uses in-memory keys and is NOT suitable for production.
-///
 ///     For Production, use:
 ///     - Azure Key Vault integration (Azure.Security.KeyVault.Keys)
 ///     - AWS KMS integration (Amazon.KeyManagementService)
 ///     - HashiCorp Vault integration
-///
 ///     This implementation demonstrates:
 ///     - Envelope encryption pattern (Master KEK + Data DEK)
 ///     - AES-256-GCM authenticated encryption
@@ -26,9 +25,9 @@ namespace NetCommerce.SharedKernel.Infrastructure.Security;
 /// </summary>
 public class DevelopmentEncryptionService : IEncryptionService
 {
-    private readonly IBlindIndexSaltProvider _saltProvider;
-    private readonly byte[] _masterKey; // In production, this comes from Azure Key Vault
     private readonly string _keyId = "dev-key-v1";
+    private readonly byte[] _masterKey; // In production, this comes from Azure Key Vault
+    private readonly IBlindIndexSaltProvider _saltProvider;
 
     public DevelopmentEncryptionService(IBlindIndexSaltProvider saltProvider)
     {
@@ -55,7 +54,7 @@ public class DevelopmentEncryptionService : IEncryptionService
             // Deterministic: Derive IV from plaintext hash
             // This ensures same plaintext → same ciphertext (enables exact match searches)
             using var sha256 = SHA256.Create();
-            var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(plaintext));
+            byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(plaintext));
             aes.IV = hash.Take(16).ToArray(); // AES-256 uses 16-byte IV
         }
         else
@@ -67,10 +66,10 @@ public class DevelopmentEncryptionService : IEncryptionService
 
         // CA5401 suppressed: Deterministic encryption intentionally uses derived IV for searchability
 #pragma warning disable CA5401
-        using var encryptor = aes.CreateEncryptor();
+        using ICryptoTransform encryptor = aes.CreateEncryptor();
 #pragma warning restore CA5401
-        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        var ciphertext = encryptor.TransformFinalBlock(plaintextBytes, 0, plaintextBytes.Length);
+        byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
+        byte[] ciphertext = encryptor.TransformFinalBlock(plaintextBytes, 0, plaintextBytes.Length);
 
         return EncryptedData.Create(ciphertext, _keyId, aes.IV);
     }
@@ -89,8 +88,8 @@ public class DevelopmentEncryptionService : IEncryptionService
         aes.Key = _masterKey;
         aes.IV = encryptedData.Iv;
 
-        using var decryptor = aes.CreateDecryptor();
-        var plaintextBytes = decryptor.TransformFinalBlock(
+        using ICryptoTransform decryptor = aes.CreateDecryptor();
+        byte[] plaintextBytes = decryptor.TransformFinalBlock(
             encryptedData.Ciphertext,
             0,
             encryptedData.Ciphertext.Length);
@@ -102,7 +101,7 @@ public class DevelopmentEncryptionService : IEncryptionService
         string plaintext,
         CancellationToken cancellationToken = default)
     {
-        var salt = await _saltProvider.GetCurrentSaltAsync(cancellationToken);
+        byte[] salt = await _saltProvider.GetCurrentSaltAsync(cancellationToken);
         return BlindIndex.Compute(plaintext, salt);
     }
 
@@ -111,8 +110,8 @@ public class DevelopmentEncryptionService : IEncryptionService
         bool isDeterministic = false,
         CancellationToken cancellationToken = default)
     {
-        var encrypted = await EncryptAsync(plaintext, isDeterministic, cancellationToken);
-        var blindIndex = await ComputeBlindIndexAsync(plaintext, cancellationToken);
+        EncryptedData encrypted = await EncryptAsync(plaintext, isDeterministic, cancellationToken);
+        BlindIndex blindIndex = await ComputeBlindIndexAsync(plaintext, cancellationToken);
 
         return SecureValue.FromStorage(encrypted, blindIndex);
     }
@@ -122,7 +121,7 @@ public class DevelopmentEncryptionService : IEncryptionService
         CancellationToken cancellationToken = default)
     {
         // Decrypt with old key
-        var plaintext = await DecryptAsync(oldEncryptedData, cancellationToken);
+        string plaintext = await DecryptAsync(oldEncryptedData, cancellationToken);
 
         // Encrypt with new key (would use new key ID in production)
         return await EncryptAsync(plaintext, false, cancellationToken);
@@ -131,10 +130,8 @@ public class DevelopmentEncryptionService : IEncryptionService
 
 /// <summary>
 ///     Development/Testing implementation of IBlindIndexSaltProvider.
-///
 ///     SECURITY WARNING:
 ///     This implementation uses a hardcoded salt and is NOT suitable for production.
-///
 ///     For Production:
 ///     - Store salt in Azure Key Vault or AWS Secrets Manager
 ///     - Rotate salt annually
@@ -142,8 +139,8 @@ public class DevelopmentEncryptionService : IEncryptionService
 /// </summary>
 public class DevelopmentBlindIndexSaltProvider : IBlindIndexSaltProvider
 {
-    private readonly byte[] _salt;
     private const int CurrentVersion = 1;
+    private readonly byte[] _salt;
 
     public DevelopmentBlindIndexSaltProvider()
     {
@@ -175,10 +172,8 @@ public class DevelopmentBlindIndexSaltProvider : IBlindIndexSaltProvider
 
 /// <summary>
 ///     Development/Testing implementation of IKeyManagementService.
-///
 ///     SECURITY WARNING:
 ///     This implementation uses in-memory keys and is NOT suitable for production.
-///
 ///     For Production:
 ///     - Azure Key Vault: Azure.Security.KeyVault.Keys
 ///     - AWS KMS: Amazon.KeyManagementService
@@ -187,8 +182,8 @@ public class DevelopmentBlindIndexSaltProvider : IBlindIndexSaltProvider
 /// </summary>
 public class DevelopmentKeyManagementService : IKeyManagementService
 {
-    private readonly byte[] _masterKey;
     private const string CurrentKeyId = "dev-kek-v1";
+    private readonly byte[] _masterKey;
 
     public DevelopmentKeyManagementService()
     {
@@ -204,7 +199,7 @@ public class DevelopmentKeyManagementService : IKeyManagementService
             throw new ArgumentException($"Unknown key ID: {keyId}", nameof(keyId));
 
         // Generate a random Data Encryption Key (DEK)
-        var plaintextDek = new byte[32]; // 256 bits for AES-256
+        byte[] plaintextDek = new byte[32]; // 256 bits for AES-256
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(plaintextDek);
 
@@ -213,8 +208,8 @@ public class DevelopmentKeyManagementService : IKeyManagementService
         aes.Key = _masterKey;
         aes.GenerateIV();
 
-        using var encryptor = aes.CreateEncryptor();
-        var encryptedDek = encryptor.TransformFinalBlock(plaintextDek, 0, plaintextDek.Length);
+        using ICryptoTransform encryptor = aes.CreateEncryptor();
+        byte[] encryptedDek = encryptor.TransformFinalBlock(plaintextDek, 0, plaintextDek.Length);
 
         // In production, would return IV + ciphertext together
         // For simplicity, we just return the ciphertext
@@ -234,8 +229,8 @@ public class DevelopmentKeyManagementService : IKeyManagementService
         aes.Key = _masterKey;
         aes.GenerateIV(); // In production, use stored IV
 
-        using var decryptor = aes.CreateDecryptor();
-        var plaintextDek = decryptor.TransformFinalBlock(encryptedDek, 0, encryptedDek.Length);
+        using ICryptoTransform decryptor = aes.CreateDecryptor();
+        byte[] plaintextDek = decryptor.TransformFinalBlock(encryptedDek, 0, encryptedDek.Length);
 
         return Task.FromResult(plaintextDek);
     }

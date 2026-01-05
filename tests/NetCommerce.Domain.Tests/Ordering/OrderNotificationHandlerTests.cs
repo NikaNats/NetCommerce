@@ -1,13 +1,13 @@
-#nullable enable
+#region
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Infrastructure.Notifications;
 using NetCommerce.SharedKernel.Application.Notifications;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Events;
-using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Ordering;
 
@@ -23,24 +23,24 @@ public class OrderNotificationHandlerTests
         // Arrange
         var emailProvider = new InMemoryEmailProvider(Substitute.For<ILogger<InMemoryEmailProvider>>());
         var templateEngine = new SimpleTemplateEngine();
-        var logger = Substitute.For<ILogger<OrderNotificationHandler>>();
+        ILogger<OrderNotificationHandler>? logger = Substitute.For<ILogger<OrderNotificationHandler>>();
         var handler = new OrderNotificationHandler(emailProvider, templateEngine, logger);
 
         var orderEvent = new OrderPlacedIntegrationEvent(
-            OrderId: Guid.NewGuid(),
-            OrderNumber: "ORD-2026-001",
-            CustomerEmail: "john.doe@example.com",
-            CustomerName: "John Doe",
-            TotalAmount: Money.Create(150.50m, "GEL"));
+            Guid.NewGuid(),
+            "ORD-2026-001",
+            "john.doe@example.com",
+            "John Doe",
+            Money.Create(150.50m));
 
         // Act
         await handler.Handle(orderEvent, CancellationToken.None);
 
         // Assert
-        var sentEmails = emailProvider.GetSentEmails();
+        IReadOnlyCollection<SentEmail> sentEmails = emailProvider.GetSentEmails();
         sentEmails.ShouldHaveSingleItem();
 
-        var email = sentEmails.First();
+        SentEmail email = sentEmails.First();
         email.To.ShouldBe("john.doe@example.com");
         email.Subject.ShouldBe("Order Confirmed - ORD-2026-001");
         email.HtmlBody.ShouldContain("John Doe");
@@ -56,7 +56,7 @@ public class OrderNotificationHandlerTests
         // Arrange
         var emailProvider = new InMemoryEmailProvider(Substitute.For<ILogger<InMemoryEmailProvider>>());
         var templateEngine = new SimpleTemplateEngine();
-        var logger = Substitute.For<ILogger<OrderNotificationHandler>>();
+        ILogger<OrderNotificationHandler>? logger = Substitute.For<ILogger<OrderNotificationHandler>>();
         var handler = new OrderNotificationHandler(emailProvider, templateEngine, logger);
 
         var event1 = new OrderPlacedIntegrationEvent(
@@ -70,7 +70,7 @@ public class OrderNotificationHandlerTests
         await handler.Handle(event2, CancellationToken.None);
 
         // Assert
-        var sentEmails = emailProvider.GetSentEmails();
+        IReadOnlyCollection<SentEmail> sentEmails = emailProvider.GetSentEmails();
         sentEmails.Count.ShouldBe(2);
         sentEmails.ShouldContain(e => e.To == "customer1@test.com");
         sentEmails.ShouldContain(e => e.To == "customer2@test.com");
@@ -80,12 +80,13 @@ public class OrderNotificationHandlerTests
     public async Task Handle_EmailProviderThrows_ShouldLogErrorAndRethrow()
     {
         // Arrange
-        var emailProvider = Substitute.For<IEmailProvider>();
-        emailProvider.SendEmailAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        IEmailProvider? emailProvider = Substitute.For<IEmailProvider>();
+        emailProvider.SendEmailAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+                Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("SendGrid API failure"));
 
         var templateEngine = new SimpleTemplateEngine();
-        var logger = Substitute.For<ILogger<OrderNotificationHandler>>();
+        ILogger<OrderNotificationHandler>? logger = Substitute.For<ILogger<OrderNotificationHandler>>();
         var handler = new OrderNotificationHandler(emailProvider, templateEngine, logger);
 
         var orderEvent = new OrderPlacedIntegrationEvent(
@@ -110,7 +111,7 @@ public class OrderNotificationHandlerTests
         // Arrange
         var emailProvider = new InMemoryEmailProvider(Substitute.For<ILogger<InMemoryEmailProvider>>());
         var templateEngine = new SimpleTemplateEngine();
-        var logger = Substitute.For<ILogger<OrderNotificationHandler>>();
+        ILogger<OrderNotificationHandler>? logger = Substitute.For<ILogger<OrderNotificationHandler>>();
         var handler = new OrderNotificationHandler(emailProvider, templateEngine, logger);
 
         var orderEvent = new OrderPlacedIntegrationEvent(
@@ -138,7 +139,7 @@ public class OrderNotificationHandlerTests
         // Arrange
         var emailProvider = new InMemoryEmailProvider(Substitute.For<ILogger<InMemoryEmailProvider>>());
         var templateEngine = new SimpleTemplateEngine();
-        var logger = Substitute.For<ILogger<OrderNotificationHandler>>();
+        ILogger<OrderNotificationHandler>? logger = Substitute.For<ILogger<OrderNotificationHandler>>();
         var handler = new OrderNotificationHandler(emailProvider, templateEngine, logger);
 
         var orderEvent = new OrderPlacedIntegrationEvent(
@@ -150,7 +151,7 @@ public class OrderNotificationHandlerTests
         // Assert
         // Handler doesn't validate input - it's the sender's responsibility
         // This follows "fail fast" principle - invalid emails go to dead letter queue
-        var sentEmails = emailProvider.GetSentEmails();
+        IReadOnlyCollection<SentEmail> sentEmails = emailProvider.GetSentEmails();
         sentEmails.ShouldHaveSingleItem();
     }
 }

@@ -1,6 +1,8 @@
-#nullable enable
+#region
 
 using NetCommerce.Ordering.Domain.Orders;
+
+#endregion
 
 namespace NetCommerce.Ordering.Infrastructure.Services;
 
@@ -11,6 +13,16 @@ namespace NetCommerce.Ordering.Infrastructure.Services;
 /// </summary>
 public sealed class LocalTaxProvider : ITaxProvider
 {
+    // Category-specific adjustments (e.g., reduced rates for food, books)
+    private readonly Dictionary<string, decimal> _categoryAdjustments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["FOOD"] = 0.5m, // 50% reduction (e.g., 18% -> 9%)
+        ["BOOKS"] = 0.5m, // 50% reduction
+        ["CHILDREN"] = 0.5m, // 50% reduction for children's items
+        ["MEDICAL"] = 0m, // Tax-exempt
+        ["EDUCATION"] = 0m // Tax-exempt
+    };
+
     // Simple tax rate table - in production, this might be loaded from configuration
     private readonly Dictionary<string, decimal> _taxRates = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -22,17 +34,7 @@ public sealed class LocalTaxProvider : ITaxProvider
         ["EU"] = 0.20m, // EU default VAT: 20%
         ["CA"] = 0.13m, // Canada HST/GST average: ~13%
         ["AU"] = 0.10m, // Australia GST: 10%
-        ["IN"] = 0.18m, // India GST: 18%
-    };
-
-    // Category-specific adjustments (e.g., reduced rates for food, books)
-    private readonly Dictionary<string, decimal> _categoryAdjustments = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["FOOD"] = 0.5m,        // 50% reduction (e.g., 18% -> 9%)
-        ["BOOKS"] = 0.5m,       // 50% reduction
-        ["CHILDREN"] = 0.5m,    // 50% reduction for children's items
-        ["MEDICAL"] = 0m,       // Tax-exempt
-        ["EDUCATION"] = 0m      // Tax-exempt
+        ["IN"] = 0.18m // India GST: 18%
     };
 
     public Task<TaxCalculationResult> GetTaxAsync(
@@ -48,23 +50,19 @@ public sealed class LocalTaxProvider : ITaxProvider
             countryCode = "GE"; // Default to Georgia
 
         // Get base tax rate for country
-        if (!_taxRates.TryGetValue(countryCode.ToUpperInvariant(), out var baseRate))
-        {
+        if (!_taxRates.TryGetValue(countryCode.ToUpperInvariant(), out decimal baseRate))
             // Default to Georgia rate if country not found
             baseRate = _taxRates["GE"];
-        }
 
         // Apply category adjustment if applicable
-        var adjustedRate = baseRate;
-        if (!string.IsNullOrWhiteSpace(category) && 
-            _categoryAdjustments.TryGetValue(category, out var adjustment))
-        {
+        decimal adjustedRate = baseRate;
+        if (!string.IsNullOrWhiteSpace(category) &&
+            _categoryAdjustments.TryGetValue(category, out decimal adjustment))
             adjustedRate *= adjustment;
-        }
 
-        var taxAmount = Math.Round(amount * adjustedRate, 2);
+        decimal taxAmount = Math.Round(amount * adjustedRate, 2);
 
-        var taxType = DetermineTaxType(countryCode);
+        string taxType = DetermineTaxType(countryCode);
         var result = new TaxCalculationResult(
             taxAmount,
             adjustedRate,

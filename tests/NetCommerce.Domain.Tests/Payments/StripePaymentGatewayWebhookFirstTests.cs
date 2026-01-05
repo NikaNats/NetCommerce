@@ -1,17 +1,16 @@
+#region
+
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Infrastructure.Gateways;
-using NSubstitute;
-using Shouldly;
-using Stripe;
-using Xunit;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Payments;
 
 /// <summary>
-/// Unit tests for StripePaymentGateway webhook-first behavior.
-/// Validates that gateway always returns Pending status for safety.
+///     Unit tests for StripePaymentGateway webhook-first behavior.
+///     Validates that gateway always returns Pending status for safety.
 /// </summary>
 public class StripePaymentGatewayWebhookFirstTests
 {
@@ -23,9 +22,7 @@ public class StripePaymentGatewayWebhookFirstTests
         _mockLogger = Substitute.For<ILogger<StripePaymentGateway>>();
         _stripeOptions = new StripeOptions
         {
-            SecretKey = "sk_test_mock_key",
-            PublishableKey = "pk_test_mock_key",
-            WebhookSecret = "whsec_test_secret"
+            SecretKey = "sk_test_mock_key", PublishableKey = "pk_test_mock_key", WebhookSecret = "whsec_test_secret"
         };
     }
 
@@ -108,13 +105,9 @@ public class StripePaymentGatewayWebhookFirstTests
         // - Failed states → Failed (can return immediately, no charge made)
 
         if (stripeStatus == "requires_payment_method" || stripeStatus == "canceled")
-        {
             expectedStatus.ShouldBe(PaymentResultStatus.Failed);
-        }
         else
-        {
             expectedStatus.ShouldBe(PaymentResultStatus.Pending);
-        }
     }
 
     [Fact]
@@ -123,11 +116,7 @@ public class StripePaymentGatewayWebhookFirstTests
         // Validates that idempotency key is used to prevent duplicate charges
         // if ProcessPaymentAsync is retried due to network issues.
 
-        var expectedBehavior = new
-        {
-            IdempotencyKeyPassed = true,
-            PreventsDuplicateCharges = true
-        };
+        var expectedBehavior = new { IdempotencyKeyPassed = true, PreventsDuplicateCharges = true };
 
         expectedBehavior.IdempotencyKeyPassed.ShouldBeTrue();
         expectedBehavior.PreventsDuplicateCharges.ShouldBeTrue();
@@ -142,12 +131,7 @@ public class StripePaymentGatewayWebhookFirstTests
         // Called by PaymentReconciliationJob every 5 minutes to check
         // payments stuck in Pending status.
 
-        var expectedBehavior = new
-        {
-            ReadOnlyOperation = true,
-            UsedByReconciliationJob = true,
-            NoSideEffects = true
-        };
+        var expectedBehavior = new { ReadOnlyOperation = true, UsedByReconciliationJob = true, NoSideEffects = true };
 
         expectedBehavior.ReadOnlyOperation.ShouldBeTrue();
         expectedBehavior.UsedByReconciliationJob.ShouldBeTrue();
@@ -222,18 +206,22 @@ public class StripePaymentGatewayWebhookFirstTests
         // before we save to DB. We only trust the async Webhook.
 
         // This simulates the mapping logic in the Gateway Adapter
-        var mapped = MockStripeMapper.Map(stripeStatus);
+        PaymentResultStatus mapped = MockStripeMapper.Map(stripeStatus);
         mapped.ShouldBe(expected);
     }
 
     // Tiny helper to simulate the logic inside the real adapter
     internal static class MockStripeMapper
     {
-        public static PaymentResultStatus Map(string status) => status switch {
-            "succeeded" => PaymentResultStatus.Pending,
-            "processing" => PaymentResultStatus.Pending,
-            "requires_action" => PaymentResultStatus.Pending,
-            _ => PaymentResultStatus.Failed
-        };
+        public static PaymentResultStatus Map(string status)
+        {
+            return status switch
+            {
+                "succeeded" => PaymentResultStatus.Pending,
+                "processing" => PaymentResultStatus.Pending,
+                "requires_action" => PaymentResultStatus.Pending,
+                _ => PaymentResultStatus.Failed
+            };
+        }
     }
 }

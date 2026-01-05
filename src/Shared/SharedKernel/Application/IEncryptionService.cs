@@ -1,21 +1,20 @@
-#nullable enable
+#region
 
 using NetCommerce.SharedKernel.Domain;
+
+#endregion
 
 namespace NetCommerce.SharedKernel.Application;
 
 /// <summary>
 ///     2025 Elite Pattern: Key Management Service abstraction.
-///
 ///     This interface abstracts Azure Key Vault, AWS KMS, HashiCorp Vault, or custom HSM.
-///
 ///     Key Management Responsibilities:
 ///     1. Master Key (KEK) storage and rotation
 ///     2. Data Key (DEK) generation and encryption
 ///     3. Key versioning and lifecycle management
 ///     4. Audit logging of key access
 ///     5. Geographic key isolation for compliance
-///
 ///     Implementation Examples:
 ///     - Azure Key Vault: Uses Azure.Security.KeyVault.Keys SDK
 ///     - AWS KMS: Uses Amazon.KeyManagementService SDK
@@ -26,7 +25,6 @@ public interface IKeyManagementService
     /// <summary>
     ///     Generates a new Data Encryption Key (DEK) for a specific customer/record.
     ///     The DEK is encrypted using the Master Key (KEK) specified by keyId.
-    ///
     ///     Returns:
     ///     - Plaintext DEK (use immediately, do not persist)
     ///     - Encrypted DEK (persist with the data)
@@ -37,7 +35,6 @@ public interface IKeyManagementService
 
     /// <summary>
     ///     Decrypts a Data Encryption Key (DEK) using the Master Key (KEK).
-    ///
     ///     Security Note:
     ///     The plaintext DEK should only exist in memory and be disposed immediately after use.
     /// </summary>
@@ -61,17 +58,14 @@ public interface IKeyManagementService
 
 /// <summary>
 ///     2025 Elite Pattern: Encryption service with envelope encryption and blind indexing.
-///
 ///     This service provides:
 ///     1. Transparent encryption/decryption using KMS
 ///     2. Envelope encryption (Master KEK + Data DEK)
 ///     3. Blind index computation for searchable encrypted fields
 ///     4. Deterministic vs Probabilistic encryption modes
-///
 ///     Encryption Modes:
 ///     - Deterministic: Same plaintext → Same ciphertext (enables equality searches)
 ///     - Probabilistic: Same plaintext → Different ciphertext (prevents frequency analysis)
-///
 ///     Use Cases:
 ///     - Deterministic: Phone numbers, email addresses (need exact match search)
 ///     - Probabilistic: Order notes, customer comments (no search needed, max security)
@@ -80,13 +74,11 @@ public interface IEncryptionService
 {
     /// <summary>
     ///     Encrypts plaintext using envelope encryption.
-    ///
     ///     Process:
     ///     1. Generate a unique Data Key (DEK) from KMS
     ///     2. Encrypt plaintext with DEK using AES-256-GCM
     ///     3. Encrypt DEK with Master Key (KEK)
     ///     4. Return ciphertext + encrypted DEK + metadata
-    ///
     ///     Deterministic Mode:
     ///     If isDeterministic=true, derives DEK from plaintext hash (same input → same output).
     ///     Use ONLY for fields requiring exact match searches.
@@ -98,12 +90,10 @@ public interface IEncryptionService
 
     /// <summary>
     ///     Decrypts encrypted data using envelope encryption.
-    ///
     ///     Process:
     ///     1. Decrypt the DEK using Master Key from KMS
     ///     2. Decrypt ciphertext using the DEK
     ///     3. Dispose DEK from memory immediately
-    ///
     ///     Security:
     ///     - Validates Key ID is still active
     ///     - Verifies AES-GCM authentication tag
@@ -115,12 +105,10 @@ public interface IEncryptionService
 
     /// <summary>
     ///     Computes a blind index (HMAC-SHA256 hash) for searching encrypted fields.
-    ///
     ///     The blind index enables database queries without decryption:
     ///     - One-way: Cannot derive plaintext from index
     ///     - Deterministic: Same input always produces same hash
     ///     - Salted: Prevents rainbow table attacks
-    ///
     ///     Usage:
     ///     To search for phone="555-1234":
     ///     1. Compute: blindIndex = ComputeBlindIndex("555-1234")
@@ -133,13 +121,11 @@ public interface IEncryptionService
     /// <summary>
     ///     Creates a complete SecureValue (encrypted data + blind index) in one operation.
     ///     This is the primary method for encrypting PII fields.
-    ///
     ///     Example:
     ///     var securePhone = await encryptionService.CreateSecureValueAsync(
-    ///         phoneNumber,
-    ///         isDeterministic: true // Enable phone number searches
+    ///     phoneNumber,
+    ///     isDeterministic: true // Enable phone number searches
     ///     );
-    ///
     ///     Database:
     ///     - encrypted_phone = securePhone.Encrypted.ToStorageFormat()
     ///     - phone_blind_index = securePhone.SearchIndex.Value
@@ -151,12 +137,10 @@ public interface IEncryptionService
 
     /// <summary>
     ///     Re-encrypts data with a new key (key rotation).
-    ///
     ///     Process:
     ///     1. Decrypt with old key
     ///     2. Encrypt with new key
     ///     3. Return new EncryptedData with updated KeyId
-    ///
     ///     Use Case:
     ///     Periodic key rotation (NIST recommends annual rotation for high-value data).
     /// </summary>
@@ -167,13 +151,11 @@ public interface IEncryptionService
 
 /// <summary>
 ///     2025 Elite Pattern: Configuration for blind index salt management.
-///
 ///     The blind index salt MUST be:
 ///     1. Stored securely (Azure Key Vault, AWS Secrets Manager)
 ///     2. Different from encryption keys
 ///     3. Rotated annually
 ///     4. Never logged or exposed in error messages
-///
 ///     Salt Rotation Strategy:
 ///     - Store multiple salts with version IDs
 ///     - New blind indexes use current salt

@@ -1,23 +1,25 @@
-#nullable enable
+#region
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+
+#endregion
 
 namespace NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 
 /// <summary>
 ///     Zero-Trust Identity Mesh Extensions for NetCommerce.
-///
 ///     This extension standardizes how any service in your system:
 ///     1. Validates JWT tokens from Keycloak
 ///     2. Transforms Keycloak's nested role claims into flat .NET claims
 ///     3. Performs optional token introspection for instant revocation
 ///     4. Enables secure token exchange for downstream service calls
-///
 ///     Usage in Program.cs:
 ///     <code>
 ///     builder.AddZeroTrustAuthentication();
@@ -36,11 +38,11 @@ public static class ZeroTrustAuthenticationExtensions
         this IHostApplicationBuilder builder,
         Action<ZeroTrustAuthOptions>? configureOptions = null)
     {
-        var services = builder.Services;
-        var configuration = builder.Configuration;
+        IServiceCollection services = builder.Services;
+        IConfigurationManager configuration = builder.Configuration;
 
         // 1. Bind and configure options
-        var optionsBuilder = services.AddOptions<ZeroTrustAuthOptions>()
+        OptionsBuilder<ZeroTrustAuthOptions> optionsBuilder = services.AddOptions<ZeroTrustAuthOptions>()
             .Bind(configuration.GetSection(ZeroTrustAuthOptions.SectionName));
 
         // Also bind Keycloak section for Aspire-injected values
@@ -48,21 +50,15 @@ public static class ZeroTrustAuthenticationExtensions
             .Configure<IConfiguration>((options, config) =>
             {
                 // Map Keycloak__AuthServerUrl to Authority
-                var authServerUrl = config["Keycloak:AuthServerUrl"];
-                if (!string.IsNullOrEmpty(authServerUrl))
-                {
-                    options.Authority = authServerUrl;
-                }
+                string? authServerUrl = config["Keycloak:AuthServerUrl"];
+                if (!string.IsNullOrEmpty(authServerUrl)) options.Authority = authServerUrl;
 
                 // Map Keycloak__Realm to Realm
-                var realm = config["Keycloak:Realm"];
-                if (!string.IsNullOrEmpty(realm))
-                {
-                    options.Realm = realm;
-                }
+                string? realm = config["Keycloak:Realm"];
+                if (!string.IsNullOrEmpty(realm)) options.Realm = realm;
 
                 // Allow direct Auth section overrides
-                var authSection = config.GetSection("Auth");
+                IConfigurationSection authSection = config.GetSection("Auth");
                 if (!string.IsNullOrEmpty(authSection["Audience"]))
                     options.Audience = authSection["Audience"]!;
                 if (!string.IsNullOrEmpty(authSection["ApiScope"]))
@@ -71,18 +67,15 @@ public static class ZeroTrustAuthenticationExtensions
                     options.ClientId = authSection["ClientId"]!;
                 if (!string.IsNullOrEmpty(authSection["ClientSecret"]))
                     options.ClientSecret = authSection["ClientSecret"]!;
-                if (bool.TryParse(authSection["IntrospectionEnabled"], out var introspectionEnabled))
+                if (bool.TryParse(authSection["IntrospectionEnabled"], out bool introspectionEnabled))
                     options.IntrospectionEnabled = introspectionEnabled;
-                if (int.TryParse(authSection["IntrospectionCacheSeconds"], out var cacheSeconds))
+                if (int.TryParse(authSection["IntrospectionCacheSeconds"], out int cacheSeconds))
                     options.IntrospectionCacheSeconds = cacheSeconds;
-                if (bool.TryParse(authSection["TokenExchangeEnabled"], out var tokenExchangeEnabled))
+                if (bool.TryParse(authSection["TokenExchangeEnabled"], out bool tokenExchangeEnabled))
                     options.TokenExchangeEnabled = tokenExchangeEnabled;
             });
 
-        if (configureOptions is not null)
-        {
-            optionsBuilder.Configure(configureOptions);
-        }
+        if (configureOptions is not null) optionsBuilder.Configure(configureOptions);
 
         optionsBuilder.ValidateOnStart();
 
@@ -108,10 +101,7 @@ public static class ZeroTrustAuthenticationExtensions
             });
 
         services.AddHttpClient("KeycloakTokenExchange")
-            .ConfigureHttpClient((sp, client) =>
-            {
-                client.Timeout = TimeSpan.FromSeconds(10);
-            });
+            .ConfigureHttpClient((sp, client) => { client.Timeout = TimeSpan.FromSeconds(10); });
 
         // 6. Register token exchange factory for downstream services
         services.AddSingleton<TokenExchangeHandlerFactory>();
@@ -125,7 +115,6 @@ public static class ZeroTrustAuthenticationExtensions
     /// <summary>
     ///     Adds the Zero-Trust middleware to the request pipeline.
     ///     This includes token introspection (kill switch) for instant revocation.
-    ///
     ///     IMPORTANT: Call this AFTER UseAuthentication() and UseAuthorization().
     /// </summary>
     public static IApplicationBuilder UseZeroTrustMiddleware(this IApplicationBuilder app)
@@ -135,7 +124,6 @@ public static class ZeroTrustAuthenticationExtensions
 
     /// <summary>
     ///     Configures an HttpClient to use token exchange for downstream service calls.
-    ///
     ///     Usage:
     ///     <code>
     ///     builder.Services.AddHttpClient("InventoryService")
@@ -148,7 +136,7 @@ public static class ZeroTrustAuthenticationExtensions
     {
         return builder.AddHttpMessageHandler(sp =>
         {
-            var factory = sp.GetRequiredService<TokenExchangeHandlerFactory>();
+            TokenExchangeHandlerFactory factory = sp.GetRequiredService<TokenExchangeHandlerFactory>();
             return factory.CreateHandler(targetAudience);
         });
     }
@@ -158,21 +146,18 @@ public static class ZeroTrustAuthenticationExtensions
 ///     Configures JWT Bearer options for Zero-Trust authentication with Keycloak.
 /// </summary>
 internal sealed class ZeroTrustJwtBearerOptionsSetup(
-    Microsoft.Extensions.Options.IOptions<ZeroTrustAuthOptions> authOptions,
+    IOptions<ZeroTrustAuthOptions> authOptions,
     IHostEnvironment environment)
-    : Microsoft.Extensions.Options.IConfigureNamedOptions<JwtBearerOptions>
+    : IConfigureNamedOptions<JwtBearerOptions>
 {
     public void Configure(string? name, JwtBearerOptions options)
     {
-        if (name == JwtBearerDefaults.AuthenticationScheme || string.IsNullOrEmpty(name))
-        {
-            Configure(options);
-        }
+        if (name == JwtBearerDefaults.AuthenticationScheme || string.IsNullOrEmpty(name)) Configure(options);
     }
 
     public void Configure(JwtBearerOptions options)
     {
-        var auth = authOptions.Value;
+        ZeroTrustAuthOptions auth = authOptions.Value;
 
         // Authority is the realm URL
         options.Authority = auth.RealmUrl;
@@ -210,9 +195,7 @@ internal sealed class ZeroTrustJwtBearerOptionsSetup(
             {
                 // Add header indicating token expiration
                 if (context.Exception is SecurityTokenExpiredException)
-                {
                     context.Response.Headers["Token-Expired"] = "true";
-                }
                 return Task.CompletedTask;
             },
             OnTokenValidated = context =>

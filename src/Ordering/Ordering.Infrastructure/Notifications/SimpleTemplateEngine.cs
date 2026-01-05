@@ -1,7 +1,11 @@
-#nullable enable
+#region
 
-using NetCommerce.SharedKernel.Application.Notifications;
+using System.Globalization;
+using System.Reflection;
 using System.Text;
+using NetCommerce.SharedKernel.Application.Notifications;
+
+#endregion
 
 namespace NetCommerce.Ordering.Infrastructure.Notifications;
 
@@ -13,7 +17,7 @@ public class SimpleTemplateEngine : ITemplateEngine
 {
     public Task<string> RenderAsync(string templateName, object model, CancellationToken cancellationToken = default)
     {
-        var html = templateName switch
+        string html = templateName switch
         {
             "OrderConfirmation" => RenderOrderConfirmation(model),
             _ => throw new ArgumentException($"Unknown template: {templateName}", nameof(templateName))
@@ -24,16 +28,16 @@ public class SimpleTemplateEngine : ITemplateEngine
 
     private static string RenderOrderConfirmation(object model)
     {
-        var props = model.GetType().GetProperties();
-        var customerName = props.First(p => p.Name == "CustomerName").GetValue(model)?.ToString() ?? "Customer";
-        var orderNumber = props.First(p => p.Name == "OrderNumber").GetValue(model)?.ToString() ?? "N/A";
-        var orderId = props.First(p => p.Name == "OrderId").GetValue(model)?.ToString() ?? Guid.Empty.ToString();
-        var totalAmount = props.First(p => p.Name == "TotalAmount").GetValue(model);
-        var currency = props.First(p => p.Name == "Currency").GetValue(model)?.ToString() ?? "GEL";
+        PropertyInfo[] props = model.GetType().GetProperties();
+        string customerName = props.First(p => p.Name == "CustomerName").GetValue(model)?.ToString() ?? "Customer";
+        string orderNumber = props.First(p => p.Name == "OrderNumber").GetValue(model)?.ToString() ?? "N/A";
+        string orderId = props.First(p => p.Name == "OrderId").GetValue(model)?.ToString() ?? Guid.Empty.ToString();
+        object? totalAmount = props.First(p => p.Name == "TotalAmount").GetValue(model);
+        string currency = props.First(p => p.Name == "Currency").GetValue(model)?.ToString() ?? "GEL";
 
         // Format amount using invariant culture for consistency
-        var formattedAmount = totalAmount != null
-            ? ((decimal)totalAmount).ToString("N2", System.Globalization.CultureInfo.InvariantCulture)
+        string formattedAmount = totalAmount != null
+            ? ((decimal)totalAmount).ToString("N2", CultureInfo.InvariantCulture)
             : "0.00";
 
         var sb = new StringBuilder();
@@ -50,7 +54,8 @@ public class SimpleTemplateEngine : ITemplateEngine
         sb.AppendLine("</div>");
         sb.AppendLine("<p>We'll send you another email when your order ships.</p>");
         sb.AppendLine("<p>If you have any questions, please contact our support team.</p>");
-        sb.AppendLine("<p style='color: #666; font-size: 12px; margin-top: 30px;'>This is an automated message from NetCommerce. Please do not reply.</p>");
+        sb.AppendLine(
+            "<p style='color: #666; font-size: 12px; margin-top: 30px;'>This is an automated message from NetCommerce. Please do not reply.</p>");
         sb.AppendLine("</body>");
         sb.AppendLine("</html>");
 

@@ -1,55 +1,57 @@
+#region
+
+using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using Serilog.Core;
 using Serilog.Events;
-using System.Diagnostics;
-using Wolverine;
+
+#endregion
 
 namespace NetCommerce.SharedKernel.Infrastructure.Observability;
 
 /// <summary>
-/// 2025 Structured Correlation: "The Detective View"
-///
-/// Key Principle: "Every log must contain the Business Correlation.
-/// If you search for an Order ID in Seq, you should see:
-/// - The HTTP Request (API)
-/// - The Saga State Change (Ordering)
-/// - The Outbox Message persistence (Wolverine)
-/// - The actual HTTP call to Stripe (Resilience Handler logs)"
-///
-/// Uses OpenTelemetry Activity to propagate correlation across:
-/// - HTTP boundaries (W3C Trace Context)
-/// - Message boundaries (Wolverine correlation)
-/// - Database transactions (Entity Framework)
-/// - External API calls (HttpClient)
+///     2025 Structured Correlation: "The Detective View"
+///     Key Principle: "Every log must contain the Business Correlation.
+///     If you search for an Order ID in Seq, you should see:
+///     - The HTTP Request (API)
+///     - The Saga State Change (Ordering)
+///     - The Outbox Message persistence (Wolverine)
+///     - The actual HTTP call to Stripe (Resilience Handler logs)"
+///     Uses OpenTelemetry Activity to propagate correlation across:
+///     - HTTP boundaries (W3C Trace Context)
+///     - Message boundaries (Wolverine correlation)
+///     - Database transactions (Entity Framework)
+///     - External API calls (HttpClient)
 /// </summary>
 public interface ICorrelationService
 {
     /// <summary>
-    /// Get current correlation ID (from HTTP request or Wolverine message).
+    ///     Get current correlation ID (from HTTP request or Wolverine message).
     /// </summary>
     string GetCorrelationId();
 
     /// <summary>
-    /// Get current business context (Order ID, Customer ID, etc.).
+    ///     Get current business context (Order ID, Customer ID, etc.).
     /// </summary>
     BusinessCorrelationContext GetBusinessContext();
 
     /// <summary>
-    /// Enrich current Activity with business context (Order ID, etc.).
+    ///     Enrich current Activity with business context (Order ID, etc.).
     /// </summary>
     void EnrichWithBusinessContext(string orderId, string? customerId = null);
 
     /// <summary>
-    /// Create a new Activity span for a business operation.
+    ///     Create a new Activity span for a business operation.
     /// </summary>
     Activity? StartBusinessActivity(string operationName, ActivityKind kind = ActivityKind.Internal);
 }
 
 /// <summary>
-/// Business correlation context (enriched on Activity tags).
+///     Business correlation context (enriched on Activity tags).
 /// </summary>
 public record BusinessCorrelationContext
 {
@@ -62,7 +64,7 @@ public record BusinessCorrelationContext
 }
 
 /// <summary>
-/// Correlation service implementation using OpenTelemetry Activity.
+///     Correlation service implementation using OpenTelemetry Activity.
 /// </summary>
 public sealed class OpenTelemetryCorrelationService : ICorrelationService
 {
@@ -71,10 +73,10 @@ public sealed class OpenTelemetryCorrelationService : ICorrelationService
     private const string SagaIdTag = "business.saga_id";
     private const string PaymentIdTag = "business.payment_id";
     private const string ShipmentIdTag = "business.shipment_id";
+    private static readonly ActivitySource _activitySource = new("NetCommerce.BusinessOperations");
 
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<OpenTelemetryCorrelationService> _logger;
-    private static readonly ActivitySource _activitySource = new("NetCommerce.BusinessOperations");
 
     public OpenTelemetryCorrelationService(
         IHttpContextAccessor httpContextAccessor,
@@ -87,13 +89,13 @@ public sealed class OpenTelemetryCorrelationService : ICorrelationService
     public string GetCorrelationId()
     {
         // Priority 1: OpenTelemetry TraceId (automatically propagated)
-        var activity = Activity.Current;
+        Activity? activity = Activity.Current;
         if (activity != null)
             return activity.TraceId.ToString();
 
         // Priority 2: HTTP Request correlation header
-        var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext?.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) == true)
+        HttpContext? httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext?.Request.Headers.TryGetValue("X-Correlation-ID", out StringValues correlationId) == true)
             return correlationId.ToString();
 
         // Fallback: Generate new correlation ID
@@ -102,14 +104,9 @@ public sealed class OpenTelemetryCorrelationService : ICorrelationService
 
     public BusinessCorrelationContext GetBusinessContext()
     {
-        var activity = Activity.Current;
+        Activity? activity = Activity.Current;
         if (activity == null)
-        {
-            return new BusinessCorrelationContext
-            {
-                CorrelationId = GetCorrelationId()
-            };
-        }
+            return new BusinessCorrelationContext { CorrelationId = GetCorrelationId() };
 
         return new BusinessCorrelationContext
         {
@@ -124,7 +121,7 @@ public sealed class OpenTelemetryCorrelationService : ICorrelationService
 
     public void EnrichWithBusinessContext(string orderId, string? customerId = null)
     {
-        var activity = Activity.Current;
+        Activity? activity = Activity.Current;
         if (activity == null)
         {
             _logger.LogWarning(
@@ -150,14 +147,14 @@ public sealed class OpenTelemetryCorrelationService : ICorrelationService
 
     public Activity? StartBusinessActivity(string operationName, ActivityKind kind = ActivityKind.Internal)
     {
-        var activity = _activitySource.StartActivity(operationName, kind);
+        Activity? activity = _activitySource.StartActivity(operationName, kind);
 
         // Propagate business context from parent activity
-        var parentActivity = Activity.Current;
+        Activity? parentActivity = Activity.Current;
         if (parentActivity != null)
         {
-            var orderId = parentActivity.GetTagItem(OrderIdTag)?.ToString();
-            var customerId = parentActivity.GetTagItem(CustomerIdTag)?.ToString();
+            string? orderId = parentActivity.GetTagItem(OrderIdTag)?.ToString();
+            string? customerId = parentActivity.GetTagItem(CustomerIdTag)?.ToString();
 
             if (!string.IsNullOrEmpty(orderId))
                 activity?.SetTag(OrderIdTag, orderId);
@@ -170,13 +167,13 @@ public sealed class OpenTelemetryCorrelationService : ICorrelationService
 }
 
 /// <summary>
-/// Middleware to automatically extract correlation ID from HTTP headers
-/// and enrich OpenTelemetry Activity.
+///     Middleware to automatically extract correlation ID from HTTP headers
+///     and enrich OpenTelemetry Activity.
 /// </summary>
 public sealed class CorrelationMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationMiddleware> _logger;
+    private readonly RequestDelegate _next;
 
     public CorrelationMiddleware(RequestDelegate next, ILogger<CorrelationMiddleware> logger)
     {
@@ -187,14 +184,14 @@ public sealed class CorrelationMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         // Extract correlation ID from request header (or generate new one)
-        var correlationId = context.Request.Headers["X-Correlation-ID"].FirstOrDefault()
-                           ?? Guid.NewGuid().ToString("N");
+        string correlationId = context.Request.Headers["X-Correlation-ID"].FirstOrDefault()
+                               ?? Guid.NewGuid().ToString("N");
 
         // Add correlation ID to response header
         context.Response.Headers["X-Correlation-ID"] = correlationId;
 
         // Enrich OpenTelemetry Activity
-        var activity = Activity.Current;
+        Activity? activity = Activity.Current;
         if (activity != null)
         {
             activity.SetTag("http.correlation_id", correlationId);
@@ -206,11 +203,11 @@ public sealed class CorrelationMiddleware
 
         // Add correlation ID to logger scope (all logs in this request will have it)
         using (_logger.BeginScope(new Dictionary<string, object>
-        {
-            ["CorrelationId"] = correlationId,
-            ["RequestPath"] = context.Request.Path,
-            ["RequestMethod"] = context.Request.Method
-        }))
+               {
+                   ["CorrelationId"] = correlationId,
+                   ["RequestPath"] = context.Request.Path,
+                   ["RequestMethod"] = context.Request.Method
+               }))
         {
             await _next(context);
         }
@@ -218,12 +215,12 @@ public sealed class CorrelationMiddleware
 }
 
 /// <summary>
-/// Wolverine extension to enrich Activity with Saga/Message context.
+///     Wolverine extension to enrich Activity with Saga/Message context.
 /// </summary>
 public static class WolverineCorrelationExtensions
 {
     /// <summary>
-    /// Enrich Activity with Saga ID (called at start of Saga handler).
+    ///     Enrich Activity with Saga ID (called at start of Saga handler).
     /// </summary>
     public static void EnrichWithSagaContext(this Activity? activity, Guid sagaId, string sagaType)
     {
@@ -236,7 +233,7 @@ public static class WolverineCorrelationExtensions
     }
 
     /// <summary>
-    /// Enrich Activity with Message context (called by Wolverine middleware).
+    ///     Enrich Activity with Message context (called by Wolverine middleware).
     /// </summary>
     public static void EnrichWithMessageContext(
         this Activity? activity,
@@ -258,7 +255,7 @@ public static class WolverineCorrelationExtensions
     }
 
     /// <summary>
-    /// Enrich Activity with Payment context.
+    ///     Enrich Activity with Payment context.
     /// </summary>
     public static void EnrichWithPaymentContext(
         this Activity? activity,
@@ -275,7 +272,7 @@ public static class WolverineCorrelationExtensions
     }
 
     /// <summary>
-    /// Enrich Activity with Shipment context.
+    ///     Enrich Activity with Shipment context.
     /// </summary>
     public static void EnrichWithShipmentContext(
         this Activity? activity,
@@ -293,7 +290,7 @@ public static class WolverineCorrelationExtensions
 }
 
 /// <summary>
-/// Extension methods for dependency injection.
+///     Extension methods for dependency injection.
 /// </summary>
 public static class CorrelationServiceExtensions
 {
@@ -312,26 +309,26 @@ public static class CorrelationServiceExtensions
 }
 
 /// <summary>
-/// Serilog enricher for correlation context.
+///     Serilog enricher for correlation context.
 /// </summary>
-public sealed class BusinessCorrelationEnricher : Serilog.Core.ILogEventEnricher
+public sealed class BusinessCorrelationEnricher : ILogEventEnricher
 {
-    public void Enrich(Serilog.Events.LogEvent logEvent, Serilog.Core.ILogEventPropertyFactory propertyFactory)
+    public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {
-        var activity = Activity.Current;
+        Activity? activity = Activity.Current;
         if (activity == null)
             return;
 
         // Add all business tags to log properties
-        var orderId = activity.GetTagItem("business.order_id")?.ToString();
+        string? orderId = activity.GetTagItem("business.order_id")?.ToString();
         if (!string.IsNullOrEmpty(orderId))
             logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("OrderId", orderId));
 
-        var customerId = activity.GetTagItem("business.customer_id")?.ToString();
+        string? customerId = activity.GetTagItem("business.customer_id")?.ToString();
         if (!string.IsNullOrEmpty(customerId))
             logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("CustomerId", customerId));
 
-        var sagaId = activity.GetTagItem("business.saga_id")?.ToString();
+        string? sagaId = activity.GetTagItem("business.saga_id")?.ToString();
         if (!string.IsNullOrEmpty(sagaId))
             logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("SagaId", sagaId));
 

@@ -1,3 +1,5 @@
+#region
+
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Events;
 using NetCommerce.SharedKernel.Results;
@@ -7,8 +9,8 @@ using NetCommerce.Shipping.Application.Services;
 using NetCommerce.Shipping.Domain;
 using NetCommerce.Shipping.Infrastructure.Adapters;
 using NetCommerce.Shipping.Infrastructure.Services;
-using NSubstitute;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Shipping;
 
@@ -18,8 +20,8 @@ namespace NetCommerce.Domain.Tests.Shipping;
 /// </summary>
 public class ShippingModuleTests
 {
-    private readonly ILogger<ShippingService> _serviceLogger;
     private readonly ILogger<OrderReadyForShippingHandler> _handlerLogger;
+    private readonly ILogger<ShippingService> _serviceLogger;
 
     public ShippingModuleTests()
     {
@@ -45,7 +47,7 @@ public class ShippingModuleTests
         var dimensions = new ShipmentDimensions(30, 20, 15);
 
         // Act
-        var result = await adapter.CreateLabelAsync(address, 2.5m, dimensions);
+        CourierLabelResult? result = await adapter.CreateLabelAsync(address, 2.5m, dimensions);
 
         // Assert
         result.ShouldNotBeNull();
@@ -61,14 +63,15 @@ public class ShippingModuleTests
     {
         // Arrange
         var adapter = new DhlCourierAdapter(Substitute.For<ILogger<DhlCourierAdapter>>());
-        var domesticAddress = CreateAddress(country: "US");
-        var internationalAddress = CreateAddress(country: "GE");
+        Address domesticAddress = CreateAddress("US");
+        Address internationalAddress = CreateAddress("GE");
         var dimensions = new ShipmentDimensions(30, 20, 15);
-        var weight = 2.0m;
+        decimal weight = 2.0m;
 
         // Act
-        var domesticResult = await adapter.CreateLabelAsync(domesticAddress, weight, dimensions);
-        var internationalResult = await adapter.CreateLabelAsync(internationalAddress, weight, dimensions);
+        CourierLabelResult? domesticResult = await adapter.CreateLabelAsync(domesticAddress, weight, dimensions);
+        CourierLabelResult? internationalResult =
+            await adapter.CreateLabelAsync(internationalAddress, weight, dimensions);
 
         // Assert
         internationalResult.ShippingCost.ShouldBeGreaterThan(domesticResult.ShippingCost);
@@ -82,26 +85,25 @@ public class ShippingModuleTests
     public async Task ShippingService_ShouldSelectCorrectCourier_WhenPreferenceProvided()
     {
         // Arrange
-        var dhlAdapter = Substitute.For<ICourierAdapter>();
+        ICourierAdapter? dhlAdapter = Substitute.For<ICourierAdapter>();
         dhlAdapter.CourierName.Returns("DHL");
-        dhlAdapter.CreateLabelAsync(Arg.Any<Address>(), Arg.Any<decimal>(), Arg.Any<ShipmentDimensions>(), Arg.Any<CancellationToken>())
-            .Returns(new CourierLabelResult("DHL123", "http://dhl.com/label", 25.00m, "USD", DateTime.UtcNow.AddDays(3)));
+        dhlAdapter.CreateLabelAsync(Arg.Any<Address>(), Arg.Any<decimal>(), Arg.Any<ShipmentDimensions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(
+                new CourierLabelResult("DHL123", "http://dhl.com/label", 25.00m, "USD", DateTime.UtcNow.AddDays(3)));
 
-        var fedexAdapter = Substitute.For<ICourierAdapter>();
+        ICourierAdapter? fedexAdapter = Substitute.For<ICourierAdapter>();
         fedexAdapter.CourierName.Returns("FedEx");
 
         var service = new ShippingService(
             new[] { dhlAdapter, fedexAdapter },
             _serviceLogger);
 
-        var addressDto = CreateShippingAddressDto();
-        var items = new List<ShippingItemDto>
-        {
-            new(Guid.NewGuid(), "Test Product", 1, 1.5m)
-        };
+        ShippingAddressDto addressDto = CreateShippingAddressDto();
+        var items = new List<ShippingItemDto> { new(Guid.NewGuid(), "Test Product", 1, 1.5m) };
 
         // Act
-        var result = await service.CreateLabelAsync(
+        Result<ShippingLabelDto>? result = await service.CreateLabelAsync(
             Guid.NewGuid(),
             "ORD-123",
             addressDto,
@@ -132,7 +134,7 @@ public class ShippingModuleTests
             _serviceLogger);
 
         // Act
-        var result = await service.CreateLabelAsync(
+        Result<ShippingLabelDto>? result = await service.CreateLabelAsync(
             Guid.NewGuid(),
             "ORD-123",
             CreateShippingAddressDto(),
@@ -148,7 +150,7 @@ public class ShippingModuleTests
     public async Task ShippingService_ShouldCalculateTotalWeight_FromMultipleItems()
     {
         // Arrange
-        var adapter = Substitute.For<ICourierAdapter>();
+        ICourierAdapter? adapter = Substitute.For<ICourierAdapter>();
         adapter.CourierName.Returns("DHL");
 
         decimal capturedWeight = 0;
@@ -164,7 +166,7 @@ public class ShippingModuleTests
         var items = new List<ShippingItemDto>
         {
             new(Guid.NewGuid(), "Item 1", 2, 1.5m), // 2 * 1.5 = 3.0
-            new(Guid.NewGuid(), "Item 2", 3, 0.5m)  // 3 * 0.5 = 1.5
+            new(Guid.NewGuid(), "Item 2", 3, 0.5m) // 3 * 0.5 = 1.5
         };
         // Total expected weight: 4.5kg
 
@@ -184,7 +186,7 @@ public class ShippingModuleTests
     public async Task ShippingService_ShouldHandleCourierApiFailure_Gracefully()
     {
         // Arrange
-        var adapter = Substitute.For<ICourierAdapter>();
+        ICourierAdapter? adapter = Substitute.For<ICourierAdapter>();
         adapter.CourierName.Returns("DHL");
         adapter.CreateLabelAsync(
                 Arg.Any<Address>(),
@@ -196,7 +198,7 @@ public class ShippingModuleTests
         var service = new ShippingService(new[] { adapter }, _serviceLogger);
 
         // Act
-        var result = await service.CreateLabelAsync(
+        Result<ShippingLabelDto>? result = await service.CreateLabelAsync(
             Guid.NewGuid(),
             "ORD-789",
             CreateShippingAddressDto(),
@@ -217,7 +219,7 @@ public class ShippingModuleTests
     public async Task OrderReadyForShippingHandler_ShouldCreateShipment_AndReturnIntegrationEvent()
     {
         // Arrange
-        var shippingService = Substitute.For<IShippingService>();
+        IShippingService? shippingService = Substitute.For<IShippingService>();
         var shipmentId = Guid.NewGuid();
         shippingService.CreateLabelAsync(
                 Arg.Any<Guid>(),
@@ -240,14 +242,11 @@ public class ShippingModuleTests
         var @event = new OrderReadyForShipping(
             orderId,
             "ORD-2026-001",
-            new List<ShippingItem>
-            {
-                new(Guid.NewGuid(), "Product A", 2, 1.2m)
-            },
+            new List<ShippingItem> { new(Guid.NewGuid(), "Product A", 2, 1.2m) },
             CreateShippingAddressDto());
 
         // Act
-        var result = await handler.Handle(@event, CancellationToken.None);
+        ShipmentCreatedIntegrationEvent? result = await handler.Handle(@event, CancellationToken.None);
 
         // Assert
         result.ShouldNotBeNull();
@@ -261,7 +260,7 @@ public class ShippingModuleTests
     public async Task OrderReadyForShippingHandler_ShouldReturnNull_WhenShippingServiceFails()
     {
         // Arrange
-        var shippingService = Substitute.For<IShippingService>();
+        IShippingService? shippingService = Substitute.For<IShippingService>();
         shippingService.CreateLabelAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<string>(),
@@ -281,7 +280,7 @@ public class ShippingModuleTests
             CreateShippingAddressDto());
 
         // Act
-        var result = await handler.Handle(@event, CancellationToken.None);
+        ShipmentCreatedIntegrationEvent? result = await handler.Handle(@event, CancellationToken.None);
 
         // Assert
         result.ShouldBeNull(); // Handler returns null, Wolverine will retry
@@ -296,8 +295,8 @@ public class ShippingModuleTests
     {
         // Arrange
         var orderId = Guid.NewGuid();
-        var trackingNumber = "DHL123456789";
-        var address = CreateAddress();
+        string trackingNumber = "DHL123456789";
+        Address address = CreateAddress();
         var dimensions = new ShipmentDimensions(40, 30, 20);
 
         // Act
@@ -324,7 +323,7 @@ public class ShippingModuleTests
     public void Shipment_MarkPickedUp_ShouldTransitionToInTransit()
     {
         // Arrange
-        var shipment = CreateShipment();
+        Shipment shipment = CreateShipment();
 
         // Act
         shipment.MarkPickedUp();
@@ -338,7 +337,7 @@ public class ShippingModuleTests
     public void Shipment_MarkDelivered_ShouldTransitionToDelivered()
     {
         // Arrange
-        var shipment = CreateShipment();
+        Shipment shipment = CreateShipment();
         shipment.MarkPickedUp();
 
         // Act
@@ -353,7 +352,7 @@ public class ShippingModuleTests
     public void Shipment_MarkDelivered_FromLabelCreated_ShouldThrowException()
     {
         // Arrange
-        var shipment = CreateShipment();
+        Shipment shipment = CreateShipment();
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => shipment.MarkDelivered())
@@ -364,8 +363,8 @@ public class ShippingModuleTests
     public void Shipment_MarkFailed_ShouldSetFailureReason()
     {
         // Arrange
-        var shipment = CreateShipment();
-        var reason = "Address not found - recipient moved";
+        Shipment shipment = CreateShipment();
+        string reason = "Address not found - recipient moved";
 
         // Act
         shipment.MarkFailed(reason);

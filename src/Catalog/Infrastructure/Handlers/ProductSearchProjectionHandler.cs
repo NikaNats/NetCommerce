@@ -1,22 +1,27 @@
+#region
+
 using Meilisearch;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Models;
+using Index = Meilisearch.Index;
+
+#endregion
 
 namespace NetCommerce.Catalog.Infrastructure.Handlers;
 
 /// <summary>
-/// Wolverine handlers for product search projection to Meilisearch.
-/// Ensures eventual consistency between PostgreSQL (write model) and Meilisearch (read model).
-/// Uses Wolverine outbox pattern for guaranteed delivery.
+///     Wolverine handlers for product search projection to Meilisearch.
+///     Ensures eventual consistency between PostgreSQL (write model) and Meilisearch (read model).
+///     Uses Wolverine outbox pattern for guaranteed delivery.
 /// </summary>
 public static class ProductSearchProjectionHandler
 {
     private const string ProductsIndexName = "products";
 
     /// <summary>
-    /// Handles ProductPublished event by projecting product to Meilisearch search index.
-    /// Wolverine automatically handles this through the outbox pattern for guaranteed delivery.
+    ///     Handles ProductPublished event by projecting product to Meilisearch search index.
+    ///     Wolverine automatically handles this through the outbox pattern for guaranteed delivery.
     /// </summary>
     public static async Task Handle(
         ProductPublishedDomainEvent @event,
@@ -28,7 +33,7 @@ public static class ProductSearchProjectionHandler
         try
         {
             // Fetch full product data from write model (PostgreSQL)
-            var product = await productRepository.GetByIdAsync(@event.ProductId, cancellationToken);
+            Product? product = await productRepository.GetByIdAsync(@event.ProductId, cancellationToken);
             if (product is null)
             {
                 logger.LogWarning("Product {ProductId} not found for search projection", @event.ProductId);
@@ -37,28 +42,28 @@ public static class ProductSearchProjectionHandler
 
             // Transform domain model to search document (read model)
             var searchDocument = new ProductSearchDocument(
-                Id: product.Id.ToString(),
-                Sku: product.Sku,
-                Slug: product.Slug ?? string.Empty,
-                Name: product.Name,
-                Description: product.Description,
-                Price: product.Price.Amount,
-                Categories: [product.CategoryId.ToString()],
-                Tags: product.Attributes.Select(a => $"{a.Key}:{a.Value}").ToArray(),
-                IsPublished: product.Status == ProductStatus.Published,
-                StockQuantity: 0, // TODO: Fetch from Inventory module via query
-                CreatedAt: DateTimeOffset.UtcNow, // Snapshot time
-                UpdatedAt: null
+                product.Id.ToString(),
+                product.Sku,
+                product.Slug ?? string.Empty,
+                product.Name,
+                product.Description,
+                product.Price.Amount,
+                [product.CategoryId.ToString()],
+                product.Attributes.Select(a => $"{a.Key}:{a.Value}").ToArray(),
+                product.Status == ProductStatus.Published,
+                0, // TODO: Fetch from Inventory module via query
+                DateTimeOffset.UtcNow, // Snapshot time
+                null
             );
 
             // Get or create Meilisearch index
-            var index = meilisearchClient.Index(ProductsIndexName);
+            Index? index = meilisearchClient.Index(ProductsIndexName);
 
             // Configure searchable attributes and ranking rules on first use
             await ConfigureIndexIfNeeded(index, logger, cancellationToken);
 
             // Add/update document in search index
-            await index.AddDocumentsAsync([searchDocument], primaryKey: "Id", cancellationToken);
+            await index.AddDocumentsAsync([searchDocument], "Id", cancellationToken);
 
             logger.LogInformation(
                 "Product {ProductId} ({Sku}) projected to Meilisearch search index",
@@ -75,8 +80,8 @@ public static class ProductSearchProjectionHandler
     }
 
     /// <summary>
-    /// Handles ProductPriceChanged event by updating price in Meilisearch index.
-    /// Only updates the Price field to avoid unnecessary data transfer.
+    ///     Handles ProductPriceChanged event by updating price in Meilisearch index.
+    ///     Only updates the Price field to avoid unnecessary data transfer.
     /// </summary>
     public static async Task Handle(
         ProductPriceChangedDomainEvent @event,
@@ -86,7 +91,7 @@ public static class ProductSearchProjectionHandler
     {
         try
         {
-            var index = meilisearchClient.Index(ProductsIndexName);
+            Index? index = meilisearchClient.Index(ProductsIndexName);
 
             // Partial update: only update the Price field
             var update = new Dictionary<string, object>
@@ -96,7 +101,7 @@ public static class ProductSearchProjectionHandler
                 ["UpdatedAt"] = DateTimeOffset.UtcNow
             };
 
-            await index.UpdateDocumentsAsync([update], primaryKey: "Id", cancellationToken);
+            await index.UpdateDocumentsAsync([update], "Id", cancellationToken);
 
             logger.LogInformation(
                 "Product {ProductId} price updated in search index: {OldPrice} -> {NewPrice}",
@@ -114,8 +119,8 @@ public static class ProductSearchProjectionHandler
     }
 
     /// <summary>
-    /// Handles ProductArchived event by removing product from Meilisearch index.
-    /// Archived products should not appear in search results.
+    ///     Handles ProductArchived event by removing product from Meilisearch index.
+    ///     Archived products should not appear in search results.
     /// </summary>
     public static async Task Handle(
         ProductArchivedDomainEvent @event,
@@ -125,7 +130,7 @@ public static class ProductSearchProjectionHandler
     {
         try
         {
-            var index = meilisearchClient.Index(ProductsIndexName);
+            Index? index = meilisearchClient.Index(ProductsIndexName);
 
             // Remove document from search index
             await index.DeleteOneDocumentAsync(@event.ProductId.ToString(), cancellationToken);
@@ -144,7 +149,7 @@ public static class ProductSearchProjectionHandler
     }
 
     private static async Task ConfigureIndexIfNeeded(
-        Meilisearch.Index index,
+        Index index,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -163,12 +168,12 @@ public static class ProductSearchProjectionHandler
             // Configure ranking rules for search relevance
             await index.UpdateRankingRulesAsync(
                 [
-                    "words",          // Typo tolerance
-                    "typo",           // Number of typos
-                    "proximity",      // Word proximity
-                    "attribute",      // Attribute order (Name > Description > Tags)
-                    "sort",           // Custom sort
-                    "exactness"       // Exact matches
+                    "words", // Typo tolerance
+                    "typo", // Number of typos
+                    "proximity", // Word proximity
+                    "attribute", // Attribute order (Name > Description > Tags)
+                    "sort", // Custom sort
+                    "exactness" // Exact matches
                 ],
                 cancellationToken);
 

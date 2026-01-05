@@ -1,4 +1,3 @@
-#nullable enable
 namespace NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 
 /// <summary>

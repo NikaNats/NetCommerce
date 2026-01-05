@@ -1,14 +1,15 @@
-#nullable enable
+#region
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NetCommerce.SharedKernel.Domain;
 
+#endregion
+
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 
 /// <summary>
 ///     2025 Elite Pattern: EF Core configuration for the Immutable Audit Ledger.
-///     
 ///     Design Decisions:
 ///     1. Separate table (not mixed with domain entities)
 ///     2. Append-only (enforced at DB permission level)
@@ -23,7 +24,7 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditEntry>
         builder.ToTable("audit_logs", t =>
         {
             t.HasComment("Immutable business event store for legal compliance. " +
-                        "NO UPDATE or DELETE permissions for application user.");
+                         "NO UPDATE or DELETE permissions for application user.");
         });
 
         // Primary key

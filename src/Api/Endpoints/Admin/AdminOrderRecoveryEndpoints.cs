@@ -1,21 +1,21 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+#region
+
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine;
-using NetCommerce.SharedKernel.Application;
+
+#endregion
 
 namespace NetCommerce.Api.Endpoints.Admin;
 
 /// <summary>
-/// 2025 Operational Recovery API for manual intervention.
-///
-/// Key Principle: "A 'ManualInterventionRequired' state in a Saga is a Business Failure, not a code crash.
-/// You must provide a way for a human operator to resolve it."
-///
-/// These endpoints are used by support engineers when:
-/// - Payment succeeds in Stripe but webhook fails (need to manually mark payment as complete)
-/// - Inventory reservation times out but items were reserved (need to manually confirm)
-/// - Refund is processed manually via Stripe Dashboard (need to close the saga)
+///     2025 Operational Recovery API for manual intervention.
+///     Key Principle: "A 'ManualInterventionRequired' state in a Saga is a Business Failure, not a code crash.
+///     You must provide a way for a human operator to resolve it."
+///     These endpoints are used by support engineers when:
+///     - Payment succeeds in Stripe but webhook fails (need to manually mark payment as complete)
+///     - Inventory reservation times out but items were reserved (need to manually confirm)
+///     - Refund is processed manually via Stripe Dashboard (need to close the saga)
 /// </summary>
 [ApiController]
 [Route("api/admin/orders")]
@@ -34,11 +34,10 @@ public class AdminOrderRecoveryEndpoints : ControllerBase
     }
 
     /// <summary>
-    /// Force-complete an order that is stuck in ManualInterventionRequired state.
-    ///
-    /// Use Case: Payment succeeded in Stripe, but webhook failed to deliver.
-    /// Support engineer verifies payment in Stripe Dashboard, then calls this endpoint
-    /// to manually move the saga to Completed state.
+    ///     Force-complete an order that is stuck in ManualInterventionRequired state.
+    ///     Use Case: Payment succeeded in Stripe, but webhook failed to deliver.
+    ///     Support engineer verifies payment in Stripe Dashboard, then calls this endpoint
+    ///     to manually move the saga to Completed state.
     /// </summary>
     /// <param name="orderId">Order ID to force-complete</param>
     /// <param name="reason">Reason for manual intervention (audit trail)</param>
@@ -67,16 +66,15 @@ public class AdminOrderRecoveryEndpoints : ControllerBase
         {
             OrderId = orderId,
             Message = "Force-complete command sent. Saga will be marked as completed.",
-            Reason = request.Reason,
+            request.Reason,
             ProcessedBy = User.Identity?.Name
         });
     }
 
     /// <summary>
-    /// Override payment status when payment was manually verified in Stripe Dashboard.
-    ///
-    /// Use Case: Customer calls support saying payment went through, but order shows "Payment Failed."
-    /// Support engineer checks Stripe Dashboard, sees successful charge, calls this endpoint.
+    ///     Override payment status when payment was manually verified in Stripe Dashboard.
+    ///     Use Case: Customer calls support saying payment went through, but order shows "Payment Failed."
+    ///     Support engineer checks Stripe Dashboard, sees successful charge, calls this endpoint.
     /// </summary>
     [HttpPost("{orderId:guid}/override-payment-status")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -109,10 +107,9 @@ public class AdminOrderRecoveryEndpoints : ControllerBase
     }
 
     /// <summary>
-    /// Cancel an order that is stuck in an intermediate state.
-    ///
-    /// Use Case: Inventory reservation timed out, customer already contacted, order needs to be cancelled.
-    /// Support engineer confirms with customer, then calls this endpoint to cancel and refund.
+    ///     Cancel an order that is stuck in an intermediate state.
+    ///     Use Case: Inventory reservation timed out, customer already contacted, order needs to be cancelled.
+    ///     Support engineer confirms with customer, then calls this endpoint to cancel and refund.
     /// </summary>
     [HttpPost("{orderId:guid}/force-cancel")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -138,17 +135,16 @@ public class AdminOrderRecoveryEndpoints : ControllerBase
         return Accepted(new
         {
             OrderId = orderId,
-            RefundAmount = request.RefundAmount,
-            NotifyCustomer = request.NotifyCustomer,
+            request.RefundAmount,
+            request.NotifyCustomer,
             Message = "Force-cancel command sent. Order will be cancelled and refunded."
         });
     }
 
     /// <summary>
-    /// Retry a failed saga step (payment, inventory reservation, shipping label).
-    ///
-    /// Use Case: Stripe API was down when order was placed, now it's back up.
-    /// Support engineer clicks "Retry Payment" in admin UI, which calls this endpoint.
+    ///     Retry a failed saga step (payment, inventory reservation, shipping label).
+    ///     Use Case: Stripe API was down when order was placed, now it's back up.
+    ///     Support engineer clicks "Retry Payment" in admin UI, which calls this endpoint.
     /// </summary>
     [HttpPost("{orderId:guid}/retry-step")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -170,17 +166,14 @@ public class AdminOrderRecoveryEndpoints : ControllerBase
 
         return Accepted(new
         {
-            OrderId = orderId,
-            Step = request.Step,
-            Message = $"Retry command sent for step: {request.Step}"
+            OrderId = orderId, request.Step, Message = $"Retry command sent for step: {request.Step}"
         });
     }
 
     /// <summary>
-    /// Get detailed saga state for debugging.
-    ///
-    /// Use Case: Support engineer investigating stuck order, needs to see full saga history.
-    /// Returns: All state transitions, failed attempts, current state, correlation IDs.
+    ///     Get detailed saga state for debugging.
+    ///     Use Case: Support engineer investigating stuck order, needs to see full saga history.
+    ///     Returns: All state transitions, failed attempts, current state, correlation IDs.
     /// </summary>
     [HttpGet("{orderId:guid}/saga-details")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -191,16 +184,14 @@ public class AdminOrderRecoveryEndpoints : ControllerBase
         // For now, return placeholder
         return Ok(new
         {
-            OrderId = orderId,
-            Message = "Saga details endpoint (to be implemented - query Wolverine saga storage)"
+            OrderId = orderId, Message = "Saga details endpoint (to be implemented - query Wolverine saga storage)"
         });
     }
 
     /// <summary>
-    /// Bulk retry all stuck orders (dangerous operation, admin-only).
-    ///
-    /// Use Case: Stripe was down for 2 hours, now 500 orders are stuck in ProcessingPayment.
-    /// Instead of manually retrying each one, bulk retry all.
+    ///     Bulk retry all stuck orders (dangerous operation, admin-only).
+    ///     Use Case: Stripe was down for 2 hours, now 500 orders are stuck in ProcessingPayment.
+    ///     Instead of manually retrying each one, bulk retry all.
     /// </summary>
     [HttpPost("bulk-retry-stuck")]
     [Authorize(Roles = "Admin")]

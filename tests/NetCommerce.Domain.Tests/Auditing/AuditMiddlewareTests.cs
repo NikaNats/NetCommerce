@@ -1,9 +1,12 @@
-using System.Text.Json;
+#region
+
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using Wolverine;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Auditing;
 
@@ -16,13 +19,13 @@ public class AuditMiddlewareTests
         var command = new CancelOrderCommand(Guid.NewGuid(), "Customer requested refund - Item not as described");
         var envelope = new Envelope { CorrelationId = "correlation_abc123" };
 
-        var userContext = Substitute.For<IUserContext>();
+        IUserContext? userContext = Substitute.For<IUserContext>();
         userContext.UserId.Returns("admin_xyz789");
         userContext.Role.Returns("Admin");
         userContext.IpAddress.Returns("192.168.1.100");
         userContext.UserAgent.Returns("Mozilla/5.0");
 
-        var auditRepository = Substitute.For<IAuditRepository>();
+        IAuditRepository? auditRepository = Substitute.For<IAuditRepository>();
         AuditEntry? capturedEntry = null;
         await auditRepository.StoreAsync(Arg.Do<AuditEntry>(e => capturedEntry = e));
 
@@ -42,9 +45,9 @@ public class AuditMiddlewareTests
     {
         // Arrange
         var command = new CancelOrderCommand(Guid.NewGuid(), "Test reason");
-        var auditRepository = Substitute.For<IAuditRepository>();
+        IAuditRepository? auditRepository = Substitute.For<IAuditRepository>();
         auditRepository.StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>())
-            .Returns<Task>(x => throw new InvalidOperationException("DB Down"));
+            .Returns(x => throw new InvalidOperationException("DB Down"));
 
         // Act & Assert - Compliance Rule: Audit failure must block execution
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -57,9 +60,9 @@ public class AuditMiddlewareTests
         // Arrange
         var command = new CancelOrderCommand(Guid.NewGuid(), "Reason");
         var envelope = new Envelope { CorrelationId = null }; // Missing
-        var userContext = Substitute.For<IUserContext>();
+        IUserContext? userContext = Substitute.For<IUserContext>();
         userContext.UserId.Returns("user123");
-        var repo = Substitute.For<IAuditRepository>();
+        IAuditRepository? repo = Substitute.For<IAuditRepository>();
         AuditEntry? entry = null;
         await repo.StoreAsync(Arg.Do<AuditEntry>(e => entry = e));
 
@@ -78,9 +81,9 @@ public class AuditMiddlewareTests
         var orderId = Guid.NewGuid();
         var command = new CancelOrderCommand(orderId, "Fraud Suspected");
         var envelope = new Envelope();
-        var userContext = Substitute.For<IUserContext>();
+        IUserContext? userContext = Substitute.For<IUserContext>();
         userContext.UserId.Returns("user123");
-        var repo = Substitute.For<IAuditRepository>();
+        IAuditRepository? repo = Substitute.For<IAuditRepository>();
         AuditEntry? entry = null;
         await repo.StoreAsync(Arg.Do<AuditEntry>(e => entry = e));
 
@@ -104,11 +107,11 @@ public class AuditMiddlewareTests
         var envelope1 = new Envelope { CorrelationId = "corr1" };
         var envelope2 = new Envelope { CorrelationId = "corr2" };
 
-        var userContext = Substitute.For<IUserContext>();
+        IUserContext? userContext = Substitute.For<IUserContext>();
         userContext.UserId.Returns("admin123");
         userContext.Role.Returns("Admin");
 
-        var auditRepository = Substitute.For<IAuditRepository>();
+        IAuditRepository? auditRepository = Substitute.For<IAuditRepository>();
         var capturedEntries = new List<AuditEntry>();
         await auditRepository.StoreAsync(Arg.Do<AuditEntry>(e => capturedEntries.Add(e)), Arg.Any<CancellationToken>());
 

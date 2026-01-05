@@ -1,4 +1,4 @@
-// FILE: tests/NetCommerce.Domain.Tests/Shipping/ShippingModuleTests_Extended.cs
+#region
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Events;
@@ -7,8 +7,8 @@ using NetCommerce.Shipping.Application.Services;
 using NetCommerce.Shipping.Domain;
 using NetCommerce.Shipping.Infrastructure.Adapters;
 using NetCommerce.Shipping.Infrastructure.Services;
-using NSubstitute;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Shipping;
 
@@ -27,8 +27,8 @@ public class ShippingModuleTests_Extended
         var dim = new ShipmentDimensions(10, 10, 10);
 
         // Act
-        var domesticResult = await adapter.CreateLabelAsync(domestic, 1m, dim);
-        var intlResult = await adapter.CreateLabelAsync(international, 1m, dim);
+        CourierLabelResult? domesticResult = await adapter.CreateLabelAsync(domestic, 1m, dim);
+        CourierLabelResult? intlResult = await adapter.CreateLabelAsync(international, 1m, dim);
 
         // Assert
         intlResult.ShippingCost.ShouldBeGreaterThan(domesticResult.ShippingCost);
@@ -38,11 +38,12 @@ public class ShippingModuleTests_Extended
     public async Task ShippingService_ShouldCalculateTotalWeight_FromMultipleItems()
     {
         // Arrange
-        var adapter = Substitute.For<ICourierAdapter>();
+        ICourierAdapter? adapter = Substitute.For<ICourierAdapter>();
         adapter.CourierName.Returns("DHL");
 
         decimal capturedWeight = 0;
-        adapter.CreateLabelAsync(Arg.Any<Address>(), Arg.Do<decimal>(w => capturedWeight = w), Arg.Any<ShipmentDimensions>(), default)
+        adapter.CreateLabelAsync(Arg.Any<Address>(), Arg.Do<decimal>(w => capturedWeight = w),
+                Arg.Any<ShipmentDimensions>())
             .Returns(new CourierLabelResult("TRK", "url", 10m, "USD", DateTime.UtcNow));
 
         var service = new ShippingService([adapter], _serviceLogger);
@@ -50,7 +51,7 @@ public class ShippingModuleTests_Extended
         var items = new List<ShippingItemDto>
         {
             new(Guid.NewGuid(), "Item 1", 2, 1.5m), // 2 * 1.5 = 3.0kg
-            new(Guid.NewGuid(), "Item 2", 3, 0.5m)  // 3 * 0.5 = 1.5kg
+            new(Guid.NewGuid(), "Item 2", 3, 0.5m) // 3 * 0.5 = 1.5kg
         };
         // Total = 4.5kg
 
@@ -65,7 +66,8 @@ public class ShippingModuleTests_Extended
     public void Shipment_StateTransitions_ShouldEnforceRules()
     {
         // Arrange
-        var shipment = Shipment.Create(Guid.NewGuid(), "TRK", "DHL", CreateAddress(), 1m, new ShipmentDimensions(1,1,1), DateTime.UtcNow);
+        var shipment = Shipment.Create(Guid.NewGuid(), "TRK", "DHL", CreateAddress(), 1m,
+            new ShipmentDimensions(1, 1, 1), DateTime.UtcNow);
 
         // Act & Assert 1: LabelCreated -> InTransit
         shipment.MarkPickedUp();
@@ -82,13 +84,21 @@ public class ShippingModuleTests_Extended
     public void Shipment_InvalidTransition_ShouldThrow()
     {
         // Arrange
-        var shipment = Shipment.Create(Guid.NewGuid(), "TRK", "DHL", CreateAddress(), 1m, new ShipmentDimensions(1,1,1), DateTime.UtcNow);
+        var shipment = Shipment.Create(Guid.NewGuid(), "TRK", "DHL", CreateAddress(), 1m,
+            new ShipmentDimensions(1, 1, 1), DateTime.UtcNow);
 
         // Act & Assert: Cannot go straight from LabelCreated -> Delivered without Pickup
         Should.Throw<InvalidOperationException>(() => shipment.MarkDelivered())
             .Message.ShouldContain("LabelCreated");
     }
 
-    private Address CreateAddress() => new("Name", "St", "City", "State", "Country", "00000", "555-1234");
-    private ShippingAddressDto CreateAddressDto() => new("Name", "St", "City", "State", "Country", "00000", "555-1234");
+    private Address CreateAddress()
+    {
+        return new Address("Name", "St", "City", "State", "Country", "00000", "555-1234");
+    }
+
+    private ShippingAddressDto CreateAddressDto()
+    {
+        return new ShippingAddressDto("Name", "St", "City", "State", "Country", "00000", "555-1234");
+    }
 }

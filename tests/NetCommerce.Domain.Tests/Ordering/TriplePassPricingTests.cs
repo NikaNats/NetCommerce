@@ -1,7 +1,11 @@
+#region
+
+using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Services;
 using NetCommerce.SharedKernel.Domain;
-using Shouldly;
+
+#endregion
 
 namespace NetCommerce.Domain.Tests.Ordering;
 
@@ -19,26 +23,25 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 100m;
-        var quantity = 1;
+        decimal basePrice = 100m;
+        int quantity = 1;
         var customerId = Guid.NewGuid();
-        var country = "GE";
+        string country = "GE";
 
         // Act - Pass 1: Base Price (from catalog)
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
         // Pass 2: Apply Promotions
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
-            customerId,
-            null); // No coupon
+            customerId); // No coupon
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
         // Pass 3: Calculate Taxes
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             "ELECTRONICS");
@@ -47,18 +50,17 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert
         priceBreakdown.BasePrice.ShouldBe(100m);
         priceBreakdown.DiscountAmount.ShouldBe(0m);
-        priceBreakdown.TaxAmount.ShouldBe(18m);    // 18% VAT in Georgia
+        priceBreakdown.TaxAmount.ShouldBe(18m); // 18% VAT in Georgia
         priceBreakdown.TaxRate.ShouldBe(0.18m);
-        priceBreakdown.FinalPrice.ShouldBe(118m);  // 100 + 18
+        priceBreakdown.FinalPrice.ShouldBe(118m); // 100 + 18
     }
 
     [Fact]
@@ -69,28 +71,28 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 100m;
-        var quantity = 1;
+        decimal basePrice = 100m;
+        int quantity = 1;
         var customerId = Guid.NewGuid();
-        var country = "GE";
-        var couponCode = "SAVE20"; // 20% discount
+        string country = "GE";
+        string couponCode = "SAVE20"; // 20% discount
 
         // Act - Triple-Pass Pricing
         // Pass 1: Base Price
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
         // Pass 2: Apply Promotions
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
             customerId,
             couponCode);
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
         // Pass 3: Calculate Taxes
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             "ELECTRONICS");
@@ -99,20 +101,19 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert
         priceBreakdown.BasePrice.ShouldBe(100m);
-        priceBreakdown.DiscountAmount.ShouldBe(20m);    // 20% of 100
-        priceBreakdown.SubTotal.ShouldBe(80m);          // 100 - 20
-        priceBreakdown.TaxAmount.ShouldBe(14.4m);       // 18% of 80
-        priceBreakdown.FinalPrice.ShouldBe(94.4m);      // 80 + 14.4
+        priceBreakdown.DiscountAmount.ShouldBe(20m); // 20% of 100
+        priceBreakdown.SubTotal.ShouldBe(80m); // 100 - 20
+        priceBreakdown.TaxAmount.ShouldBe(14.4m); // 18% of 80
+        priceBreakdown.FinalPrice.ShouldBe(94.4m); // 80 + 14.4
         priceBreakdown.LineDiscountTotal.ShouldBe(20m); // Line total
-        priceBreakdown.LineTaxTotal.ShouldBe(14.4m);    // Line total
+        priceBreakdown.LineTaxTotal.ShouldBe(14.4m); // Line total
     }
 
     [Fact]
@@ -123,25 +124,24 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 10m;
-        var quantity = 1;
+        decimal basePrice = 10m;
+        int quantity = 1;
         var customerId = Guid.NewGuid();
-        var country = "GE";
-        var category = "FOOD"; // Food has reduced tax rate (50% reduction)
+        string country = "GE";
+        string category = "FOOD"; // Food has reduced tax rate (50% reduction)
 
         // Act - Triple-Pass Pricing
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
-            customerId,
-            null);
+            customerId);
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             category);
@@ -150,17 +150,16 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert
         priceBreakdown.BasePrice.ShouldBe(10m);
-        priceBreakdown.TaxAmount.ShouldBe(0.9m);     // 9% (18% * 50%)
+        priceBreakdown.TaxAmount.ShouldBe(0.9m); // 9% (18% * 50%)
         priceBreakdown.TaxRate.ShouldBe(0.09m);
-        priceBreakdown.FinalPrice.ShouldBe(10.9m);   // 10 + 0.9
+        priceBreakdown.FinalPrice.ShouldBe(10.9m); // 10 + 0.9
     }
 
     [Fact]
@@ -171,25 +170,25 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 2500m; // Laptop
-        var quantity = 1;
+        decimal basePrice = 2500m; // Laptop
+        int quantity = 1;
         var customerId = Guid.NewGuid();
-        var country = "GE";
-        var couponCode = "FIRSTORDER"; // 25% discount
+        string country = "GE";
+        string couponCode = "FIRSTORDER"; // 25% discount
 
         // Act - Complete Triple-Pass Pricing
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
             customerId,
             couponCode);
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             "ELECTRONICS");
@@ -198,18 +197,17 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert - Verify complete pricing breakdown
         priceBreakdown.BasePrice.ShouldBe(2500m);
-        priceBreakdown.DiscountAmount.ShouldBe(625m);      // 25% of 2500
-        priceBreakdown.SubTotal.ShouldBe(1875m);           // 2500 - 625
-        priceBreakdown.TaxAmount.ShouldBe(337.5m);         // 18% of 1875
-        priceBreakdown.FinalPrice.ShouldBe(2212.5m);       // 1875 + 337.5
+        priceBreakdown.DiscountAmount.ShouldBe(625m); // 25% of 2500
+        priceBreakdown.SubTotal.ShouldBe(1875m); // 2500 - 625
+        priceBreakdown.TaxAmount.ShouldBe(337.5m); // 18% of 1875
+        priceBreakdown.FinalPrice.ShouldBe(2212.5m); // 1875 + 337.5
 
         // Verify audit trail
         promotionResult.AppliedPromotionName.ShouldBe("First Order 25% Off");
@@ -226,27 +224,27 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 50m;
-        var quantity = 3;
+        decimal basePrice = 50m;
+        int quantity = 3;
         var customerId = Guid.NewGuid();
-        var country = "GE";
-        var couponCode = "WELCOME10"; // 10% discount
+        string country = "GE";
+        string couponCode = "WELCOME10"; // 10% discount
 
         // Act - Triple-Pass Pricing
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
         // Pass 2: Apply Promotions (on total)
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
             customerId,
             couponCode);
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
         // Pass 3: Calculate Taxes (on discounted total)
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             "ELECTRONICS");
@@ -255,11 +253,10 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert
         // Total before discount: 50 * 3 = 150
@@ -269,16 +266,16 @@ public class TriplePassPricingTests
         // Final: 135 + 24.3 = 159.3
 
         priceBreakdown.BasePrice.ShouldBe(50m);
-        priceBreakdown.DiscountAmount.ShouldBe(5m);     // 15 / 3 (per unit, backward compat)
-        priceBreakdown.SubTotal.ShouldBe(45m);          // 50 - 5
-        priceBreakdown.TaxAmount.ShouldBe(8.1m);        // 24.3 / 3 (per unit, backward compat)
-        priceBreakdown.FinalPrice.ShouldBe(53.1m);      // 45 + 8.1
+        priceBreakdown.DiscountAmount.ShouldBe(5m); // 15 / 3 (per unit, backward compat)
+        priceBreakdown.SubTotal.ShouldBe(45m); // 50 - 5
+        priceBreakdown.TaxAmount.ShouldBe(8.1m); // 24.3 / 3 (per unit, backward compat)
+        priceBreakdown.FinalPrice.ShouldBe(53.1m); // 45 + 8.1
 
         // 2025 Elite: Verify line totals are stored EXACTLY without division
-        priceBreakdown.LineDiscountTotal.ShouldBe(15m);   // No penny variance!
-        priceBreakdown.LineTaxTotal.ShouldBe(24.3m);      // No penny variance!
-        priceBreakdown.LineSubTotal.ShouldBe(135m);       // 150 - 15
-        priceBreakdown.LineTotal.ShouldBe(159.3m);        // 135 + 24.3
+        priceBreakdown.LineDiscountTotal.ShouldBe(15m); // No penny variance!
+        priceBreakdown.LineTaxTotal.ShouldBe(24.3m); // No penny variance!
+        priceBreakdown.LineSubTotal.ShouldBe(135m); // 150 - 15
+        priceBreakdown.LineTotal.ShouldBe(159.3m); // 135 + 24.3
     }
 
     [Fact]
@@ -289,24 +286,23 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 10m;
-        var quantity = 3;  // Division by 3 creates rounding issues
+        decimal basePrice = 10m;
+        int quantity = 3; // Division by 3 creates rounding issues
         var customerId = Guid.NewGuid();
-        var country = "GE";
+        string country = "GE";
 
         // Act - Triple-Pass Pricing
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
-            customerId,
-            null);
+            customerId);
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             "ELECTRONICS");
@@ -315,24 +311,23 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert - Verify NO penny variance
         // Old approach: $10.00 discount / 3 = $3.3333... → $3.33 per unit → $9.99 total (WRONG!)
         // New approach: Store $10.00 directly as line total (CORRECT!)
 
-        priceBreakdown.LineDiscountTotal.ShouldBe(0m);      // No discount in this test
-        priceBreakdown.LineTaxTotal.ShouldBe(5.4m);         // 30 * 0.18 = 5.4
-        priceBreakdown.LineSubTotal.ShouldBe(30m);          // 3 * 10
-        priceBreakdown.LineTotal.ShouldBe(35.4m);           // 30 + 5.4
+        priceBreakdown.LineDiscountTotal.ShouldBe(0m); // No discount in this test
+        priceBreakdown.LineTaxTotal.ShouldBe(5.4m); // 30 * 0.18 = 5.4
+        priceBreakdown.LineSubTotal.ShouldBe(30m); // 3 * 10
+        priceBreakdown.LineTotal.ShouldBe(35.4m); // 30 + 5.4
 
         // Verify per-unit calculations are backward compatible
         priceBreakdown.BasePrice.ShouldBe(10m);
-        priceBreakdown.TaxAmount.ShouldBe(1.8m);            // 5.4 / 3
+        priceBreakdown.TaxAmount.ShouldBe(1.8m); // 5.4 / 3
     }
 
     [Fact]
@@ -343,25 +338,25 @@ public class TriplePassPricingTests
         var promotionEngine = new SimplePromotionEngine();
 
         var productId = Guid.NewGuid();
-        var basePrice = 15m;
-        var quantity = 7;
+        decimal basePrice = 15m;
+        int quantity = 7;
         var customerId = Guid.NewGuid();
-        var country = "GE";
-        var couponCode = "SAVE20";
+        string country = "GE";
+        string couponCode = "SAVE20";
 
         // Act
-        var catalogPrice = basePrice;
+        decimal catalogPrice = basePrice;
 
-        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+        PromotionResult promotionResult = await promotionEngine.CalculateDiscountAsync(
             productId,
             catalogPrice,
             quantity,
             customerId,
             couponCode);
 
-        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+        decimal subTotal = catalogPrice * quantity - promotionResult.DiscountAmount;
 
-        var taxResult = await taxProvider.GetTaxAsync(
+        TaxCalculationResult taxResult = await taxProvider.GetTaxAsync(
             subTotal,
             country,
             "ELECTRONICS");
@@ -369,11 +364,10 @@ public class TriplePassPricingTests
         var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
             quantity,
-            lineDiscountTotal: promotionResult.DiscountAmount,
-            lineTaxTotal: taxResult.Amount,
+            promotionResult.DiscountAmount,
+            taxResult.Amount,
             taxResult.Rate,
-            taxResult.Type,
-            "GEL");
+            taxResult.Type);
 
         // Assert
         // Base: 7 * 15 = 105
@@ -382,8 +376,8 @@ public class TriplePassPricingTests
         // Tax: 84 * 0.18 = 15.12
         // Final: 84 + 15.12 = 99.12
 
-        priceBreakdown.LineDiscountTotal.ShouldBe(21m);     // Exact line total
-        priceBreakdown.LineTaxTotal.ShouldBe(15.12m);       // Exact line total
+        priceBreakdown.LineDiscountTotal.ShouldBe(21m); // Exact line total
+        priceBreakdown.LineTaxTotal.ShouldBe(15.12m); // Exact line total
         priceBreakdown.LineSubTotal.ShouldBe(84m);
         priceBreakdown.LineTotal.ShouldBe(99.12m);
 
@@ -394,10 +388,10 @@ public class TriplePassPricingTests
     public void Calculate_WithDiscountAndTax_ShouldMatchLedger()
     {
         // Arrange
-        var basePrice = 100m;
-        var quantity = 2;
-        var discount = 20m; // Total discount
-        var taxRate = 0.18m; // 18%
+        decimal basePrice = 100m;
+        int quantity = 2;
+        decimal discount = 20m; // Total discount
+        decimal taxRate = 0.18m; // 18%
 
         // Logic:
         // 1. Line Total: 200
@@ -409,8 +403,8 @@ public class TriplePassPricingTests
         var breakdown = PriceBreakdown.CreateFromLineTotals(
             basePrice,
             quantity,
-            lineDiscountTotal: discount,
-            lineTaxTotal: 32.4m,
+            discount,
+            32.4m,
             taxRate,
             "VAT",
             "USD");
@@ -425,8 +419,8 @@ public class TriplePassPricingTests
     public void PennyVariance_DivisionByThree_ShouldNotLoseMoney()
     {
         // Arrange: $10.00 split 3 ways. Old systems lose a penny.
-        var basePrice = 10m;
-        var quantity = 3;
+        decimal basePrice = 10m;
+        int quantity = 3;
 
         // Act
         var breakdown = PriceBreakdown.CreateFromLineTotals(

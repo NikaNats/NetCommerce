@@ -1,4 +1,7 @@
-#nullable enable
+#region
+
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -6,17 +9,16 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#endregion
+
 namespace NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 
 /// <summary>
 ///     Zero-Trust Token Introspection Middleware (The "Kill Switch").
-///
 ///     Purpose: Immediately revoke access when a user is banned/disabled in Keycloak,
 ///     rather than waiting for JWT expiration (typically 15 minutes).
-///
 ///     Implements RFC 7662 (OAuth 2.0 Token Introspection) to validate tokens
 ///     against Keycloak's introspection endpoint on every request.
-///
 ///     Performance Optimization:
 ///     - Caches introspection results in Redis for configurable duration
 ///     - Uses token hash as cache key (never stores actual token)
@@ -24,8 +26,8 @@ namespace NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 /// </summary>
 public sealed class TokenIntrospectionMiddleware
 {
-    private readonly RequestDelegate _next;
     private readonly ILogger<TokenIntrospectionMiddleware> _logger;
+    private readonly RequestDelegate _next;
 
     public TokenIntrospectionMiddleware(
         RequestDelegate next,
@@ -41,7 +43,7 @@ public sealed class TokenIntrospectionMiddleware
         IOptions<ZeroTrustAuthOptions> options,
         IDistributedCache? cache = null)
     {
-        var authOptions = options.Value;
+        ZeroTrustAuthOptions authOptions = options.Value;
 
         // Short-circuit if introspection is disabled
         if (!authOptions.IntrospectionEnabled)
@@ -51,7 +53,7 @@ public sealed class TokenIntrospectionMiddleware
         }
 
         // Skip if no token present (let standard AuthN handle 401 later)
-        var token = await context.GetTokenAsync("access_token");
+        string? token = await context.GetTokenAsync("access_token");
         if (string.IsNullOrEmpty(token))
         {
             await _next(context);
@@ -59,10 +61,10 @@ public sealed class TokenIntrospectionMiddleware
         }
 
         // Check cache first (performance optimization)
-        var cacheKey = $"introspection:{ComputeTokenHash(token)}";
+        string cacheKey = $"introspection:{ComputeTokenHash(token)}";
         if (cache is not null)
         {
-            var cachedResult = await cache.GetStringAsync(cacheKey);
+            string? cachedResult = await cache.GetStringAsync(cacheKey);
             if (cachedResult is not null)
             {
                 if (cachedResult == "active")
@@ -80,7 +82,7 @@ public sealed class TokenIntrospectionMiddleware
         }
 
         // Perform introspection against Keycloak
-        var introspectionResult = await IntrospectTokenAsync(token, authOptions, clientFactory);
+        IntrospectionResult introspectionResult = await IntrospectTokenAsync(token, authOptions, clientFactory);
 
         // Cache the result
         if (cache is not null)
@@ -118,20 +120,18 @@ public sealed class TokenIntrospectionMiddleware
 
         try
         {
-            var client = clientFactory.CreateClient("KeycloakIntrospection");
+            HttpClient client = clientFactory.CreateClient("KeycloakIntrospection");
 
             // RFC 7662 compliant introspection request
             var request = new HttpRequestMessage(HttpMethod.Post, options.IntrospectionEndpoint);
 
             var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["token"] = token,
-                ["client_id"] = options.ClientId,
-                ["client_secret"] = options.ClientSecret
+                ["token"] = token, ["client_id"] = options.ClientId, ["client_secret"] = options.ClientSecret
             });
             request.Content = content;
 
-            var response = await client.SendAsync(request);
+            HttpResponseMessage response = await client.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -140,14 +140,12 @@ public sealed class TokenIntrospectionMiddleware
                 return new IntrospectionResult(true, "Introspection endpoint unavailable - fail-open");
             }
 
-            var responseContent = await response.Content.ReadAsStringAsync();
+            string responseContent = await response.Content.ReadAsStringAsync();
             using var jsonDoc = JsonDocument.Parse(responseContent);
 
             // Keycloak returns { "active": false } if token is revoked/invalid
-            if (!jsonDoc.RootElement.TryGetProperty("active", out var active) || !active.GetBoolean())
-            {
+            if (!jsonDoc.RootElement.TryGetProperty("active", out JsonElement active) || !active.GetBoolean())
                 return new IntrospectionResult(false, "Token marked as inactive by identity provider");
-            }
 
             return new IntrospectionResult(true, null);
         }
@@ -180,7 +178,7 @@ public sealed class TokenIntrospectionMiddleware
     {
         // Use first/last parts of token to create a short cache key
         // Full cryptographic hash not needed since this is just for cache keying
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token));
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         return Convert.ToBase64String(hash)[..16];
     }
 
