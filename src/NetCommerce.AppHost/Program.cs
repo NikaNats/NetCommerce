@@ -20,6 +20,7 @@ var catalogDb = postgres.AddDatabase("CatalogDb", "catalog");
 var orderingDb = postgres.AddDatabase("OrderingDb", "ordering");
 var inventoryDb = postgres.AddDatabase("InventoryDb", "inventory");
 var paymentsDb = postgres.AddDatabase("PaymentsDb", "payments");
+var keycloakDb = postgres.AddDatabase("KeycloakDb", "keycloak");
 
 // =============================================================================
 // Redis for caching, distributed locking, and basket storage
@@ -30,12 +31,23 @@ var redis = builder.AddRedis("redis")
     .WithLifetime(ContainerLifetime.Persistent);
 
 // =============================================================================
-// Keycloak for Identity & Access Management
+// Keycloak 26 Identity Infrastructure (Zero-Trust Identity Mesh)
 // =============================================================================
 var keycloak = builder.AddKeycloakContainer("keycloak")
     .WithDataVolume()
     .WithLifetime(ContainerLifetime.Persistent)
-    .WithImport("./realms/netcommerce-realm.json");
+    .WithImport("./realms/netcommerce-realm.json")
+    // Keycloak 26 Standard: Use KC_BOOTSTRAP_ADMIN instead of deprecated KEYCLOAK_ADMIN
+    .WithEnvironment("KC_BOOTSTRAP_ADMIN_USERNAME", "admin")
+    .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
+    // Enable critical features: Token Exchange (RFC 8693) + Fine-Grained Authorization
+    .WithEnvironment("KC_FEATURES", "token-exchange,admin-fine-grained-authz")
+    // Use PostgreSQL instead of H2 for persistent identity storage
+    .WithEnvironment("KC_DB", "postgres")
+    .WithEnvironment("KC_DB_URL", keycloakDb)
+    // Enable health and metrics endpoints for observability
+    .WithEnvironment("KC_HEALTH_ENABLED", "true")
+    .WithEnvironment("KC_METRICS_ENABLED", "true");
 
 var realm = keycloak.AddRealm("netcommerce");
 
@@ -89,8 +101,14 @@ var api = builder.AddProject<NetCommerce_Api>("netcommerce-api")
     // Keycloak authentication - using realm reference for proper configuration
     .WithReference(keycloak)
     .WithReference(realm)
+    // Zero-Trust Identity Configuration
     .WithEnvironment("Auth__Audience", "netcommerce-api")
     .WithEnvironment("Auth__ApiScope", "netcommerce.api")
+    // Service-to-Service Identity (Client Credentials)
+    .WithEnvironment("Auth__ClientId", "netcommerce-api")
+    .WithEnvironment("Auth__ClientSecret", "netcommerce-api-secret") // In prod, use Secret Store
+    // Token Introspection for instant revocation (Kill Switch)
+    .WithEnvironment("Auth__IntrospectionEnabled", "true")
     .WithEnvironment("SWAGGERUI_CLIENTID", "netcommerce-swagger")
     .WaitFor(keycloak)
     // External endpoints for development

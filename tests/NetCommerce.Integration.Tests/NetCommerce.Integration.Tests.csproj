@@ -24,6 +24,7 @@
     <PackageReference Include="WireMock.Net"/>
     <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
     <PackageReference Include="Stripe.net"/>
   </ItemGroup>
 

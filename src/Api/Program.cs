@@ -1,7 +1,6 @@
 using System.IO.Compression;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Caching.Hybrid;
-using NetCommerce.Api.Authentication;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Api.Extensions;
 using NetCommerce.Api.Middleware;
@@ -14,6 +13,7 @@ using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
+using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 using Wolverine.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -77,26 +77,15 @@ if (!string.IsNullOrEmpty(seqServerUrl))
 builder.AddMeilisearchClient("meilisearch");
 
 // ============================================================================
-// Authentication with Keycloak
+// Zero-Trust Authentication with Keycloak (Identity Mesh)
 // ============================================================================
-// Bind Keycloak options from Aspire-injected environment variables (Keycloak__AuthServerUrl, Keycloak__Realm)
-builder.Services.AddOptions<AuthOptions>()
-    .Bind(builder.Configuration.GetSection(AuthOptions.SectionName))
-    .Configure(options =>
-    {
-        // Override audience/scope from Auth__ section if provided
-        var authSection = builder.Configuration.GetSection("Auth");
-        if (!string.IsNullOrEmpty(authSection["Audience"]))
-            options.Audience = authSection["Audience"]!;
-        if (!string.IsNullOrEmpty(authSection["ApiScope"]))
-            options.ApiScope = authSection["ApiScope"]!;
-    })
-    .ValidateOnStart();
-
-builder.Services.ConfigureOptions<JwtBearerOptionsSetup>();
-
-builder.Services.AddAuthentication()
-    .AddJwtBearer();
+// This replaces the previous manual JWT configuration with a standardized
+// Zero-Trust security stack that includes:
+// - JWT Bearer authentication with strict validation
+// - Keycloak role claim transformation (flattens nested JSON roles)
+// - Optional token introspection for instant revocation (kill switch)
+// - Token exchange support for secure downstream service calls
+builder.AddZeroTrustAuthentication();
 
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", policy => policy.RequireRole("admin"))
@@ -173,6 +162,14 @@ app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ============================================================================
+// Zero-Trust Middleware (Token Introspection / Kill Switch)
+// ============================================================================
+// When enabled (Auth__IntrospectionEnabled=true), this middleware validates
+// every token against Keycloak's introspection endpoint. If a user is banned
+// or their token is revoked, they are blocked immediately - not when JWT expires.
+app.UseZeroTrustMiddleware();
 
 // ============================================================================
 // SignalR Hub for Real-Time Order Notifications
