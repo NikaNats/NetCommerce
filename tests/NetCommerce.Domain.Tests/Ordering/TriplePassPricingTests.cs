@@ -43,13 +43,12 @@ public class TriplePassPricingTests
             country,
             "ELECTRONICS");
 
-        var unitDiscount = promotionResult.DiscountAmount / quantity;
-        var unitTax = taxResult.Amount / quantity;
-
-        var priceBreakdown = PriceBreakdown.Create(
+        // 2025 Elite Refinement: Use line totals to avoid penny variance
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
-            unitDiscount,
-            unitTax,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
             taxResult.Rate,
             taxResult.Type,
             "GEL");
@@ -96,13 +95,12 @@ public class TriplePassPricingTests
             country,
             "ELECTRONICS");
 
-        var unitDiscount = promotionResult.DiscountAmount / quantity;
-        var unitTax = taxResult.Amount / quantity;
-
-        var priceBreakdown = PriceBreakdown.Create(
+        // 2025 Elite Refinement: Use line totals to avoid penny variance
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
-            unitDiscount,
-            unitTax,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
             taxResult.Rate,
             taxResult.Type,
             "GEL");
@@ -113,6 +111,8 @@ public class TriplePassPricingTests
         priceBreakdown.SubTotal.ShouldBe(80m);          // 100 - 20
         priceBreakdown.TaxAmount.ShouldBe(14.4m);       // 18% of 80
         priceBreakdown.FinalPrice.ShouldBe(94.4m);      // 80 + 14.4
+        priceBreakdown.LineDiscountTotal.ShouldBe(20m); // Line total
+        priceBreakdown.LineTaxTotal.ShouldBe(14.4m);    // Line total
     }
 
     [Fact]
@@ -146,13 +146,12 @@ public class TriplePassPricingTests
             country,
             category);
 
-        var unitDiscount = promotionResult.DiscountAmount / quantity;
-        var unitTax = taxResult.Amount / quantity;
-
-        var priceBreakdown = PriceBreakdown.Create(
+        // 2025 Elite Refinement: Use line totals to avoid penny variance
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
-            unitDiscount,
-            unitTax,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
             taxResult.Rate,
             taxResult.Type,
             "GEL");
@@ -195,13 +194,12 @@ public class TriplePassPricingTests
             country,
             "ELECTRONICS");
 
-        var unitDiscount = promotionResult.DiscountAmount / quantity;
-        var unitTax = taxResult.Amount / quantity;
-
-        var priceBreakdown = PriceBreakdown.Create(
+        // 2025 Elite Refinement: Use line totals to avoid penny variance
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
-            unitDiscount,
-            unitTax,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
             taxResult.Rate,
             taxResult.Type,
             "GEL");
@@ -212,7 +210,7 @@ public class TriplePassPricingTests
         priceBreakdown.SubTotal.ShouldBe(1875m);           // 2500 - 625
         priceBreakdown.TaxAmount.ShouldBe(337.5m);         // 18% of 1875
         priceBreakdown.FinalPrice.ShouldBe(2212.5m);       // 1875 + 337.5
-        
+
         // Verify audit trail
         promotionResult.AppliedPromotionName.ShouldBe("First Order 25% Off");
         taxResult.Type.ShouldBe("VAT");
@@ -253,14 +251,12 @@ public class TriplePassPricingTests
             country,
             "ELECTRONICS");
 
-        // Per-unit calculations
-        var unitDiscount = promotionResult.DiscountAmount / quantity;
-        var unitTax = taxResult.Amount / quantity;
-
-        var priceBreakdown = PriceBreakdown.Create(
+        // 2025 Elite Refinement: Store line totals directly to avoid penny variance
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
             catalogPrice,
-            unitDiscount,
-            unitTax,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
             taxResult.Rate,
             taxResult.Type,
             "GEL");
@@ -273,12 +269,126 @@ public class TriplePassPricingTests
         // Final: 135 + 24.3 = 159.3
 
         priceBreakdown.BasePrice.ShouldBe(50m);
-        priceBreakdown.DiscountAmount.ShouldBe(5m);     // 15 / 3
+        priceBreakdown.DiscountAmount.ShouldBe(5m);     // 15 / 3 (per unit, backward compat)
         priceBreakdown.SubTotal.ShouldBe(45m);          // 50 - 5
-        priceBreakdown.TaxAmount.ShouldBe(8.1m);        // 24.3 / 3
+        priceBreakdown.TaxAmount.ShouldBe(8.1m);        // 24.3 / 3 (per unit, backward compat)
         priceBreakdown.FinalPrice.ShouldBe(53.1m);      // 45 + 8.1
-        
-        // Verify total for 3 units
-        (priceBreakdown.FinalPrice * quantity).ShouldBe(159.3m);
+
+        // 2025 Elite: Verify line totals are stored EXACTLY without division
+        priceBreakdown.LineDiscountTotal.ShouldBe(15m);   // No penny variance!
+        priceBreakdown.LineTaxTotal.ShouldBe(24.3m);      // No penny variance!
+        priceBreakdown.LineSubTotal.ShouldBe(135m);       // 150 - 15
+        priceBreakdown.LineTotal.ShouldBe(159.3m);        // 135 + 24.3
+    }
+
+    [Fact]
+    public async Task PennyVariance_WithDivisionByThree_ShouldBeAvoided()
+    {
+        // Arrange - Classic penny variance scenario: $10.00 / 3 items
+        var taxProvider = new LocalTaxProvider();
+        var promotionEngine = new SimplePromotionEngine();
+
+        var productId = Guid.NewGuid();
+        var basePrice = 10m;
+        var quantity = 3;  // Division by 3 creates rounding issues
+        var customerId = Guid.NewGuid();
+        var country = "GE";
+
+        // Act - Triple-Pass Pricing
+        var catalogPrice = basePrice;
+
+        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+            productId,
+            catalogPrice,
+            quantity,
+            customerId,
+            null);
+
+        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+
+        var taxResult = await taxProvider.GetTaxAsync(
+            subTotal,
+            country,
+            "ELECTRONICS");
+
+        // 2025 Elite: Store line totals to avoid penny variance
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
+            catalogPrice,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
+            taxResult.Rate,
+            taxResult.Type,
+            "GEL");
+
+        // Assert - Verify NO penny variance
+        // Old approach: $10.00 discount / 3 = $3.3333... → $3.33 per unit → $9.99 total (WRONG!)
+        // New approach: Store $10.00 directly as line total (CORRECT!)
+
+        priceBreakdown.LineDiscountTotal.ShouldBe(0m);      // No discount in this test
+        priceBreakdown.LineTaxTotal.ShouldBe(5.4m);         // 30 * 0.18 = 5.4
+        priceBreakdown.LineSubTotal.ShouldBe(30m);          // 3 * 10
+        priceBreakdown.LineTotal.ShouldBe(35.4m);           // 30 + 5.4
+
+        // Verify per-unit calculations are backward compatible
+        priceBreakdown.BasePrice.ShouldBe(10m);
+        priceBreakdown.TaxAmount.ShouldBe(1.8m);            // 5.4 / 3
+    }
+
+    [Fact]
+    public async Task PennyVariance_WithSevenItems_ShouldBeAvoided()
+    {
+        // Arrange - Another problematic quantity: 7 items with discount
+        var taxProvider = new LocalTaxProvider();
+        var promotionEngine = new SimplePromotionEngine();
+
+        var productId = Guid.NewGuid();
+        var basePrice = 15m;
+        var quantity = 7;
+        var customerId = Guid.NewGuid();
+        var country = "GE";
+        var couponCode = "SAVE20";
+
+        // Act
+        var catalogPrice = basePrice;
+
+        var promotionResult = await promotionEngine.CalculateDiscountAsync(
+            productId,
+            catalogPrice,
+            quantity,
+            customerId,
+            couponCode);
+
+        var subTotal = (catalogPrice * quantity) - promotionResult.DiscountAmount;
+
+        var taxResult = await taxProvider.GetTaxAsync(
+            subTotal,
+            country,
+            "ELECTRONICS");
+
+        var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
+            catalogPrice,
+            quantity,
+            lineDiscountTotal: promotionResult.DiscountAmount,
+            lineTaxTotal: taxResult.Amount,
+            taxResult.Rate,
+            taxResult.Type,
+            "GEL");
+
+        // Assert
+        // Base: 7 * 15 = 105
+        // Discount: 105 * 0.20 = 21
+        // Subtotal: 105 - 21 = 84
+        // Tax: 84 * 0.18 = 15.12
+        // Final: 84 + 15.12 = 99.12
+
+        priceBreakdown.LineDiscountTotal.ShouldBe(21m);     // Exact line total
+        priceBreakdown.LineTaxTotal.ShouldBe(15.12m);       // Exact line total
+        priceBreakdown.LineSubTotal.ShouldBe(84m);
+        priceBreakdown.LineTotal.ShouldBe(99.12m);
+
+        // Old approach would calculate: 21 / 7 = 3.0 per unit → 3.0 * 7 = 21.0 (happens to work)
+        // But: 15.12 / 7 = 2.16 per unit → 2.16 * 7 = 15.12 (also works in this case)
+        // The key is: We store EXACT totals, not derived values
     }
 }

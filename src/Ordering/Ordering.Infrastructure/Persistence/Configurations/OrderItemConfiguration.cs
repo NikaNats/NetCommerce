@@ -69,13 +69,13 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
                 .HasColumnName("discount_amount")
                 .HasPrecision(18, 2)
                 .IsRequired()
-                .HasComment("Total discount applied from promotions and coupons");
+                .HasComment("Discount per unit (for backward compatibility)");
 
             breakdown.Property(pb => pb.TaxAmount)
                 .HasColumnName("tax_amount")
                 .HasPrecision(18, 2)
                 .IsRequired()
-                .HasComment("Calculated tax amount based on jurisdiction");
+                .HasComment("Tax per unit (for backward compatibility)");
 
             breakdown.Property(pb => pb.TaxRate)
                 .HasColumnName("tax_rate")
@@ -93,6 +93,24 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
                 .HasColumnName("breakdown_currency")
                 .HasMaxLength(3)
                 .IsRequired();
+
+            breakdown.Property(pb => pb.Quantity)
+                .HasColumnName("breakdown_quantity")
+                .IsRequired()
+                .HasComment("Quantity for this pricing breakdown");
+
+            // 2025 Elite Refinement: Store LINE-ITEM TOTALS to avoid penny variance
+            breakdown.Property(pb => pb.LineDiscountTotal)
+                .HasColumnName("line_discount_total")
+                .HasPrecision(18, 2)
+                .IsRequired()
+                .HasComment("TOTAL discount for line item - PRIMARY source of truth to avoid penny variance");
+
+            breakdown.Property(pb => pb.LineTaxTotal)
+                .HasColumnName("line_tax_total")
+                .HasPrecision(18, 2)
+                .IsRequired()
+                .HasComment("TOTAL tax for line item - PRIMARY source of truth to avoid penny variance");
         });
 
         // Computed properties - not persisted

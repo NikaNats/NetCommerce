@@ -39,6 +39,17 @@ public sealed record OrderPaidIntegrationEvent(
     Money TotalAmount) : IntegrationEvent;
 
 /// <summary>
+///     Raised when an order is successfully placed (after all validations).
+///     Triggers email/SMS notifications to customer.
+/// </summary>
+public sealed record OrderPlacedIntegrationEvent(
+    Guid OrderId,
+    string OrderNumber,
+    string CustomerEmail,
+    string CustomerName,
+    Money TotalAmount) : IntegrationEvent;
+
+/// <summary>
 ///     Raised when an order is cancelled.
 ///     PreviousStatus indicates whether payment was taken (requires refund).
 /// </summary>

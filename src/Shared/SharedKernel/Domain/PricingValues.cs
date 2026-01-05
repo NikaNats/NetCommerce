@@ -5,6 +5,7 @@ namespace NetCommerce.SharedKernel.Domain;
 /// <summary>
 ///     Immutable price breakdown capturing the "Triple-Pass Pricing Pattern" for audit compliance.
 ///     Ensures complete transparency on how a final price was calculated at a specific point in time.
+///     2025 Elite Refinement: Stores LINE-ITEM TOTALS to avoid penny variance from division.
 /// </summary>
 public sealed class PriceBreakdown : ValueObject
 {
@@ -17,7 +18,10 @@ public sealed class PriceBreakdown : ValueObject
         decimal taxAmount,
         decimal taxRate,
         string taxType,
-        string currency)
+        string currency,
+        int quantity = 1,
+        decimal? lineDiscountTotal = null,
+        decimal? lineTaxTotal = null)
     {
         if (basePrice < 0)
             throw new ArgumentException("Base price cannot be negative", nameof(basePrice));
@@ -31,6 +35,8 @@ public sealed class PriceBreakdown : ValueObject
             throw new ArgumentException("Tax type is required", nameof(taxType));
         if (string.IsNullOrWhiteSpace(currency))
             throw new ArgumentException("Currency is required", nameof(currency));
+        if (quantity <= 0)
+            throw new ArgumentException("Quantity must be positive", nameof(quantity));
 
         BasePrice = Math.Round(basePrice, 2);
         DiscountAmount = Math.Round(discountAmount, 2);
@@ -38,20 +44,27 @@ public sealed class PriceBreakdown : ValueObject
         TaxRate = Math.Round(taxRate, 4); // Keep precision for rates like 0.185
         TaxType = taxType.ToUpperInvariant();
         Currency = currency.ToUpperInvariant();
+        Quantity = quantity;
+
+        // 2025 Elite Refinement: Store line totals to avoid penny variance
+        LineDiscountTotal = Math.Round(lineDiscountTotal ?? (discountAmount * quantity), 2);
+        LineTaxTotal = Math.Round(lineTaxTotal ?? (taxAmount * quantity), 2);
     }
 
     /// <summary>
-    ///     The original price from the Catalog (source of truth).
+    ///     The original price from the Catalog (source of truth) - PER UNIT.
     /// </summary>
     public decimal BasePrice { get; }
 
     /// <summary>
-    ///     Total deduction from promotions, discounts, and coupons.
+    ///     Discount amount PER UNIT (for backward compatibility).
+    ///     For accurate totals, use LineDiscountTotal instead.
     /// </summary>
     public decimal DiscountAmount { get; }
 
     /// <summary>
-    ///     The calculated tax amount based on jurisdiction and product category.
+    ///     Tax amount PER UNIT (for backward compatibility).
+    ///     For accurate totals, use LineTaxTotal instead.
     /// </summary>
     public decimal TaxAmount { get; }
 
@@ -71,19 +84,47 @@ public sealed class PriceBreakdown : ValueObject
     public string Currency { get; }
 
     /// <summary>
-    ///     The final price after applying discounts and adding taxes.
+    ///     Quantity of items this price breakdown applies to.
+    /// </summary>
+    public int Quantity { get; }
+
+    /// <summary>
+    ///     2025 Elite Refinement: LINE-ITEM TOTAL discount to avoid penny variance.
+    ///     This is the PRIMARY source of truth for discount totals.
+    /// </summary>
+    public decimal LineDiscountTotal { get; }
+
+    /// <summary>
+    ///     2025 Elite Refinement: LINE-ITEM TOTAL tax to avoid penny variance.
+    ///     This is the PRIMARY source of truth for tax totals.
+    /// </summary>
+    public decimal LineTaxTotal { get; }
+
+    /// <summary>
+    ///     LINE-ITEM SUBTOTAL: (BasePrice * Quantity) - LineDiscountTotal
+    /// </summary>
+    public decimal LineSubTotal => Math.Round((BasePrice * Quantity) - LineDiscountTotal, 2);
+
+    /// <summary>
+    ///     LINE-ITEM TOTAL: LineSubTotal + LineTaxTotal
+    /// </summary>
+    public decimal LineTotal => Math.Round(LineSubTotal + LineTaxTotal, 2);
+
+    /// <summary>
+    ///     The final price PER UNIT after applying discounts and adding taxes (for backward compatibility).
     ///     Formula: (BasePrice - DiscountAmount) + TaxAmount
     /// </summary>
     public decimal FinalPrice => Math.Round((BasePrice - DiscountAmount) + TaxAmount, 2);
 
     /// <summary>
-    ///     The subtotal before tax is applied (after discounts).
+    ///     The subtotal PER UNIT before tax is applied (after discounts, for backward compatibility).
     ///     Formula: BasePrice - DiscountAmount
     /// </summary>
     public decimal SubTotal => Math.Round(BasePrice - DiscountAmount, 2);
 
     /// <summary>
-    ///     Factory method to create a breakdown with explicit values.
+    ///     Factory method to create a breakdown with explicit per-unit values (legacy pattern).
+    ///     For 2025 best practices, use CreateFromLineTotals instead.
     /// </summary>
     public static PriceBreakdown Create(
         decimal basePrice,
@@ -93,7 +134,43 @@ public sealed class PriceBreakdown : ValueObject
         string taxType,
         string currency = "GEL")
     {
-        return new PriceBreakdown(basePrice, discountAmount, taxAmount, taxRate, taxType, currency);
+        return new PriceBreakdown(basePrice, discountAmount, taxAmount, taxRate, taxType, currency, quantity: 1);
+    }
+
+    /// <summary>
+    ///     2025 Elite Factory Method: Creates a breakdown from LINE-ITEM TOTALS to avoid penny variance.
+    ///     This is the recommended approach for financial systems.
+    /// </summary>
+    /// <param name="basePrice">Price per unit from catalog</param>
+    /// <param name="quantity">Number of items</param>
+    /// <param name="lineDiscountTotal">Total discount for all items (NOT divided)</param>
+    /// <param name="lineTaxTotal">Total tax for all items (NOT divided)</param>
+    /// <param name="taxRate">Tax rate for audit trail</param>
+    /// <param name="taxType">Tax type (VAT, SALES_TAX, etc.)</param>
+    /// <param name="currency">Currency code</param>
+    public static PriceBreakdown CreateFromLineTotals(
+        decimal basePrice,
+        int quantity,
+        decimal lineDiscountTotal,
+        decimal lineTaxTotal,
+        decimal taxRate,
+        string taxType,
+        string currency = "GEL")
+    {
+        // Calculate per-unit values for backward compatibility (but they're not the source of truth)
+        var unitDiscount = quantity > 0 ? lineDiscountTotal / quantity : 0;
+        var unitTax = quantity > 0 ? lineTaxTotal / quantity : 0;
+
+        return new PriceBreakdown(
+            basePrice,
+            unitDiscount,
+            unitTax,
+            taxRate,
+            taxType,
+            currency,
+            quantity,
+            lineDiscountTotal,
+            lineTaxTotal);
     }
 
     /// <summary>
@@ -101,7 +178,7 @@ public sealed class PriceBreakdown : ValueObject
     /// </summary>
     public static PriceBreakdown CreateSimple(decimal basePrice, string currency = "GEL")
     {
-        return new PriceBreakdown(basePrice, 0, 0, 0, "NONE", currency);
+        return new PriceBreakdown(basePrice, 0, 0, 0, "NONE", currency, quantity: 1);
     }
 
     /// <summary>
@@ -120,6 +197,9 @@ public sealed class PriceBreakdown : ValueObject
         yield return TaxRate;
         yield return TaxType;
         yield return Currency;
+        yield return Quantity;
+        yield return LineDiscountTotal;
+        yield return LineTaxTotal;
     }
 
     public override string ToString()

@@ -5,9 +5,11 @@ using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.BackgroundJobs;
 using NetCommerce.Ordering.Infrastructure.Metrics;
+using NetCommerce.Ordering.Infrastructure.Notifications;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
 using NetCommerce.Ordering.Infrastructure.Services;
+using NetCommerce.SharedKernel.Application.Notifications;
 using NetCommerce.SharedKernel.Domain;
 
 namespace NetCommerce.Ordering.Infrastructure;
@@ -44,9 +46,28 @@ public static class OrderingModule
         // ============================================================================
         // Tax Provider - using local fallback for resilience
         services.AddScoped<ITaxProvider, LocalTaxProvider>();
-        
+
         // Promotion Engine - simple implementation (can be replaced with external service)
         services.AddScoped<IPromotionEngine, SimplePromotionEngine>();
+
+        // ============================================================================
+        // Notification Services (Event-Driven Notification Sidecar Pattern)
+        // ============================================================================
+        // Template Engine - simple implementation (replace with Razor/Scriban in production)
+        services.AddSingleton<ITemplateEngine, SimpleTemplateEngine>();
+
+        // Email Provider - using in-memory for development/testing
+        // Production: Replace with SendGridEmailProvider or AwsSesEmailProvider
+        // services.AddHttpClient<IEmailProvider, SendGridEmailProvider>()
+        //     .AddStandardResilienceHandler(options => {
+        //         options.Retry.MaxRetryAttempts = 3;
+        //         options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(10);
+        //         options.CircuitBreaker.FailureRatio = 0.5; // Trip if 50% of calls fail
+        //         options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(10);
+        //     });
+        services.AddSingleton<IEmailProvider, InMemoryEmailProvider>();
+
+        // Wolverine will auto-discover OrderNotificationHandler as it's decorated with [WolverineHandler]
 
         // Grace Period configuration and background service
         services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));

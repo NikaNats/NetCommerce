@@ -15,6 +15,8 @@ public interface IIdempotentCommand
 /// </summary>
 public record CreateOrderCommand(
     Guid CustomerId,
+    string CustomerEmail,
+    string CustomerName,
     List<OrderItemRequest> Items,
     AddressDto ShippingAddress,
     AddressDto BillingAddress,

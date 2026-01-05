@@ -60,14 +60,16 @@ public sealed class OrderItem : Entity<Guid>
     public PriceBreakdown PriceBreakdown { get; private set; } = default!;
 
     /// <summary>
-    ///     The discount amount applied to this line item (convenience property).
+    ///     2025 Elite Refinement: The discount amount applied to this line item (from line totals).
+    ///     Uses LineDiscountTotal to avoid penny variance from division/multiplication.
     /// </summary>
-    public decimal DiscountAmount => PriceBreakdown.DiscountAmount * Quantity;
+    public decimal DiscountAmount => PriceBreakdown.LineDiscountTotal;
 
     /// <summary>
-    ///     The tax amount applied to this line item (convenience property).
+    ///     2025 Elite Refinement: The tax amount applied to this line item (from line totals).
+    ///     Uses LineTaxTotal to avoid penny variance from division/multiplication.
     /// </summary>
-    public decimal TaxAmount => PriceBreakdown.TaxAmount * Quantity;
+    public decimal TaxAmount => PriceBreakdown.LineTaxTotal;
 
     /// <summary>
     ///     Calculated line total based on the final price.

@@ -5,8 +5,10 @@ using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Domain;
+using NetCommerce.SharedKernel.Events;
 using NetCommerce.SharedKernel.Results;
 using Npgsql;
+using Wolverine;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Ordering.Infrastructure.Handlers;
@@ -25,10 +27,12 @@ public static class CreateOrderHandler
     /// <summary>
     ///     Handles order creation with Triple-Pass Pricing and returns the order ID.
     ///     Wolverine auto-wraps this in a transaction via EF Core middleware.
+    ///     Publishes OrderPlacedIntegrationEvent via Outbox for email notifications.
     /// </summary>
     public static async Task<Result<Guid>> HandleAsync(
         CreateOrderCommand command,
         OrderingDbContext db,
+        IMessageBus messageBus,
         IPriceLookupService priceLookup,
         IPromotionEngine promotionEngine,
         ITaxProvider taxProvider,
@@ -118,14 +122,13 @@ public static class CreateOrderHandler
                 catalogMeta.Category,
                 cancellationToken);
 
-            // Create Audit-Ready Price Breakdown (per unit)
-            var unitDiscount = promotionResult.DiscountAmount / item.Quantity;
-            var unitTax = taxResult.Amount / item.Quantity;
-            
-            var priceBreakdown = PriceBreakdown.Create(
+            // 2025 Elite Refinement: Store LINE TOTALS to avoid penny variance from division
+            // promotionResult.DiscountAmount and taxResult.Amount are ALREADY line totals
+            var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
                 basePrice,
-                unitDiscount,
-                unitTax,
+                item.Quantity,
+                lineDiscountTotal: promotionResult.DiscountAmount,  // Store line total directly
+                lineTaxTotal: taxResult.Amount,                      // Store line total directly
                 taxResult.Rate,
                 taxResult.Type,
                 catalogMeta.Price.Currency);
@@ -155,6 +158,15 @@ public static class CreateOrderHandler
         try
         {
             db.Orders.Add(order);
+            // Publish OrderPlacedIntegrationEvent via Wolverine Outbox
+            // This ensures the email is only sent if the order transaction commits successfully
+            await messageBus.PublishAsync(new OrderPlacedIntegrationEvent(
+                order.Id,
+                order.OrderNumber,
+                command.CustomerEmail,
+                command.CustomerName,
+                order.TotalAmount));
+
             // Wolverine's transactional middleware handles SaveChangesAsync
 
             logger.LogInformation(
