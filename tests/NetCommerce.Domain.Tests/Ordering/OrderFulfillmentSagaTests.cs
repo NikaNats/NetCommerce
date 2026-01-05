@@ -744,4 +744,40 @@ public class OrderFulfillmentSagaTests
     }
 
     #endregion
+
+    #region Happy Path Workflow Tests
+
+    [Fact]
+    public void HappyPath_FullWorkflow_ShouldCompleteSaga()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
+        var startCmd = new StartOrderFulfillmentCommand(orderId, Guid.NewGuid(), "ORD-1", Money.Create(100m), []);
+
+        // 1. Start
+        var (saga, _, _) = OrderFulfillmentSaga.Start(startCmd, _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.ReservingInventory);
+
+        // 2. Inventory Reserved
+        saga.Handle(new InventoryReserved(orderId, []), _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.InGracePeriod);
+
+        // 3. Grace Period Ends
+        saga.Handle(new GracePeriodTimeout { Id = orderId }, _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.LockingInventory);
+
+        // 4. Inventory Locked
+        saga.Handle(new InventoryLocked(orderId, []), _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.ProcessingPayment);
+
+        // 5. Payment Succeeded
+        saga.Handle(new PaymentSucceeded(orderId, "txn_1", Money.Create(100m)), _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.ConfirmingInventory);
+
+        // 6. Confirmed
+        saga.Handle(new InventoryConfirmed(orderId), _logger);
+        saga.State.ShouldBe(OrderFulfillmentState.Completed);
+    }
+
+    #endregion
 }

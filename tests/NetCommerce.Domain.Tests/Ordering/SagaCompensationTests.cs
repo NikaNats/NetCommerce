@@ -267,9 +267,60 @@ public class SagaCompensationTests
     private OrderFulfillmentSaga CreateSagaInManualInterventionState()
     {
         var saga = CreateSagaInCompensatingState();
-        saga.Handle(new RefundFailed(saga.Id, "Refund gateway offline"), _logger);
+        saga.Handle(new RefundFailed(saga.Id, "Test refund failure"), _logger);
         saga.State.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
         return saga;
+    }
+
+    [Fact]
+    public void InventoryConfirmationFailed_AfterPayment_ShouldTriggerRefund()
+    {
+        // Arrange - The "Nightmare Scenario": We took the money, but warehouse can't fulfill
+        var saga = new OrderFulfillmentSaga
+        {
+            Id = Guid.NewGuid(),
+            State = OrderFulfillmentState.ConfirmingInventory,
+            TotalAmount = Money.Create(100m),
+            IsPaid = true,
+            PaymentTransactionId = "txn_123"
+        };
+
+        var failureEvent = new InventoryConfirmationFailed(saga.Id, "Stock Count Mismatch");
+
+        // Act
+        var result = saga.Handle(failureEvent, _logger);
+
+        // Assert
+        saga.State.ShouldBe(OrderFulfillmentState.Compensating);
+
+        // Must issue refund command
+        result.RefundCommand.ShouldNotBeNull();
+        result.RefundCommand.PaymentTransactionId.ShouldBe("txn_123");
+        result.RefundCommand.Amount.ShouldBe(saga.TotalAmount);
+
+        // Must release inventory hold
+        result.ReleaseCommand.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void PaymentFailed_ShouldReleaseInventory()
+    {
+        // Arrange
+        var saga = new OrderFulfillmentSaga
+        {
+            Id = Guid.NewGuid(),
+            State = OrderFulfillmentState.ProcessingPayment,
+            IsInventoryLockedForPayment = true
+        };
+
+        var failureEvent = new PaymentFailed(saga.Id, "Card Declined", "DECLINED");
+
+        // Act
+        var (releaseCmd, _, _) = saga.Handle(failureEvent, _logger);
+
+        // Assert
+        saga.State.ShouldBe(OrderFulfillmentState.Failed);
+        releaseCmd.ShouldNotBeNull(); // Essential: Don't leave stock locked forever
     }
 
     #endregion

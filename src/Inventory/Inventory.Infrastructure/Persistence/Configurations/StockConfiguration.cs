@@ -47,12 +47,14 @@ public class StockConfiguration : IEntityTypeConfiguration<Stock>
             .HasColumnName("last_updated_at")
             .IsRequired();
 
-        // PostgreSQL system column for optimistic concurrency.
-        // AggregateRoot already exposes `Version`; map it to `xmin` and avoid double-mapping.
+        // -------------------------------------------------------------
+        // CONCURRENCY CONFIGURATION (Fixed for SQLite Tests)
+        // -------------------------------------------------------------
         builder.Property(s => s.Version)
             .HasColumnName("xmin")
-            .IsRowVersion()
-            .ValueGeneratedOnAddOrUpdate();
+            .HasColumnType("xid")
+            .IsRowVersion()       // Tells EF: "DB handles this, check it on updates"
+            .HasDefaultValue(0);  // FIX: Allows SQLite to insert '0' when EF omits the column
 
         // Computed properties - not persisted
         builder.Ignore(s => s.AvailableQuantity);

@@ -387,8 +387,56 @@ public class TriplePassPricingTests
         priceBreakdown.LineSubTotal.ShouldBe(84m);
         priceBreakdown.LineTotal.ShouldBe(99.12m);
 
-        // Old approach would calculate: 21 / 7 = 3.0 per unit → 3.0 * 7 = 21.0 (happens to work)
-        // But: 15.12 / 7 = 2.16 per unit → 2.16 * 7 = 15.12 (also works in this case)
         // The key is: We store EXACT totals, not derived values
+    }
+
+    [Fact]
+    public void Calculate_WithDiscountAndTax_ShouldMatchLedger()
+    {
+        // Arrange
+        var basePrice = 100m;
+        var quantity = 2;
+        var discount = 20m; // Total discount
+        var taxRate = 0.18m; // 18%
+
+        // Logic:
+        // 1. Line Total: 200
+        // 2. Discounted: 180
+        // 3. Taxable: 180 * 0.18 = 32.4
+        // 4. Final: 180 + 32.4 = 212.4
+
+        // Act
+        var breakdown = PriceBreakdown.CreateFromLineTotals(
+            basePrice,
+            quantity,
+            lineDiscountTotal: discount,
+            lineTaxTotal: 32.4m,
+            taxRate,
+            "VAT",
+            "USD");
+
+        // Assert
+        breakdown.LineSubTotal.ShouldBe(180m);
+        breakdown.LineTotal.ShouldBe(212.4m);
+        breakdown.LineTaxTotal.ShouldBe(32.4m);
+    }
+
+    [Fact]
+    public void PennyVariance_DivisionByThree_ShouldNotLoseMoney()
+    {
+        // Arrange: $10.00 split 3 ways. Old systems lose a penny.
+        var basePrice = 10m;
+        var quantity = 3;
+
+        // Act
+        var breakdown = PriceBreakdown.CreateFromLineTotals(
+            basePrice,
+            quantity,
+            0,
+            5.4m, // 30 * 0.18
+            0.18m, "VAT", "USD");
+
+        // Assert
+        breakdown.LineTotal.ShouldBe(35.4m); // Exact 35.40, not 35.39999
     }
 }

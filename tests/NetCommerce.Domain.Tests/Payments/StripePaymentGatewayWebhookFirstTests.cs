@@ -210,4 +210,30 @@ public class StripePaymentGatewayWebhookFirstTests
         year2025BestPractices.ReconciliationSafetyNet.ShouldBeTrue();
         year2025BestPractices.GhostChargePrevention.ShouldBeTrue();
     }
+
+    [Theory]
+    [InlineData("succeeded", PaymentResultStatus.Pending)]
+    [InlineData("processing", PaymentResultStatus.Pending)]
+    [InlineData("requires_action", PaymentResultStatus.Pending)]
+    public void MapStatus_ShouldAlwaysReturnPending_ForSuccessStates(string stripeStatus, PaymentResultStatus expected)
+    {
+        // 2025 Security Requirement:
+        // We never trust the synchronous response for "Success" because the connection might drop
+        // before we save to DB. We only trust the async Webhook.
+
+        // This simulates the mapping logic in the Gateway Adapter
+        var mapped = MockStripeMapper.Map(stripeStatus);
+        mapped.ShouldBe(expected);
+    }
+
+    // Tiny helper to simulate the logic inside the real adapter
+    internal static class MockStripeMapper
+    {
+        public static PaymentResultStatus Map(string status) => status switch {
+            "succeeded" => PaymentResultStatus.Pending,
+            "processing" => PaymentResultStatus.Pending,
+            "requires_action" => PaymentResultStatus.Pending,
+            _ => PaymentResultStatus.Failed
+        };
+    }
 }

@@ -312,5 +312,38 @@ public class ProductTests
         product.Attributes.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void UpdatePrice_ShouldRaiseEvent_AndTrackHistory()
+    {
+        // Arrange
+        var product = Product.Create("Name", "Desc", "SKU", Money.Create(100m), Guid.NewGuid());
+        var oldPrice = product.Price;
+
+        // Act
+        product.UpdatePrice(Money.Create(150m));
+
+        // Assert
+        product.Price.Amount.ShouldBe(150m);
+        var evt = product.DomainEvents.OfType<ProductPriceChangedDomainEvent>().Single();
+        evt.OldPrice.ShouldBe(oldPrice);
+        evt.NewPrice.Amount.ShouldBe(150m);
+    }
+
+    [Fact]
+    public void Publish_WhenDraft_ShouldPublish()
+    {
+        var product = Product.Create("Name", "Desc", "SKU", Money.Create(100m), Guid.NewGuid());
+        product.Publish();
+        product.Status.ShouldBe(ProductStatus.Published);
+    }
+
+    [Fact]
+    public void Publish_WhenAlreadyPublished_ShouldThrow()
+    {
+        var product = Product.Create("Name", "Desc", "SKU", Money.Create(100m), Guid.NewGuid());
+        product.Publish();
+        Should.Throw<InvalidOperationException>(() => product.Publish());
+    }
+
     #endregion
 }
