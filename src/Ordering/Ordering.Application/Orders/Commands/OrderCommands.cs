@@ -37,10 +37,16 @@ public record AddOrderItemCommand(
 
 /// <summary>
 ///     Command to cancel an order.
+///     2025 Elite: Implements IAuditableCommand for immutable business event logging.
+///     This ensures every cancellation is recorded with WHO, WHEN, WHY for legal compliance.
 /// </summary>
 public record CancelOrderCommand(
     Guid OrderId,
-    string Reason) : ICommand;
+    string Reason) : ICommand, IAuditableCommand
+{
+    public string GetResourceId() => OrderId.ToString();
+    public string Module => "Ordering";
+}
 
 /// <summary>
 ///     Command to confirm an order (after payment).
