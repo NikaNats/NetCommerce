@@ -58,7 +58,7 @@ public class TransactionalOutboxTests : IntegrationTestBase
             new(productId, 2, productPrice)
         };
 
-        var command = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
+        var command = new CreateOrderCommand(customerId, "customer@test.com", "Test Customer", items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
 
         // Act - Execute with tracking and get the result
         var (tracked, result) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(command);
@@ -99,7 +99,7 @@ public class TransactionalOutboxTests : IntegrationTestBase
             new(productId, 1, productPrice)
         };
 
-        var createCommand = new CreateOrderCommand(customerId, items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
+        var createCommand = new CreateOrderCommand(customerId, "customer@test.com", "Test Customer", items, shippingAddress, billingAddress, "CreditCard", Guid.NewGuid().ToString());
         var (_, createResult) = await Fixture.Host.InvokeMessageAndWaitAsync<Result<Guid>>(createCommand);
         createResult.IsSuccess.ShouldBeTrue();
 
@@ -134,6 +134,8 @@ public class TransactionalOutboxTests : IntegrationTestBase
 
             var command = new CreateOrderCommand(
                 CustomerId: Guid.NewGuid(),
+                CustomerEmail: $"customer{i}@test.com",
+                CustomerName: $"Customer {i}",
                 Items: new List<OrderItemRequest>
                 {
                     new(productId, i, productPrice)
@@ -171,6 +173,8 @@ public class TransactionalOutboxTests : IntegrationTestBase
 
         var command = new CreateOrderCommand(
             CustomerId: customerId,
+            CustomerEmail: "cascade@test.com",
+            CustomerName: "Cascade Test",
             Items: new List<OrderItemRequest>
             {
                 new(productId, 1, productPrice)

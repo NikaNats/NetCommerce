@@ -52,7 +52,12 @@ builder.AddRedisClient("redis");
 builder.AddAzureBlobServiceClient("blobs");
 
 // Seq for structured logging (Aspire will configure OTLP endpoint)
-builder.AddSeqEndpoint("seq");
+// Make Seq optional - if ServerUrl is not configured (e.g., in tests), skip it
+var seqServerUrl = builder.Configuration["Seq:ServerUrl"];
+if (!string.IsNullOrEmpty(seqServerUrl))
+{
+    builder.AddSeqEndpoint("seq");
+}
 
 // ============================================================================
 // Authentication with Keycloak

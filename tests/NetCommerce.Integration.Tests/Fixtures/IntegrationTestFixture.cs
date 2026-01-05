@@ -193,6 +193,23 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
                 // Register mock payment gateway for testing
                 services.AddSingleton<IPaymentGateway, TestPaymentGateway>();
+
+                // Register IPromotionEngine (required by CreateOrderHandler)
+                services.AddScoped<NetCommerce.Ordering.Application.Orders.Services.IPromotionEngine,
+                    NetCommerce.Ordering.Infrastructure.Services.SimplePromotionEngine>();
+
+                // Register ITaxProvider (required by CreateOrderHandler)
+                services.AddScoped<NetCommerce.Ordering.Domain.Orders.ITaxProvider,
+                    NetCommerce.Ordering.Infrastructure.Services.LocalTaxProvider>();
+
+                // Register fake S3 service for tests (Media module requires IAmazonS3)
+                services.AddScoped<Amazon.S3.IAmazonS3>(_ => NSubstitute.Substitute.For<Amazon.S3.IAmazonS3>());
+
+                // Register OrderNotificationHandler dependencies
+                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>(_ =>
+                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>());
+                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>(_ =>
+                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>());
             });
 
         var host = builder.Build();

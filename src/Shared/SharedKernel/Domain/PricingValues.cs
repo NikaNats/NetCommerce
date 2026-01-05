@@ -10,6 +10,16 @@ namespace NetCommerce.SharedKernel.Domain;
 public sealed class PriceBreakdown : ValueObject
 {
     /// <summary>
+    ///     Parameterless constructor for EF Core (uses reflection to set properties).
+    /// </summary>
+    private PriceBreakdown()
+    {
+        // EF Core will use reflection to set properties
+        TaxType = string.Empty;
+        Currency = string.Empty;
+    }
+
+    /// <summary>
     ///     JSON constructor for deserialization (e.g., saga state persistence).
     /// </summary>
     public PriceBreakdown(
@@ -54,51 +64,51 @@ public sealed class PriceBreakdown : ValueObject
     /// <summary>
     ///     The original price from the Catalog (source of truth) - PER UNIT.
     /// </summary>
-    public decimal BasePrice { get; }
+    public decimal BasePrice { get; private set; }
 
     /// <summary>
     ///     Discount amount PER UNIT (for backward compatibility).
     ///     For accurate totals, use LineDiscountTotal instead.
     /// </summary>
-    public decimal DiscountAmount { get; }
+    public decimal DiscountAmount { get; private set; }
 
     /// <summary>
     ///     Tax amount PER UNIT (for backward compatibility).
     ///     For accurate totals, use LineTaxTotal instead.
     /// </summary>
-    public decimal TaxAmount { get; }
+    public decimal TaxAmount { get; private set; }
 
     /// <summary>
     ///     The tax rate applied (e.g., 0.18 for 18% VAT). Stored for legal audit purposes.
     /// </summary>
-    public decimal TaxRate { get; }
+    public decimal TaxRate { get; private set; }
 
     /// <summary>
     ///     The type of tax applied (e.g., "VAT", "SALES_TAX", "GST").
     /// </summary>
-    public string TaxType { get; }
+    public string TaxType { get; private set; }
 
     /// <summary>
     ///     The currency code (e.g., "GEL", "USD", "EUR").
     /// </summary>
-    public string Currency { get; }
+    public string Currency { get; private set; }
 
     /// <summary>
     ///     Quantity of items this price breakdown applies to.
     /// </summary>
-    public int Quantity { get; }
+    public int Quantity { get; private set; }
 
     /// <summary>
     ///     2025 Elite Refinement: LINE-ITEM TOTAL discount to avoid penny variance.
     ///     This is the PRIMARY source of truth for discount totals.
     /// </summary>
-    public decimal LineDiscountTotal { get; }
+    public decimal LineDiscountTotal { get; private set; }
 
     /// <summary>
     ///     2025 Elite Refinement: LINE-ITEM TOTAL tax to avoid penny variance.
     ///     This is the PRIMARY source of truth for tax totals.
     /// </summary>
-    public decimal LineTaxTotal { get; }
+    public decimal LineTaxTotal { get; private set; }
 
     /// <summary>
     ///     LINE-ITEM SUBTOTAL: (BasePrice * Quantity) - LineDiscountTotal

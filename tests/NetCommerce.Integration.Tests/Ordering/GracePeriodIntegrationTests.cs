@@ -214,12 +214,22 @@ public class GracePeriodIntegrationTests : IntegrationTestBase
             shippingAddress,
             Guid.NewGuid().ToString());
 
+        var priceBreakdown = new PriceBreakdown(
+            basePrice: 99.99m,
+            discountAmount: 0m,
+            taxAmount: 0m,
+            taxRate: 0m,
+            taxType: "None",
+            currency: "GEL",
+            quantity: 2);
+
         order.AddItem(
             Guid.NewGuid(),
             "Test Product",
             Money.Create(99.99m), // Use GEL to match Money.Zero() default
             2,
-            3.0m);
+            3.0m,
+            priceBreakdown);
 
         return order;
     }

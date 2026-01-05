@@ -36,6 +36,15 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
                     options.PublishableKey = "pk_test_mock";
                     options.WebhookSecret = WebhookSecret;
                 });
+
+                // Register fake S3 service for tests (Media module requires IAmazonS3)
+                services.AddScoped<Amazon.S3.IAmazonS3>(_ => NSubstitute.Substitute.For<Amazon.S3.IAmazonS3>());
+
+                // Register OrderNotificationHandler dependencies
+                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>(_ =>
+                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>());
+                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>(_ =>
+                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>());
             });
         });
         _client = _factory.CreateClient();

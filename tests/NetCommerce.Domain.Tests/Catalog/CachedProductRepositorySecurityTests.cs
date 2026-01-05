@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
 using NetCommerce.Catalog.Domain.Products;
@@ -27,6 +28,37 @@ public class CachedProductRepositorySecurityTests
         _sut = new CachedProductRepository(_mockInnerRepo, _mockCache);
     }
 
+    #region Helper Methods for Mocking
+
+    /// <summary>
+    /// Simulates GetStringAsync by mocking the underlying GetAsync method
+    /// </summary>
+    private void SetupCacheHit(string key, string value)
+    {
+        _mockCache.GetAsync(key, Arg.Any<CancellationToken>())
+            .Returns(Encoding.UTF8.GetBytes(value));
+    }
+
+    /// <summary>
+    /// Simulates cache miss by returning null from GetAsync
+    /// </summary>
+    private void SetupCacheMiss(string key)
+    {
+        _mockCache.GetAsync(key, Arg.Any<CancellationToken>())
+            .Returns((byte[]?)null);
+    }
+
+    /// <summary>
+    /// Simulates cache miss for any key pattern
+    /// </summary>
+    private void SetupCacheMissAny()
+    {
+        _mockCache.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((byte[]?)null);
+    }
+
+    #endregion
+
     #region Cache Penetration Defense Tests
 
     [Fact]
@@ -34,8 +66,7 @@ public class CachedProductRepositorySecurityTests
     {
         // Arrange
         var nonExistentId = Guid.NewGuid();
-        _mockCache.GetStringAsync(Arg.Any<string>(), default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMissAny();
         _mockInnerRepo.GetByIdAsync(nonExistentId, default)
             .Returns((Product?)null);
 
@@ -46,12 +77,12 @@ public class CachedProductRepositorySecurityTests
         result.ShouldBeNull();
 
         // Assert - Should cache the sentinel value (CRITICAL for security)
-        await _mockCache.Received(1).SetStringAsync(
-            $"catalog:product:id:{nonExistentId}",
-            NotFoundSentinel,
+        await _mockCache.Received(1).SetAsync(
+            Arg.Is<string>(k => k.Contains(nonExistentId.ToString())),
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Is<DistributedCacheEntryOptions>(opt =>
                 opt.AbsoluteExpirationRelativeToNow == TimeSpan.FromSeconds(300)),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -61,8 +92,7 @@ public class CachedProductRepositorySecurityTests
         var nonExistentId = Guid.NewGuid();
         var cacheKey = $"catalog:product:id:{nonExistentId}";
 
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(NotFoundSentinel);
+        SetupCacheHit(cacheKey, NotFoundSentinel);
 
         // Act - Request with cached negative result
         var result = await _sut.GetByIdAsync(nonExistentId);
@@ -81,13 +111,14 @@ public class CachedProductRepositorySecurityTests
         var fakeId = Guid.NewGuid();
         var cacheKey = $"catalog:product:id:{fakeId}";
 
-        // Setup: First call returns null (miss), second call returns sentinel (hit)
+        // Setup: First call returns null (miss), subsequent calls return sentinel (hit)
         var callCount = 0;
-        _mockCache.When(x => x.GetStringAsync(cacheKey, default))
-            .Do(_ => callCount++);
-
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(_ => Task.FromResult<string?>(callCount <= 1 ? null : NotFoundSentinel));
+        _mockCache.GetAsync(cacheKey, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                callCount++;
+                return callCount <= 1 ? null : Encoding.UTF8.GetBytes(NotFoundSentinel);
+            });
 
         _mockInnerRepo.GetByIdAsync(fakeId, default)
             .Returns((Product?)null);
@@ -106,11 +137,11 @@ public class CachedProductRepositorySecurityTests
         await _mockInnerRepo.Received(1).GetByIdAsync(fakeId, default);
 
         // Assert - Sentinel cached on first request
-        await _mockCache.Received(1).SetStringAsync(
+        await _mockCache.Received(1).SetAsync(
             cacheKey,
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Any<DistributedCacheEntryOptions>(),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -118,8 +149,7 @@ public class CachedProductRepositorySecurityTests
     {
         // Arrange - Simulate SKU scanner bot
         var fakeSku = "NONEXISTENT-SKU-999";
-        _mockCache.GetStringAsync(Arg.Any<string>(), default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMissAny();
         _mockInnerRepo.GetBySkuAsync(fakeSku, default)
             .Returns((Product?)null);
 
@@ -128,12 +158,12 @@ public class CachedProductRepositorySecurityTests
 
         // Assert
         result.ShouldBeNull();
-        await _mockCache.Received(1).SetStringAsync(
+        await _mockCache.Received(1).SetAsync(
             $"catalog:product:sku:{fakeSku}",
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Is<DistributedCacheEntryOptions>(opt =>
                 opt.AbsoluteExpirationRelativeToNow == TimeSpan.FromSeconds(300)),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -141,8 +171,7 @@ public class CachedProductRepositorySecurityTests
     {
         // Arrange - Simulate URL scanner / SEO bot
         var fakeSlug = "nonexistent-product-url";
-        _mockCache.GetStringAsync(Arg.Any<string>(), default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMissAny();
         _mockInnerRepo.GetBySlugAsync(fakeSlug, default)
             .Returns((Product?)null);
 
@@ -151,12 +180,12 @@ public class CachedProductRepositorySecurityTests
 
         // Assert - CRITICAL for public-facing product pages
         result.ShouldBeNull();
-        await _mockCache.Received(1).SetStringAsync(
+        await _mockCache.Received(1).SetAsync(
             $"catalog:product:slug:{fakeSlug}",
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Is<DistributedCacheEntryOptions>(opt =>
                 opt.AbsoluteExpirationRelativeToNow == TimeSpan.FromSeconds(300)),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -164,8 +193,7 @@ public class CachedProductRepositorySecurityTests
     {
         // Arrange
         var nonExistentId = Guid.NewGuid();
-        _mockCache.GetStringAsync(Arg.Any<string>(), default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMissAny();
         _mockInnerRepo.GetByIdAsync(nonExistentId, default)
             .Returns((Product?)null);
 
@@ -175,12 +203,12 @@ public class CachedProductRepositorySecurityTests
         // Assert - TTL should be 5 minutes (300 seconds)
         // Not too short (DB still hit frequently)
         // Not too long (fills Redis with junk)
-        await _mockCache.Received(1).SetStringAsync(
+        await _mockCache.Received(1).SetAsync(
             Arg.Any<string>(),
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Is<DistributedCacheEntryOptions>(opt =>
                 opt.AbsoluteExpirationRelativeToNow == TimeSpan.FromMinutes(5)),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -195,11 +223,11 @@ public class CachedProductRepositorySecurityTests
         var cacheKey = $"catalog:product:id:{fakeId}";
 
         var callCount = 0;
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(ci =>
+        _mockCache.GetAsync(cacheKey, Arg.Any<CancellationToken>())
+            .Returns(_ =>
             {
                 callCount++;
-                return callCount == 1 ? null : NotFoundSentinel;
+                return callCount == 1 ? null : Encoding.UTF8.GetBytes(NotFoundSentinel);
             });
 
         _mockInnerRepo.GetByIdAsync(fakeId, default)
@@ -226,8 +254,8 @@ public class CachedProductRepositorySecurityTests
 
         foreach (var sku in skuPatterns)
         {
-            _mockCache.GetStringAsync($"catalog:product:sku:{sku}", default)
-                .Returns(Task.FromResult<string?>(null), Task.FromResult<string?>(NotFoundSentinel), Task.FromResult<string?>(NotFoundSentinel));
+            _mockCache.GetAsync($"catalog:product:sku:{sku}", Arg.Any<CancellationToken>())
+                .Returns((byte[]?)null, Encoding.UTF8.GetBytes(NotFoundSentinel), Encoding.UTF8.GetBytes(NotFoundSentinel));
 
             _mockInnerRepo.GetBySkuAsync(sku, default)
                 .Returns((Product?)null);
@@ -261,8 +289,7 @@ public class CachedProductRepositorySecurityTests
 
         foreach (var slug in fakeUrls)
         {
-            _mockCache.GetStringAsync($"catalog:product:slug:{slug}", default)
-                .Returns((string?)null);
+            SetupCacheMiss($"catalog:product:slug:{slug}");
 
             _mockInnerRepo.GetBySlugAsync(slug, default)
                 .Returns((Product?)null);
@@ -277,11 +304,11 @@ public class CachedProductRepositorySecurityTests
         // Assert - All cached with sentinel
         foreach (var slug in fakeUrls)
         {
-            await _mockCache.Received(1).SetStringAsync(
+            await _mockCache.Received(1).SetAsync(
                 $"catalog:product:slug:{slug}",
-                NotFoundSentinel,
+                Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
                 Arg.Any<DistributedCacheEntryOptions>(),
-                default);
+                Arg.Any<CancellationToken>());
         }
     }
 
@@ -292,8 +319,7 @@ public class CachedProductRepositorySecurityTests
         var fakeId = Guid.NewGuid();
         var cacheKey = $"catalog:product:id:{fakeId}";
 
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(Task.FromResult<string?>(null)); // Always return null (worst case)
+        SetupCacheMiss(cacheKey); // Always return null (worst case)
 
         _mockInnerRepo.GetByIdAsync(fakeId, default)
             .Returns((Product?)null);
@@ -305,11 +331,11 @@ public class CachedProductRepositorySecurityTests
         await Task.WhenAll(tasks);
 
         // Assert - Database called multiple times but cache should be set
-        await _mockCache.Received().SetStringAsync(
+        await _mockCache.Received().SetAsync(
             cacheKey,
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Any<DistributedCacheEntryOptions>(),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -320,8 +346,7 @@ public class CachedProductRepositorySecurityTests
         var existingProduct = CreateTestProduct(existingId);
         var cacheKey = $"catalog:product:id:{existingId}";
 
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMiss(cacheKey);
 
         _mockInnerRepo.GetByIdAsync(existingId, default)
             .Returns(existingProduct);
@@ -334,11 +359,11 @@ public class CachedProductRepositorySecurityTests
         result.Id.ShouldBe(existingId);
 
         // Assert - Should cache the product JSON (NOT sentinel)
-        await _mockCache.Received(1).SetStringAsync(
+        await _mockCache.Received(1).SetAsync(
             cacheKey,
-            Arg.Is<string>(s => s != NotFoundSentinel && s.Contains(existingId.ToString())),
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) != NotFoundSentinel && Encoding.UTF8.GetString(b).Contains(existingId.ToString())),
             Arg.Any<DistributedCacheEntryOptions>(),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -349,8 +374,7 @@ public class CachedProductRepositorySecurityTests
         var cacheKey = $"catalog:product:id:{fakeId}";
 
         // First request: cache miss, DB query, cache sentinel
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMiss(cacheKey);
 
         _mockInnerRepo.GetByIdAsync(fakeId, default)
             .Returns((Product?)null);
@@ -358,9 +382,8 @@ public class CachedProductRepositorySecurityTests
         // Act - First request
         await _sut.GetByIdAsync(fakeId);
 
-        // Simulate cache eviction (5 minutes passed)
-        _mockCache.GetStringAsync(cacheKey, default)
-            .Returns(Task.FromResult<string?>(null));
+        // Simulate cache eviction (5 minutes passed) - reset the mock
+        SetupCacheMiss(cacheKey);
 
         // Act - Second request after eviction
         await _sut.GetByIdAsync(fakeId);
@@ -369,11 +392,11 @@ public class CachedProductRepositorySecurityTests
         await _mockInnerRepo.Received(2).GetByIdAsync(fakeId, default);
 
         // Assert - Sentinel cached twice
-        await _mockCache.Received(2).SetStringAsync(
+        await _mockCache.Received(2).SetAsync(
             cacheKey,
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Any<DistributedCacheEntryOptions>(),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -386,8 +409,7 @@ public class CachedProductRepositorySecurityTests
 
         foreach (var id in fakeIds)
         {
-            _mockCache.GetStringAsync($"catalog:product:id:{id}", default)
-                .Returns(Task.FromResult<string?>(null));
+            SetupCacheMiss($"catalog:product:id:{id}");
 
             _mockInnerRepo.GetByIdAsync(id, default)
                 .Returns((Product?)null);
@@ -402,11 +424,11 @@ public class CachedProductRepositorySecurityTests
         // Assert - Each ID cached separately
         foreach (var id in fakeIds)
         {
-            await _mockCache.Received(1).SetStringAsync(
+            await _mockCache.Received(1).SetAsync(
                 $"catalog:product:id:{id}",
-                NotFoundSentinel,
+                Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
                 Arg.Any<DistributedCacheEntryOptions>(),
-                default);
+                Arg.Any<CancellationToken>());
         }
 
         // Assert - Each ID queried once
@@ -423,8 +445,7 @@ public class CachedProductRepositorySecurityTests
     public async Task GetBySkuAsync_VariousInvalidSkus_ShouldCacheAll(string invalidSku)
     {
         // Arrange
-        _mockCache.GetStringAsync(Arg.Any<string>(), default)
-            .Returns(Task.FromResult<string?>(null));
+        SetupCacheMissAny();
 
         _mockInnerRepo.GetBySkuAsync(invalidSku, default)
             .Returns((Product?)null);
@@ -433,11 +454,11 @@ public class CachedProductRepositorySecurityTests
         await _sut.GetBySkuAsync(invalidSku);
 
         // Assert
-        await _mockCache.Received(1).SetStringAsync(
+        await _mockCache.Received(1).SetAsync(
             $"catalog:product:sku:{invalidSku}",
-            NotFoundSentinel,
+            Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
             Arg.Any<DistributedCacheEntryOptions>(),
-            default);
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -450,8 +471,7 @@ public class CachedProductRepositorySecurityTests
 
         foreach (var slug in new[] { slugLower, slugUpper, slugMixed })
         {
-            _mockCache.GetStringAsync($"catalog:product:slug:{slug}", default)
-                .Returns(Task.FromResult<string?>(null));
+            SetupCacheMiss($"catalog:product:slug:{slug}");
 
             _mockInnerRepo.GetBySlugAsync(slug, default)
                 .Returns((Product?)null);
@@ -465,17 +485,17 @@ public class CachedProductRepositorySecurityTests
         // Assert - Each cached separately (case-sensitive caching)
         foreach (var slug in new[] { slugLower, slugUpper, slugMixed })
         {
-            await _mockCache.Received(1).SetStringAsync(
+            await _mockCache.Received(1).SetAsync(
                 $"catalog:product:slug:{slug}",
-                NotFoundSentinel,
+                Arg.Is<byte[]>(b => Encoding.UTF8.GetString(b) == NotFoundSentinel),
                 Arg.Any<DistributedCacheEntryOptions>(),
-                default);
+                Arg.Any<CancellationToken>());
         }
     }
 
     #endregion
 
-    #region Helper Methods
+    #region Test Data Helpers
 
     private Product CreateTestProduct(Guid id)
     {
