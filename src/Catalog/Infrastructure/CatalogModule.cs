@@ -53,7 +53,7 @@ public static class CatalogModule
         services.AddScoped<IProductRepository>(provider =>
             new CachedProductRepository(
                 provider.GetRequiredService<ProductRepository>(),
-                provider.GetRequiredService<IDistributedCache>()));
+                provider.GetRequiredService<Microsoft.Extensions.Caching.Hybrid.HybridCache>()));
 
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 

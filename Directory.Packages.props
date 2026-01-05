@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup Label="Core">
     <!-- Wolverine - Next Generation .NET Mediator and Message Bus -->
+    <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.1.0" />
     <PackageVersion Include="WolverineFx" Version="5.9.2" />
     <PackageVersion Include="WolverineFx.EntityFrameworkCore" Version="5.9.2" />
     <PackageVersion Include="WolverineFx.Postgresql" Version="5.9.2" />

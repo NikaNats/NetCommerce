@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Caching.Hybrid;
 using NetCommerce.Api.Authentication;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Api.Extensions;
@@ -44,6 +45,19 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // ============================================================================
 // Aspire-managed services - automatically configured via AppHost references
 // ============================================================================
+
+#pragma warning disable EXTEXP0018 // HybridCache is still evolving in .NET 10
+// 1. Add HybridCache to the DI container
+builder.Services.AddHybridCache(options =>
+{
+    // 2025 Best Practice: Set global defaults
+    options.DefaultEntryOptions = new HybridCacheEntryOptions
+    {
+        Expiration = TimeSpan.FromMinutes(60),
+        LocalCacheExpiration = TimeSpan.FromMinutes(5) // L1 (RAM) is shorter for consistency
+    };
+});
+#pragma warning restore EXTEXP0018
 
 // Redis (Aspire will inject the connection string)
 builder.AddRedisClient("redis");

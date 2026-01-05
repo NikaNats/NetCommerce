@@ -45,6 +45,18 @@
           "Microsoft.Extensions.Logging": "10.0.1"
         }
       },
+      "Microsoft.Extensions.Caching.Hybrid": {
+        "type": "Direct",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "mcqlFN2TidtsD/ZUs+m5Xbj9oyNFtlHrawSp57DS8Pq6/Gf316sdSLdoo8i4LfQX5MFPQRdTMKddAQtfZ1uXxQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Caching.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Caching.Memory": "10.0.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Options": "10.0.1"
+        }
+      },
       "Microsoft.Extensions.Options.ConfigurationExtensions": {
         "type": "Direct",
         "requested": "[10.0.1, )",

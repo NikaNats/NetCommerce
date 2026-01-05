@@ -1,6 +1,6 @@
-using System;
-using System.Collections.Generic;
-using Microsoft.Extensions.Caching.Distributed;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Domain.Products;
 using Wolverine.Attributes;
@@ -12,30 +12,37 @@ namespace NetCommerce.Catalog.Infrastructure.Handlers;
 /// </summary>
 public static class ProductCacheInvalidationHandler
 {
-    private const string CacheKeyPrefix = "catalog:product";
-
     // Runs after the DB transaction commits via Wolverine's outbox.
     [WolverineHandler]
     public static async Task Handle(
         ProductUpdatedDomainEvent @event,
-        IDistributedCache cache,
+        HybridCache cache,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            $"{CacheKeyPrefix}:id:{@event.ProductId}"
-        };
+        logger.LogInformation("Invalidating cache for product {ProductId} via tags", @event.ProductId);
 
-        AddCacheKey(keys, @event.OldSku, static sku => $"{CacheKeyPrefix}:sku:{sku}");
-        AddCacheKey(keys, @event.NewSku, static sku => $"{CacheKeyPrefix}:sku:{sku}");
-        AddCacheKey(keys, @event.OldSlug, static slug => $"{CacheKeyPrefix}:slug:{slug}");
-        AddCacheKey(keys, @event.NewSlug, static slug => $"{CacheKeyPrefix}:slug:{slug}");
+        // Invalidate by ID
+        await cache.RemoveByTagAsync($"product-{@event.ProductId}", cancellationToken);
 
-        foreach (var key in keys)
+        // Invalidate by SKU (Old and New)
+        if (!string.IsNullOrWhiteSpace(@event.OldSku))
         {
-            logger.LogInformation("Invalidating cache for {CacheKey}", key);
-            await cache.RemoveAsync(key, cancellationToken);
+            await cache.RemoveByTagAsync($"product-sku-{@event.OldSku}", cancellationToken);
+        }
+        if (!string.IsNullOrWhiteSpace(@event.NewSku))
+        {
+            await cache.RemoveByTagAsync($"product-sku-{@event.NewSku}", cancellationToken);
+        }
+
+        // Invalidate by Slug (Old and New)
+        if (!string.IsNullOrWhiteSpace(@event.OldSlug))
+        {
+            await cache.RemoveByTagAsync($"product-slug-{@event.OldSlug}", cancellationToken);
+        }
+        if (!string.IsNullOrWhiteSpace(@event.NewSlug))
+        {
+            await cache.RemoveByTagAsync($"product-slug-{@event.NewSlug}", cancellationToken);
         }
     }
 
@@ -43,28 +50,22 @@ public static class ProductCacheInvalidationHandler
     [WolverineHandler]
     public static async Task Handle(
         ProductPriceChangedDomainEvent @event,
-        IDistributedCache cache,
+        HybridCache cache,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            $"{CacheKeyPrefix}:id:{@event.ProductId}"
-        };
+        logger.LogInformation("Invalidating cache for product {ProductId} price change", @event.ProductId);
 
-        AddCacheKey(keys, @event.Sku, static sku => $"{CacheKeyPrefix}:sku:{sku}");
-        AddCacheKey(keys, @event.Slug, static slug => $"{CacheKeyPrefix}:slug:{slug}");
+        await cache.RemoveByTagAsync($"product-{@event.ProductId}", cancellationToken);
 
-        foreach (var key in keys)
+        if (!string.IsNullOrWhiteSpace(@event.Sku))
         {
-            logger.LogInformation("Invalidating cache for {CacheKey}", key);
-            await cache.RemoveAsync(key, cancellationToken);
+            await cache.RemoveByTagAsync($"product-sku-{@event.Sku}", cancellationToken);
         }
-    }
 
-    private static void AddCacheKey(HashSet<string> keys, string? value, Func<string, string> formatter)
-    {
-        if (!string.IsNullOrWhiteSpace(value))
-            keys.Add(formatter(value));
+        if (!string.IsNullOrWhiteSpace(@event.Slug))
+        {
+            await cache.RemoveByTagAsync($"product-slug-{@event.Slug}", cancellationToken);
+        }
     }
 }

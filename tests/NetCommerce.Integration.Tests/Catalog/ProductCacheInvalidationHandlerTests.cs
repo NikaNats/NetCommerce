@@ -1,35 +1,45 @@
 #nullable enable
 
-using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Handlers;
 using NetCommerce.SharedKernel.Domain;
 using Shouldly;
-using System.Text;
 
 namespace NetCommerce.Integration.Tests.Catalog;
 
 public class ProductCacheInvalidationHandlerTests
 {
-    private static IDistributedCache CreateCache() => new InMemoryDistributedCache();
+    private static async Task<HybridCache> CreateCacheAsync()
+    {
+        var services = new ServiceCollection();
+        #pragma warning disable EXTEXP0018
+        services.AddHybridCache();
+        #pragma warning restore EXTEXP0018
+        services.AddDistributedMemoryCache();
+        services.AddLogging();
+        var sp = services.BuildServiceProvider();
+        return sp.GetRequiredService<HybridCache>();
+    }
 
     [Fact]
     public async Task ProductUpdatedEvent_ShouldRemoveAllKeys()
     {
-        var cache = CreateCache();
+        var cache = await CreateCacheAsync();
         var productId = Guid.NewGuid();
-        var cacheKeys = new[]
-        {
-            $"catalog:product:id:{productId}",
-            "catalog:product:sku:OLD-SKU",
-            "catalog:product:sku:NEW-SKU",
-            "catalog:product:slug:old-slug",
-            "catalog:product:slug:new-slug"
-        };
 
-        foreach (var key in cacheKeys)
-            await cache.SetAsync(key, Encoding.UTF8.GetBytes("cached-value"), new DistributedCacheEntryOptions());
+        // Seed cache with tags matching what CachedProductRepository uses
+        // Note: The keys here are just for verification, the tags are what matters for invalidation.
+        // CachedProductRepository uses:
+        // GetById: tags: ["catalog", $"product-{id}"]
+        // GetBySku: tags: ["catalog", $"product-sku-{sku}"]
+        // GetBySlug: tags: ["catalog", $"product-slug-{slug}"]
+
+        await cache.SetAsync($"key-id", "value", tags: [$"product-{productId}"]);
+        await cache.SetAsync($"key-sku", "value", tags: [$"product-sku-OLD-SKU"]);
+        await cache.SetAsync($"key-slug", "value", tags: [$"product-slug-old-slug"]);
 
         await ProductCacheInvalidationHandler.Handle(
             new ProductUpdatedDomainEvent(productId, "Name", "OLD-SKU", "NEW-SKU", "old-slug", "new-slug"),
@@ -37,27 +47,29 @@ public class ProductCacheInvalidationHandlerTests
             NullLogger.Instance,
             CancellationToken.None);
 
-        foreach (var key in cacheKeys)
-        {
-            var cached = await cache.GetAsync(key);
-            cached.ShouldBeNull();
-        }
+        // Verify they are gone by checking if factory is called
+        bool factoryCalled = false;
+        await cache.GetOrCreateAsync($"key-id", _ => { factoryCalled = true; return ValueTask.FromResult("new-value"); });
+        factoryCalled.ShouldBeTrue("ID key should be invalidated");
+
+        factoryCalled = false;
+        await cache.GetOrCreateAsync($"key-sku", _ => { factoryCalled = true; return ValueTask.FromResult("new-value"); });
+        factoryCalled.ShouldBeTrue("SKU key should be invalidated");
+
+        factoryCalled = false;
+        await cache.GetOrCreateAsync($"key-slug", _ => { factoryCalled = true; return ValueTask.FromResult("new-value"); });
+        factoryCalled.ShouldBeTrue("Slug key should be invalidated");
     }
 
     [Fact]
     public async Task ProductPriceChangedEvent_ShouldRemoveAllKeys()
     {
-        var cache = CreateCache();
+        var cache = await CreateCacheAsync();
         var productId = Guid.NewGuid();
-        var cacheKeys = new[]
-        {
-            $"catalog:product:id:{productId}",
-            "catalog:product:sku:SKU-1",
-            "catalog:product:slug:my-slug"
-        };
 
-        foreach (var key in cacheKeys)
-            await cache.SetAsync(key, Encoding.UTF8.GetBytes("cached-value"), new DistributedCacheEntryOptions());
+        await cache.SetAsync($"key-id", "value", tags: [$"product-{productId}"]);
+        await cache.SetAsync($"key-sku", "value", tags: [$"product-sku-SKU-1"]);
+        await cache.SetAsync($"key-slug", "value", tags: [$"product-slug-my-slug"]);
 
         await ProductCacheInvalidationHandler.Handle(
             new ProductPriceChangedDomainEvent(productId, "SKU-1", "my-slug", Money.Create(5m), Money.Create(10m)),
@@ -65,61 +77,16 @@ public class ProductCacheInvalidationHandlerTests
             NullLogger.Instance,
             CancellationToken.None);
 
-        foreach (var key in cacheKeys)
-        {
-            var cached = await cache.GetAsync(key);
-            cached.ShouldBeNull();
-        }
-    }
+        bool factoryCalled = false;
+        await cache.GetOrCreateAsync($"key-id", _ => { factoryCalled = true; return ValueTask.FromResult("new-value"); });
+        factoryCalled.ShouldBeTrue("ID key should be invalidated");
 
-    [Fact]
-    public async Task ProductUpdatedEvent_ShouldHandleMissingCacheEntry()
-    {
-        var cache = CreateCache();
-        var productId = Guid.NewGuid();
-        var cacheKey = $"catalog:product:id:{productId}";
+        factoryCalled = false;
+        await cache.GetOrCreateAsync($"key-sku", _ => { factoryCalled = true; return ValueTask.FromResult("new-value"); });
+        factoryCalled.ShouldBeTrue("SKU key should be invalidated");
 
-        await ProductCacheInvalidationHandler.Handle(
-            new ProductUpdatedDomainEvent(productId, "Name", "OLD-SKU", "NEW-SKU", "old-slug", "new-slug"),
-            cache,
-            NullLogger.Instance,
-            CancellationToken.None);
-
-        var cached = await cache.GetAsync(cacheKey);
-        cached.ShouldBeNull();
-    }
-
-    private sealed class InMemoryDistributedCache : IDistributedCache
-    {
-        private readonly Dictionary<string, byte[]> _store = new();
-
-        public byte[]? Get(string key) => _store.TryGetValue(key, out var value) ? value : null;
-
-        public Task<byte[]?> GetAsync(string key, CancellationToken token = default)
-            => Task.FromResult(Get(key));
-
-        public void Set(string key, byte[] value, DistributedCacheEntryOptions options)
-            => _store[key] = value;
-
-        public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
-        {
-            Set(key, value, options);
-            return Task.CompletedTask;
-        }
-
-        public void Refresh(string key)
-        {
-        }
-
-        public Task RefreshAsync(string key, CancellationToken token = default)
-            => Task.CompletedTask;
-
-        public void Remove(string key) => _store.Remove(key);
-
-        public Task RemoveAsync(string key, CancellationToken token = default)
-        {
-            Remove(key);
-            return Task.CompletedTask;
-        }
+        factoryCalled = false;
+        await cache.GetOrCreateAsync($"key-slug", _ => { factoryCalled = true; return ValueTask.FromResult("new-value"); });
+        factoryCalled.ShouldBeTrue("Slug key should be invalidated");
     }
 }

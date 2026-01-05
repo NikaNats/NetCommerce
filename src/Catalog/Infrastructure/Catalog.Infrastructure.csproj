@@ -5,20 +5,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore"/>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
-    <PackageReference Include="WolverineFx"/>
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions"/>
-    <PackageReference Include="MeiliSearch"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="MeiliSearch" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Domain\Catalog.Domain.csproj"/>
-    <ProjectReference Include="..\Application\Catalog.Application.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
-    <ProjectReference Include="..\..\Ordering\Ordering.Domain\Ordering.Domain.csproj"/>
+    <ProjectReference Include="..\Domain\Catalog.Domain.csproj" />
+    <ProjectReference Include="..\Application\Catalog.Application.csproj" />
+    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj" />
+    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Ordering\Ordering.Domain\Ordering.Domain.csproj" />
   </ItemGroup>
 
 </Project>

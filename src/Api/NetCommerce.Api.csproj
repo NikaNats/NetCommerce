@@ -7,70 +7,71 @@
 
   <ItemGroup>
     <!-- Authentication -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect"/>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
 
     <!-- OpenAPI -->
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
 
     <!-- Swagger UI for visualization -->
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI"/>
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
 
     <!-- Aspire Components -->
-    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL"/>
-    <PackageReference Include="Aspire.StackExchange.Redis"/>
-    <PackageReference Include="Aspire.Azure.Storage.Blobs"/>
-    <PackageReference Include="Aspire.Seq"/>
-    <PackageReference Include="CommunityToolkit.Aspire.Meilisearch"/>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Aspire.StackExchange.Redis" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+    <PackageReference Include="Aspire.Seq" />
+    <PackageReference Include="CommunityToolkit.Aspire.Meilisearch" />
 
     <!-- FluentValidation -->
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
 
     <!-- Wolverine Message Bus -->
-    <PackageReference Include="WolverineFx"/>
-    <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
-    <PackageReference Include="WolverineFx.Postgresql"/>
-    <PackageReference Include="WolverineFx.FluentValidation"/>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+    <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.FluentValidation" />
 
     <!-- Scrutor for decorator pattern -->
-    <PackageReference Include="Scrutor"/>
+    <PackageReference Include="Scrutor" />
 
     <!-- Problem Details -->
-    <PackageReference Include="Hellang.Middleware.ProblemDetails"/>
-    <PackageReference Include="WolverineFx.SignalR"/>
+    <PackageReference Include="Hellang.Middleware.ProblemDetails" />
+    <PackageReference Include="WolverineFx.SignalR" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Service Defaults (Aspire) -->
-    <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj"/>
+    <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj" />
 
     <!-- Shared Kernel -->
-    <ProjectReference Include="..\Shared\SharedKernel\SharedKernel.csproj"/>
-    <ProjectReference Include="..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Shared\SharedKernel\SharedKernel.csproj" />
+    <ProjectReference Include="..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj" />
 
     <!-- Catalog Module -->
-    <ProjectReference Include="..\Catalog\Application\Catalog.Application.csproj"/>
-    <ProjectReference Include="..\Catalog\Infrastructure\Catalog.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Catalog\Application\Catalog.Application.csproj" />
+    <ProjectReference Include="..\Catalog\Infrastructure\Catalog.Infrastructure.csproj" />
 
     <!-- Basket Module -->
-    <ProjectReference Include="..\Basket\Basket.Application\Basket.Application.csproj"/>
-    <ProjectReference Include="..\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Basket\Basket.Application\Basket.Application.csproj" />
+    <ProjectReference Include="..\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj" />
 
     <!-- Ordering Module -->
-    <ProjectReference Include="..\Ordering\Ordering.Application\Ordering.Application.csproj"/>
-    <ProjectReference Include="..\Ordering\Ordering.Infrastructure\Ordering.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Ordering\Ordering.Application\Ordering.Application.csproj" />
+    <ProjectReference Include="..\Ordering\Ordering.Infrastructure\Ordering.Infrastructure.csproj" />
 
     <!-- Inventory Module -->
-    <ProjectReference Include="..\Inventory\Inventory.Application\Inventory.Application.csproj"/>
-    <ProjectReference Include="..\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Inventory\Inventory.Application\Inventory.Application.csproj" />
+    <ProjectReference Include="..\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
 
     <!-- Payments Module -->
-    <ProjectReference Include="..\Payments\Payments.Application\Payments.Application.csproj"/>
-    <ProjectReference Include="..\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Payments\Payments.Application\Payments.Application.csproj" />
+    <ProjectReference Include="..\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
 
     <!-- Media Module -->
-    <ProjectReference Include="..\Media\Media.Application\Media.Application.csproj"/>
-    <ProjectReference Include="..\Media\Media.Infrastructure\Media.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Media\Media.Application\Media.Application.csproj" />
+    <ProjectReference Include="..\Media\Media.Infrastructure\Media.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -115,6 +115,12 @@
         "resolved": "10.0.101",
         "contentHash": "nbq9XaN1hXbeaAAaI2Cv9su+TSs8n8iu9VmltGXDmQSTKDXh02AKykGYdHiVeaQaVvwxGJRwjsaTPSPYiD/RNQ=="
       },
+      "Microsoft.Extensions.Caching.Hybrid": {
+        "type": "Direct",
+        "requested": "[10.1.0, )",
+        "resolved": "10.1.0",
+        "contentHash": "mcqlFN2TidtsD/ZUs+m5Xbj9oyNFtlHrawSp57DS8Pq6/Gf316sdSLdoo8i4LfQX5MFPQRdTMKddAQtfZ1uXxQ=="
+      },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.1, )",
@@ -984,8 +990,9 @@
           "Catalog.Application": "[1.0.0, )",
           "Catalog.Domain": "[1.0.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
-          "Meilisearch": "[0.16.0, )",
+          "MeiliSearch": "[0.16.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
+          "Microsoft.Extensions.Caching.Hybrid": "[10.1.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
           "Ordering.Domain": "[1.0.0, )",
           "SharedKernel": "[1.0.0, )",
