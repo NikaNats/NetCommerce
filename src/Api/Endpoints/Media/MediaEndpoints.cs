@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Api.Endpoints.Media;
@@ -6,7 +7,7 @@ public class MediaEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/media")
+        var group = app.MapGroup("/api/v{version:apiVersion}/media")
             .WithTags("Media");
 
         group.MapGet("/upload-url", GetUploadUrl)
@@ -52,6 +53,7 @@ public class MediaEndpoints : IEndpointGroup
     private static async Task<IResult> Upload(
         IFormFile file,
         IStorageService storageService,
+        HttpContext httpContext,
         string folder = "products",
         CancellationToken cancellationToken = default)
     {
@@ -74,11 +76,15 @@ public class MediaEndpoints : IEndpointGroup
             cancellationToken);
 
         if (result.IsSuccess)
-            return Results.Created(string.Empty, new
+        {
+            var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
+            var location = $"/api/v{version.MajorVersion}/media/{result.Value}";
+            return Results.Created(location, new
             {
                 Key = result.Value,
                 Url = storageService.GetPublicUrl(result.Value!)
             });
+        }
 
         return result.ToApiResult();
     }

@@ -9,7 +9,7 @@ public class InventoryEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/inventory")
+        var group = app.MapGroup("/api/v{version:apiVersion}/inventory")
             .WithTags("Inventory");
 
         group.MapGet("/product/{productId:guid}", GetByProductId)

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Api.Extensions;
 using NetCommerce.Api.Middleware;
+using NetCommerce.SharedKernel.Versioning;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Finance.Application.Commands;
@@ -132,6 +133,7 @@ builder.Services.AddModules(builder.Configuration);
 // ============================================================================
 // OpenAPI / Swagger
 // ============================================================================
+builder.Services.AddVersioning();
 builder.AddNetCommerceOpenApi();
 
 var app = builder.Build();

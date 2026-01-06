@@ -12,10 +12,8 @@
 
     <!-- OpenAPI -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+    <PackageReference Include="Scalar.AspNetCore"/>
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid"/>
-
-    <!-- Swagger UI for visualization -->
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI"/>
 
     <!-- Aspire Components -->
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL"/>
@@ -38,6 +36,8 @@
 
     <!-- Problem Details -->
     <PackageReference Include="Hellang.Middleware.ProblemDetails"/>
+    <PackageReference Include="Asp.Versioning.Mvc"/>
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer"/>
     <PackageReference Include="WolverineFx.SignalR"/>
   </ItemGroup>
 

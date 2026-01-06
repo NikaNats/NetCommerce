@@ -1,3 +1,5 @@
+#nullable enable
+
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Events;
 using NetCommerce.SharedKernel.Results;

@@ -20,14 +20,14 @@
     <PackageReference Include="WolverineFx.Postgresql"/>
     <PackageReference Include="WolverineFx.FluentValidation"/>
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"/>
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions"/>
     <PackageReference Include="Microsoft.Extensions.Http.Resilience"/>
     <PackageReference Include="Polly"/>
     <PackageReference Include="Polly.Extensions"/>
     <PackageReference Include="Serilog"/>
     <PackageReference Include="Serilog.Extensions.Logging"/>
     <PackageReference Include="WolverineFx.SignalR"/>
+    <PackageReference Include="Asp.Versioning.Mvc"/>
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer"/>
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 #nullable enable
 
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Products.Commands;
@@ -21,11 +22,11 @@ public class ProductEndpoints : IEndpointGroup
 
     public void MapEndpoints(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/products")
+        var group = app.MapGroup("/api/v{version:apiVersion}/products")
             .WithTags("Products")
             .WithDescription("Manage product catalog resources");
 
-        // GET /api/v1/products/{id} - Retrieve a single product
+        // GET /api/v{version:apiVersion}/products/{id} - Retrieve a single product
         group.MapGet("/{id:guid}", GetById)
             .WithName("GetProductById")
             .WithSummary("Get a product by its ID")
@@ -33,7 +34,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
-        // GET /api/v1/products/slug/{slug} - Retrieve by slug (alternative identifier)
+        // GET /api/v{version:apiVersion}/products/slug/{slug} - Retrieve by slug (alternative identifier)
         group.MapGet("/slug/{slug}", GetBySlug)
             .WithName("GetProductBySlug")
             .WithSummary("Get a product by its URL-friendly slug")
@@ -41,7 +42,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
-        // GET /api/v1/products - Search/List products with pagination and filtering
+        // GET /api/v{version:apiVersion}/products - Search/List products with pagination and filtering
         group.MapGet("/", Search)
             .WithName("ListProducts")
             .WithSummary("Search and list products with pagination")
@@ -50,7 +51,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<PaginatedResponse<object>>()
             .AllowAnonymous();
 
-        // POST /api/v1/products - Create a new product
+        // POST /api/v{version:apiVersion}/products - Create a new product
         group.MapPost("/", Create)
             .WithName("CreateProduct")
             .WithSummary("Create a new product")
@@ -60,7 +61,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
             .RequireAuthorization("VendorOnly");
 
-        // PUT /api/v1/products/{id} - Full update of a product
+        // PUT /api/v{version:apiVersion}/products/{id} - Full update of a product
         group.MapPut("/{id:guid}", Update)
             .WithName("UpdateProduct")
             .WithSummary("Update an existing product")
@@ -71,7 +72,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
             .RequireAuthorization("VendorOnly");
 
-        // PATCH /api/v1/products/{id}/price - Partial update (price only)
+        // PATCH /api/v{version:apiVersion}/products/{id}/price - Partial update (price only)
         group.MapPatch("/{id:guid}/price", UpdatePrice)
             .WithName("UpdateProductPrice")
             .WithSummary("Update product price")
@@ -82,7 +83,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .RequireAuthorization("VendorOnly");
 
-        // POST /api/v1/products/{id}/publish - Action endpoint (state transition)
+        // POST /api/v{version:apiVersion}/products/{id}/publish - Action endpoint (state transition)
         group.MapPost("/{id:guid}/publish", Publish)
             .WithName("PublishProduct")
             .WithSummary("Publish a product")
@@ -92,7 +93,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict)
             .RequireAuthorization("VendorOnly");
 
-        // POST /api/v1/products/{id}/images - Add sub-resource
+        // POST /api/v{version:apiVersion}/products/{id}/images - Add sub-resource
         group.MapPost("/{id:guid}/images", AddImage)
             .WithName("AddProductImage")
             .WithSummary("Add an image to a product")
@@ -102,7 +103,7 @@ public class ProductEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .RequireAuthorization("VendorOnly");
 
-        // DELETE /api/v1/products/{id} - Remove a product
+        // DELETE /api/v{version:apiVersion}/products/{id} - Remove a product
         group.MapDelete("/{id:guid}", Delete)
             .WithName("DeleteProduct")
             .WithSummary("Delete a product")
@@ -174,7 +175,8 @@ public class ProductEndpoints : IEndpointGroup
 
         if (!result.IsSuccess) return result.ToApiResult();
 
-        var location = $"/api/v1/products/{result.Value}";
+        var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
+        var location = $"/api/v{version.MajorVersion}/products/{result.Value}";
         httpContext.Response.Headers.Location = location;
 
         return Results.Created(location, new { id = result.Value });
@@ -231,7 +233,8 @@ public class ProductEndpoints : IEndpointGroup
         if (!result.IsSuccess) return result.ToApiResult();
 
         // Return 201 Created with the product images location
-        var location = $"/api/v1/products/{id}/images";
+        var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
+        var location = $"/api/v{version.MajorVersion}/products/{id}/images";
         return Results.Created(location, new { productId = id, imageKey = request.ImageKey });
     }
 

@@ -8,7 +8,7 @@ public class BasketEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/basket")
+        var group = app.MapGroup("/api/v{version:apiVersion}/basket")
             .WithTags("Basket")
             .RequireAuthorization();
 

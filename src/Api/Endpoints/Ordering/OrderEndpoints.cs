@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Api.Endpoints.Common;
@@ -16,7 +17,7 @@ public class OrderEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/orders")
+        var group = app.MapGroup("/api/v{version:apiVersion}/orders")
             .WithTags("Orders")
             .WithDescription("Submit and manage orders");
 
@@ -48,7 +49,8 @@ public class OrderEndpoints : IEndpointGroup
 
         if (!result.IsSuccess) return result.ToApiResult();
 
-        var location = $"/api/v1/orders/{result.Value}";
+        var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
+        var location = $"/api/v{version.MajorVersion}/orders/{result.Value}";
         httpContext.Response.Headers.Location = location;
 
         return Results.Created(location, new { id = result.Value });

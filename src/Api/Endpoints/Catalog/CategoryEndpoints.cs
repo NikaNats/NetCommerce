@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Categories.Commands;
@@ -15,18 +16,18 @@ public class CategoryEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/categories")
+        var group = app.MapGroup("/api/v{version:apiVersion}/categories")
             .WithTags("Categories")
             .WithDescription("Manage product category resources");
 
-        // GET /api/v1/categories - List all categories
+        // GET /api/v{version:apiVersion}/categories - List all categories
         group.MapGet("/", GetAll)
             .WithName("GetAllCategories")
             .WithSummary("Get all categories")
             .WithDescription("Retrieves a hierarchical list of all product categories.")
             .AllowAnonymous();
 
-        // GET /api/v1/categories/{id} - Get category by ID
+        // GET /api/v{version:apiVersion}/categories/{id} - Get category by ID
         group.MapGet("/{id:guid}", GetById)
             .WithName("GetCategoryById")
             .WithSummary("Get a category by ID")
@@ -34,7 +35,7 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
-        // GET /api/v1/categories/slug/{slug} - Get category by slug
+        // GET /api/v{version:apiVersion}/categories/slug/{slug} - Get category by slug
         group.MapGet("/slug/{slug}", GetBySlug)
             .WithName("GetCategoryBySlug")
             .WithSummary("Get a category by slug")
@@ -42,7 +43,7 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
-        // GET /api/v1/categories/{id}/children - Get child categories
+        // GET /api/v{version:apiVersion}/categories/{id}/children - Get child categories
         group.MapGet("/{id:guid}/children", GetChildren)
             .WithName("GetChildCategories")
             .WithSummary("Get child categories")
@@ -50,7 +51,7 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .AllowAnonymous();
 
-        // POST /api/v1/categories - Create a new category
+        // POST /api/v{version:apiVersion}/categories - Create a new category
         group.MapPost("/", Create)
             .WithName("CreateCategory")
             .WithSummary("Create a new category")
@@ -60,7 +61,7 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces<ValidationProblemDetails>(StatusCodes.Status422UnprocessableEntity)
             .RequireAuthorization("VendorOnly");
 
-        // PUT /api/v1/categories/{id} - Update a category
+        // PUT /api/v{version:apiVersion}/categories/{id} - Update a category
         group.MapPut("/{id:guid}", Update)
             .WithName("UpdateCategory")
             .WithSummary("Update a category")
@@ -70,7 +71,7 @@ public class CategoryEndpoints : IEndpointGroup
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .RequireAuthorization("VendorOnly");
 
-        // DELETE /api/v1/categories/{id} - Delete a category
+        // DELETE /api/v{version:apiVersion}/categories/{id} - Delete a category
         group.MapDelete("/{id:guid}", Delete)
             .WithName("DeleteCategory")
             .WithSummary("Delete a category")
@@ -127,13 +128,15 @@ public class CategoryEndpoints : IEndpointGroup
     private static async Task<IResult> Create(
         CreateCategoryCommand command,
         IMessageBus bus,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
         var result = await bus.InvokeAsync<Result<Guid>>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
-        var location = $"/api/v1/categories/{result.Value}";
+        var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
+        var location = $"/api/v{version.MajorVersion}/categories/{result.Value}";
         return Results.Created(location, new { id = result.Value });
     }
 
