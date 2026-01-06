@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.Compliance</RootNamespace>
+    <PackageId>NetCommerce.Kernel.Compliance</PackageId>
+    <Description>GDPR and Audit compliance toolkit - Audit logging, PII vault abstractions, encryption interfaces, blind indexes. Reusable across any compliance-sensitive application.</Description>
+    <PackageTags>GDPR;Compliance;Audit;PII;Encryption;Security</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
+  </ItemGroup>
+
+</Project>

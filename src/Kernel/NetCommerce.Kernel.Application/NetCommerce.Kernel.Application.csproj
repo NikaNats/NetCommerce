@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.Application</RootNamespace>
+    <PackageId>NetCommerce.Kernel.Application</PackageId>
+    <Description>Application layer abstractions - CQRS interfaces, Repository pattern, Unit of Work, User Context. Zero infrastructure dependencies.</Description>
+    <PackageTags>DDD;Kernel;CQRS;Repository;UnitOfWork</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
+  </ItemGroup>
+
+</Project>

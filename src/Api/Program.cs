@@ -15,9 +15,11 @@ using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
+using NetCommerce.Kernel.Wolverine;
+using NetCommerce.Kernel.Security;
+using NetCommerce.SharedKernel.Infrastructure.Kestrel;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
-using NetCommerce.SharedKernel.Infrastructure.Kestrel;
 using Wolverine.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);

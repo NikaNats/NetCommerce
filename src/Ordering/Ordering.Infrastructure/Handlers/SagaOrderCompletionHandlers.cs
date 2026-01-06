@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Ordering.Infrastructure.Handlers;

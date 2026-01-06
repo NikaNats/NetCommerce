@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Inventory.Infrastructure.Handlers;

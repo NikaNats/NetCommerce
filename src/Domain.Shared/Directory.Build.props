@@ -1,0 +1,52 @@
+<Project>
+  <!--
+    ***************************************************************************
+    DOMAIN.SHARED - NETCOMMERCE PROJECT-SPECIFIC DOMAIN
+
+    This package contains commerce-specific domain types that bind the
+    universal kernel to the NetCommerce business domain.
+
+    Contents:
+    - Money (with GEL default currency)
+    - PriceBreakdown
+    - Saga Messages
+    - Integration Events
+    - Real-Time WebSocket Messages
+    ***************************************************************************
+  -->
+
+  <!-- Import parent Directory.Build.props for TargetFramework, analyzers, etc. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"
+          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../')))"/>
+
+  <PropertyGroup>
+    <!-- Package Version -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- Package Metadata -->
+    <Authors>NetCommerce Platform Team</Authors>
+    <Company>NetCommerce</Company>
+    <Product>NetCommerce Domain Shared</Product>
+    <Copyright>Copyright © NetCommerce 2024-2025. All rights reserved.</Copyright>
+
+    <!-- NuGet Package Configuration -->
+    <PackageProjectUrl>https://github.com/netcommerce/platform</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/netcommerce/platform</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+
+    <!-- Enable Source Link for debugging -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- Deterministic builds -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

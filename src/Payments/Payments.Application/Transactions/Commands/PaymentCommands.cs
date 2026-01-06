@@ -1,5 +1,6 @@
-using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Payments.Application.Transactions.Commands;
 

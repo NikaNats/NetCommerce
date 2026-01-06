@@ -982,7 +982,8 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[12.1.1, )",
-          "SharedKernel": "[1.0.0, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
       },
@@ -990,8 +991,7 @@
         "type": "Project",
         "dependencies": {
           "Basket.Application": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )",
-          "SharedKernel.Infrastructure": "[1.0.0, )",
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "StackExchange.Redis": "[2.10.1, )"
         }
       },
@@ -1000,14 +1000,16 @@
         "dependencies": {
           "Catalog.Domain": "[1.0.0, )",
           "FluentValidation": "[12.1.1, )",
-          "SharedKernel": "[1.0.0, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
       },
       "catalog.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "catalog.infrastructure": {
@@ -1019,10 +1021,10 @@
           "MeiliSearch": "[0.18.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.Extensions.Caching.Hybrid": "[10.1.0, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
           "Ordering.Domain": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )",
-          "SharedKernel.Infrastructure": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
       },
@@ -1030,15 +1032,17 @@
         "type": "Project",
         "dependencies": {
           "Finance.Domain": "[1.0.0, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "Payments.Domain": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
       },
       "finance.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "finance.infrastructure": {
@@ -1047,10 +1051,9 @@
           "Finance.Application": "[1.0.0, )",
           "Finance.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Payments.Domain": "[1.0.0, )",
           "Payments.Infrastructure": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )",
-          "SharedKernel.Infrastructure": "[1.0.0, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
         }
       },
@@ -1059,14 +1062,16 @@
         "dependencies": {
           "FluentValidation": "[12.1.1, )",
           "Inventory.Domain": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
       },
       "inventory.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "inventory.infrastructure": {
@@ -1074,15 +1079,15 @@
         "dependencies": {
           "Inventory.Application": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
-          "SharedKernel.Infrastructure": "[1.0.0, )"
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )"
         }
       },
       "media.application": {
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[12.1.1, )",
-          "SharedKernel": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
       },
@@ -1092,7 +1097,56 @@
           "AWSSDK.S3": "[4.0.16.2, )",
           "Azure.Storage.Blobs": "[12.26.0, )",
           "Media.Application": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Kernel.Application": "[1.0.0, )"
+        }
+      },
+      "netcommerce.domain.shared": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
+          "WolverineFx": "[5.9.2, )",
+          "WolverineFx.SignalR": "[5.9.2, )"
+        }
+      },
+      "netcommerce.kernel.application": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.compliance": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Application": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.core": {
+        "type": "Project"
+      },
+      "netcommerce.kernel.efcore": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.1, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
+          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
+          "WolverineFx": "[5.9.2, )"
+        }
+      },
+      "netcommerce.kernel.security": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.1, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.wolverine": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
+          "WolverineFx": "[5.9.2, )",
+          "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
         }
       },
       "netcommerce.servicedefaults": {
@@ -1119,41 +1173,47 @@
       "ordering.application": {
         "type": "Project",
         "dependencies": {
-          "Ordering.Domain": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
+          "Ordering.Domain": "[1.0.0, )"
         }
       },
       "ordering.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "ordering.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Ordering.Application": "[1.0.0, )",
-          "SharedKernel.Infrastructure": "[1.0.0, )"
+          "SharedKernel": "[1.0.0, )"
         }
       },
       "payments.application": {
         "type": "Project",
         "dependencies": {
-          "Payments.Domain": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "Payments.Domain": "[1.0.0, )"
         }
       },
       "payments.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "payments.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Payments.Application": "[1.0.0, )",
-          "SharedKernel.Infrastructure": "[1.0.0, )",
           "Stripe.net": "[50.1.0, )"
         }
       },

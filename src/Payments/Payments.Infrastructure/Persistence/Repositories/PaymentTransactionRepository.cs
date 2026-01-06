@@ -1,7 +1,7 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Payments.Domain.Transactions;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Payments.Infrastructure.Persistence.Repositories;
 

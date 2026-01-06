@@ -1,5 +1,5 @@
 #nullable enable
-using NetCommerce.SharedKernel.Application;
+using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Catalog.Application.Products.Commands;
 

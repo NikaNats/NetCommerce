@@ -1,8 +1,8 @@
 #region
 
 using Microsoft.EntityFrameworkCore;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.Compliance.Audit;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 #endregion
 

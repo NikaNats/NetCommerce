@@ -1,4 +1,5 @@
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Ordering.Domain.Orders;
 

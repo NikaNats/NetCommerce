@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.Wolverine</RootNamespace>
+    <PackageId>NetCommerce.Kernel.Wolverine</PackageId>
+    <Description>Wolverine messaging adapter - Audit middleware, logging middleware, and configuration extensions for high-performance message handling.</Description>
+    <PackageTags>Wolverine;Messaging;CQRS;Middleware;EventDriven</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx"/>
+    <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+  </ItemGroup>
+
+</Project>

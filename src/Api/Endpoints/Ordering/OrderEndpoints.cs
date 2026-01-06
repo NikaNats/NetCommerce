@@ -7,9 +7,10 @@ using NetCommerce.Api.Endpoints;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.Ordering.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Ordering;

@@ -3,8 +3,8 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Handlers;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Domain.Shared.Events;
 
 #endregion
 

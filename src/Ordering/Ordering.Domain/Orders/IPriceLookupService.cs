@@ -1,6 +1,6 @@
 #region
 
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 
 #endregion
 

@@ -10,7 +10,8 @@ using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.Catalog.Infrastructure.Services;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Ordering.Domain.Orders;
 
 namespace NetCommerce.Catalog.Infrastructure;

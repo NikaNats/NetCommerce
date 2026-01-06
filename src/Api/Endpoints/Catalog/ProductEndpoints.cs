@@ -7,8 +7,9 @@ using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Queries;
-using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Application;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Catalog;
@@ -174,7 +175,7 @@ public class ProductEndpoints : IEndpointGroup
         IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        var result = await bus.InvokeAsync<SharedKernel.Results.Result<Guid>>(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result<Guid>>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
@@ -198,7 +199,7 @@ public class ProductEndpoints : IEndpointGroup
                 detail: "Product ID in URL does not match the request body.",
                 type: "https://tools.ietf.org/html/rfc7231#section-6.5.1");
 
-        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
@@ -209,7 +210,7 @@ public class ProductEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var command = new UpdateProductPriceCommand(id, request.Amount, request.Currency);
-        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
@@ -219,7 +220,7 @@ public class ProductEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var command = new PublishProductCommand(id);
-        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 
@@ -231,7 +232,7 @@ public class ProductEndpoints : IEndpointGroup
         CancellationToken cancellationToken)
     {
         var command = new AddProductImageCommand(id, request.ImageKey, request.DisplayOrder, request.IsPrimary);
-        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
@@ -248,7 +249,7 @@ public class ProductEndpoints : IEndpointGroup
     {
         // Using ArchiveProductCommand for soft delete (RESTful best practice)
         var command = new ArchiveProductCommand(id);
-        var result = await bus.InvokeAsync<SharedKernel.Results.Result>(command, cancellationToken);
+        var result = await bus.InvokeAsync<Result>(command, cancellationToken);
         return result.ToApiResult();
     }
 }

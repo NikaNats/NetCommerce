@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 using Shouldly;
 
 namespace NetCommerce.Integration.Tests.Ordering;

@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Integration.Tests.Fixtures;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Shouldly;
 using Wolverine;
 using Wolverine.Tracking;

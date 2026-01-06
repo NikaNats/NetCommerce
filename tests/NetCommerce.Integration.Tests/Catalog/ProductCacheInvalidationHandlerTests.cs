@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Handlers;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 using Shouldly;
 
 namespace NetCommerce.Integration.Tests.Catalog;

@@ -1,7 +1,7 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Finance.Domain.Reconciliation;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Finance.Infrastructure.Persistence.Repositories;
 

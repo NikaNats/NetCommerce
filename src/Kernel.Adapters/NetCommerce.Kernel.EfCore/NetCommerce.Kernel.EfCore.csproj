@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.EfCore</RootNamespace>
+    <PackageId>NetCommerce.Kernel.EfCore</PackageId>
+    <Description>Entity Framework Core adapter - Base DbContext, repositories, value converters, resilient transactions. PostgreSQL-optimized.</Description>
+    <PackageTags>EFCore;EntityFramework;PostgreSQL;Repository;Persistence</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+    <PackageReference Include="WolverineFx"/>
+  </ItemGroup>
+
+</Project>

@@ -5,7 +5,8 @@ using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Finance.Infrastructure.Gateways;
 using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Finance.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Finance.Infrastructure;
 

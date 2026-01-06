@@ -1,7 +1,7 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Inventory.Domain.Stock;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 

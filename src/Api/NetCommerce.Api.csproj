@@ -45,8 +45,11 @@
     <!-- Service Defaults (Aspire) -->
     <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj"/>
 
-    <!-- Shared Kernel -->
-    <ProjectReference Include="..\Shared\SharedKernel\SharedKernel.csproj"/>
+    <!-- Kernel Packages -->
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Wolverine\NetCommerce.Kernel.Wolverine.csproj"/>
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Security\NetCommerce.Kernel.Security.csproj"/>
+    <ProjectReference Include="..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
     <ProjectReference Include="..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
 
     <!-- Catalog Module -->

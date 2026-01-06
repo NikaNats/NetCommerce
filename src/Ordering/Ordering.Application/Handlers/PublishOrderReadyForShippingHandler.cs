@@ -2,7 +2,7 @@
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 
 #endregion
 

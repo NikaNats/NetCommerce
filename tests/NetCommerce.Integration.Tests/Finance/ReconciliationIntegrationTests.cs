@@ -11,7 +11,7 @@ using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 using NSubstitute;
 using Shouldly;
 using Wolverine;
@@ -305,7 +305,7 @@ public class ReconciliationIntegrationTests : IntegrationTestBase
             services.GetRequiredService<IPaymentTransactionRepository>(),
             mockGateway,
             services.GetRequiredService<IReconciliationSessionRepository>(),
-            services.GetRequiredService<NetCommerce.SharedKernel.Domain.IUnitOfWork>(),
+            services.GetRequiredService<NetCommerce.Kernel.Application.IUnitOfWork>(),
             services.GetRequiredService<IMessageBus>(),
             services.GetRequiredService<ILogger<ReconciliationEngine>>());
     }

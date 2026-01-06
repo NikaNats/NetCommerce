@@ -3,8 +3,9 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Catalog.Infrastructure.Handlers;

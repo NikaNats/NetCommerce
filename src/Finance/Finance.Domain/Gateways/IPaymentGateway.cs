@@ -1,5 +1,3 @@
-using NetCommerce.SharedKernel.Domain;
-
 namespace NetCommerce.Finance.Domain.Gateways;
 
 /// <summary>

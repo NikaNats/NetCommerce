@@ -4,9 +4,9 @@ using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Payments.Infrastructure.Handlers;

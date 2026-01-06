@@ -1,9 +1,11 @@
 #region
 
 using System.Text;
+using NetCommerce.Kernel.Application;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Infrastructure.Security;
+using IEncryptionService = NetCommerce.SharedKernel.Application.IEncryptionService;
 
 #endregion
 

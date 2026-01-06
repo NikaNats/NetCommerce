@@ -1,6 +1,6 @@
 #nullable enable
 
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 
 namespace NetCommerce.Api.Endpoints;
 

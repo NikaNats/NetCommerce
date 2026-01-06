@@ -5,8 +5,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
-using NetCommerce.SharedKernel.Events;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 
 #endregion

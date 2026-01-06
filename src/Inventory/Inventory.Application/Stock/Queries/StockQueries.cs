@@ -1,4 +1,4 @@
-using NetCommerce.SharedKernel.Application;
+using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Inventory.Application.Stock.Queries;
 

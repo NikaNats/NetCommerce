@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.Core</RootNamespace>
+    <PackageId>NetCommerce.Kernel.Core</PackageId>
+    <Description>Universal enterprise kernel - Zero dependencies, pure C#. Contains Entity, AggregateRoot, ValueObject, Result pattern, Guards, and other DDD building blocks.</Description>
+    <PackageTags>DDD;Kernel;Enterprise;Domain-Driven-Design</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <!-- NO DEPENDENCIES - Pure C# -->
+
+</Project>

@@ -5,7 +5,7 @@ using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Categories.Commands;
 using NetCommerce.Catalog.Application.Categories.DTOs;
 using NetCommerce.Catalog.Application.Categories.Queries;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Catalog;

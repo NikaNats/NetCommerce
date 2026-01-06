@@ -2,7 +2,8 @@
 
 using System.Reflection;
 using NetCommerce.Catalog.Domain.Products;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Core.Domain;
 
 #endregion
 

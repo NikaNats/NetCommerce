@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Shipping.Application.Services;
 using Wolverine;
 

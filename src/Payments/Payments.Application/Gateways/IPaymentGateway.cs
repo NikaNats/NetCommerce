@@ -1,6 +1,7 @@
 #nullable enable
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.Core.Results;
 
 namespace NetCommerce.Payments.Application.Gateways;
 

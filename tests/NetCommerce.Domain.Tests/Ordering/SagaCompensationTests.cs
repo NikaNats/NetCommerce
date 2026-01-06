@@ -2,8 +2,8 @@
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Application.Sagas;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Domain.Shared.Events;
 
 #endregion
 

@@ -1,7 +1,7 @@
 using Asp.Versioning.Builder; // Required for ApiVersionSet
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Application.Stock.Queries;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Inventory;

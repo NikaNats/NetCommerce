@@ -3,7 +3,7 @@
 using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Services;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 
 #endregion
 

@@ -4,7 +4,7 @@ using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.Handlers;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.LoadTests.Fixtures;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using NSubstitute;
 using Shouldly;
 

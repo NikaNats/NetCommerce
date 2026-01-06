@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Domain.Shared</RootNamespace>
+    <PackageId>NetCommerce.Domain.Shared</PackageId>
+    <Description>NetCommerce project-specific shared domain types - Money (GEL default), Pricing, Saga messages, Integration events. Binds the universal kernel to the Commerce business domain.</Description>
+    <PackageTags>Commerce;Money;Pricing;Saga;DDD</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WolverineFx"/>
+    <PackageReference Include="WolverineFx.SignalR"/>
+  </ItemGroup>
+
+</Project>

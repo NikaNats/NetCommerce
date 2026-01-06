@@ -11,9 +11,24 @@
         <Project Path="src/NetCommerce.AppHost/NetCommerce.AppHost.csproj"/>
         <Project Path="src/NetCommerce.ServiceDefaults/NetCommerce.ServiceDefaults.csproj"/>
     </Folder>
+    <!-- Legacy Shared Kernel (to be deprecated) -->
     <Folder Name="/src/Shared/">
         <Project Path="src/Shared/SharedKernel/SharedKernel.csproj"/>
         <Project Path="src/Shared/SharedKernel.Infrastructure/SharedKernel.Infrastructure.csproj"/>
+    </Folder>
+    <!-- New Enterprise Kernel Packages -->
+    <Folder Name="/src/Kernel/">
+        <Project Path="src/Kernel/NetCommerce.Kernel.Core/NetCommerce.Kernel.Core.csproj"/>
+        <Project Path="src/Kernel/NetCommerce.Kernel.Application/NetCommerce.Kernel.Application.csproj"/>
+        <Project Path="src/Kernel/NetCommerce.Kernel.Compliance/NetCommerce.Kernel.Compliance.csproj"/>
+    </Folder>
+    <Folder Name="/src/Kernel.Adapters/">
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.EfCore/NetCommerce.Kernel.EfCore.csproj"/>
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Wolverine/NetCommerce.Kernel.Wolverine.csproj"/>
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Security/NetCommerce.Kernel.Security.csproj"/>
+    </Folder>
+    <Folder Name="/src/Domain.Shared/">
+        <Project Path="src/Domain.Shared/NetCommerce.Domain.Shared/NetCommerce.Domain.Shared.csproj"/>
     </Folder>
     <Folder Name="/src/Catalog/">
         <Project Path="src/Catalog/Domain/Catalog.Domain.csproj"/>
@@ -50,6 +65,11 @@
         <Project Path="src/Finance/Finance.Domain/Finance.Domain.csproj"/>
         <Project Path="src/Finance/Finance.Application/Finance.Application.csproj"/>
         <Project Path="src/Finance/Finance.Infrastructure/Finance.Infrastructure.csproj"/>
+    </Folder>
+    <Folder Name="/src/Shipping/">
+        <Project Path="src/Shipping/Shipping.Domain/Shipping.Domain.csproj"/>
+        <Project Path="src/Shipping/Shipping.Application/Shipping.Application.csproj"/>
+        <Project Path="src/Shipping/Shipping.Infrastructure/Shipping.Infrastructure.csproj"/>
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/NetCommerce.Architecture.Tests/NetCommerce.Architecture.Tests.csproj"/>

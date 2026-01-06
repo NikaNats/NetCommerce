@@ -1,4 +1,4 @@
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 
 namespace NetCommerce.Media.Application.Services;
 

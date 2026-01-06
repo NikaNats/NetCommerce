@@ -4,7 +4,7 @@ using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
 using Microsoft.Extensions.Options;
 using NetCommerce.Media.Application.Services;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 
 namespace NetCommerce.Media.Infrastructure.Storage;
 

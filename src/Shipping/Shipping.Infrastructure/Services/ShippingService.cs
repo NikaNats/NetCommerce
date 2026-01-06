@@ -1,8 +1,8 @@
 #nullable enable
 
 using Microsoft.Extensions.Logging;
-using NetCommerce.SharedKernel.Events;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Core.Results;
 using NetCommerce.Shipping.Application.Adapters;
 using NetCommerce.Shipping.Application.Services;
 using NetCommerce.Shipping.Domain;

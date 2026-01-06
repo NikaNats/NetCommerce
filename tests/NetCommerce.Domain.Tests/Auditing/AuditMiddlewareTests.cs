@@ -1,9 +1,9 @@
 #region
 
 using NetCommerce.Ordering.Application.Orders.Commands;
-using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Infrastructure.Messaging;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Compliance.Audit;
+using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;
 
 #endregion

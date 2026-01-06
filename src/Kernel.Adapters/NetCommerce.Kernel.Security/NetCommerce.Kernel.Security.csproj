@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.Security</RootNamespace>
+    <PackageId>NetCommerce.Kernel.Security</PackageId>
+    <Description>Security adapter - OIDC claims transformation, user context implementations, and authentication extensions for Zero Trust architectures.</Description>
+    <PackageTags>Security;OAuth;OIDC;Keycloak;JWT;Authentication</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
+  </ItemGroup>
+
+</Project>

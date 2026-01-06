@@ -642,13 +642,33 @@
       "finance.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
+      },
+      "netcommerce.domain.shared": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
+          "WolverineFx": "[5.9.2, )",
+          "WolverineFx.SignalR": "[5.9.2, )"
+        }
+      },
+      "netcommerce.kernel.application": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.core": {
+        "type": "Project"
       },
       "payments.domain": {
         "type": "Project",
         "dependencies": {
-          "SharedKernel": "[1.0.0, )"
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "sharedkernel": {

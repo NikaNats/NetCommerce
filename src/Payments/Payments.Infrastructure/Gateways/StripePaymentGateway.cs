@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.Payments.Application.Gateways;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Stripe;
 
 namespace NetCommerce.Payments.Infrastructure.Gateways;

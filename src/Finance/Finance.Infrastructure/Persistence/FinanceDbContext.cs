@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Finance.Infrastructure.Persistence.Configurations;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Finance.Infrastructure.Persistence;
 

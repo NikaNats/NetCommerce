@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Transactions.Commands;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Payments.Application.EventHandlers;

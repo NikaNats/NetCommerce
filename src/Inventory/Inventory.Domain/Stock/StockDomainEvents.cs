@@ -1,4 +1,4 @@
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Inventory.Domain.Stock;
 

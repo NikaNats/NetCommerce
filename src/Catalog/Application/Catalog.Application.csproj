@@ -11,7 +11,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Domain\Catalog.Domain.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
+    <ProjectReference Include="..\..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
   </ItemGroup>
 
 </Project>

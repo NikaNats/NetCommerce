@@ -1,7 +1,7 @@
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 
 namespace NetCommerce.Domain.Tests.Fakers;
 

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine.Attributes;
 using Wolverine;
 

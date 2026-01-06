@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
   </ItemGroup>
 
 </Project>

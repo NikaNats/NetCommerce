@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning.Builder;
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Queries;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Catalog.Products.GetProduct;

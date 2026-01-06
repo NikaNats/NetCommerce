@@ -2,8 +2,9 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Payments.Domain.Transactions;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine;
 
 namespace NetCommerce.Finance.Application.Services;

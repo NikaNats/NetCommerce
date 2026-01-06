@@ -699,9 +699,18 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[12.1.1, )",
-          "SharedKernel": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )"
         }
+      },
+      "netcommerce.kernel.application": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.core": {
+        "type": "Project"
       },
       "sharedkernel": {
         "type": "Project",

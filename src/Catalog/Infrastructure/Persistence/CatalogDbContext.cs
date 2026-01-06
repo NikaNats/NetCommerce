@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.Catalog.Domain.Products;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Catalog.Infrastructure.Persistence;
 

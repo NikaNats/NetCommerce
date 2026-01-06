@@ -22,7 +22,7 @@ using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Handlers;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Npgsql;
 using Respawn;
 using Respawn.Graph;
@@ -201,7 +201,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                     NetCommerce.Payments.Infrastructure.Persistence.Repositories.PaymentTransactionRepository>();
 
                 // Register UnitOfWork for Finance (needed by ReconciliationEngine)
-                services.AddScoped<NetCommerce.SharedKernel.Domain.IUnitOfWork>(sp =>
+                services.AddScoped<NetCommerce.Kernel.Application.IUnitOfWork>(sp =>
                     sp.GetRequiredService<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>());
 
                 // Register ReconciliationEngine for Finance tests

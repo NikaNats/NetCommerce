@@ -2,7 +2,7 @@
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.SharedKernel.Application.Notifications;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine.Attributes;
 
 #endregion

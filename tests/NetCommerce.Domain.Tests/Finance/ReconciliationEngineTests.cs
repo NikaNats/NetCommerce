@@ -3,7 +3,8 @@ using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Payments.Domain.Transactions;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Application;
 using NSubstitute;
 using Wolverine;
 

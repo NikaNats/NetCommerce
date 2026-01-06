@@ -1,5 +1,5 @@
 using NetCommerce.Catalog.Application.Categories.DTOs;
-using NetCommerce.SharedKernel.Application;
+using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Catalog.Application.Categories.Queries;
 

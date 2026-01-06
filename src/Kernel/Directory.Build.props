@@ -1,0 +1,55 @@
+<Project>
+  <!--
+    ***************************************************************************
+    KERNEL PACKAGES - ENTERPRISE NUGET CONFIGURATION
+
+    This file provides shared configuration for all NetCommerce.Kernel.* packages.
+    These packages are designed for "Universal Reusability" - they can be used
+    in any .NET project, not just NetCommerce.
+    ***************************************************************************
+  -->
+
+  <!-- Import parent Directory.Build.props for TargetFramework, analyzers, etc. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))"
+          Condition="Exists($([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../')))"/>
+
+  <PropertyGroup>
+    <!-- Package Version - Update this for each release -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- Package Metadata -->
+    <Authors>NetCommerce Platform Team</Authors>
+    <Company>NetCommerce</Company>
+    <Product>NetCommerce Enterprise Kernel</Product>
+    <Copyright>Copyright © NetCommerce 2024-2025. All rights reserved.</Copyright>
+
+    <!-- NuGet Package Configuration -->
+    <PackageProjectUrl>https://github.com/netcommerce/kernel</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/netcommerce/kernel</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Common Tags for all Kernel packages -->
+    <PackageTagsBase>Enterprise;Kernel;DDD;CleanArchitecture</PackageTagsBase>
+
+    <!-- Enable Source Link for debugging into packages -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- Deterministic builds for reproducibility -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Include README in packages that have one -->
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" Condition="Exists('README.md')"/>
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine;
 
 namespace NetCommerce.Ordering.Application.Sagas;

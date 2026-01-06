@@ -1,6 +1,6 @@
-using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Events;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Core.Results;
 
 namespace NetCommerce.Shipping.Application.Services;
 

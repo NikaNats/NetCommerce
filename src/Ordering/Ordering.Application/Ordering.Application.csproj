@@ -6,7 +6,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ordering.Domain\Ordering.Domain.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
+    <ProjectReference Include="..\..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
   </ItemGroup>
 
 </Project>

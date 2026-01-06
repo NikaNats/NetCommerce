@@ -1,6 +1,6 @@
 using NetCommerce.Domain.Tests.Fakers;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Domain.Shared;
 using Shouldly;
 
 namespace NetCommerce.Domain.Tests.Ordering;

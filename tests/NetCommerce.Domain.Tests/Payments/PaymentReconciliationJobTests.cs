@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.BackgroundJobs;
-using NetCommerce.SharedKernel.Domain;
-using NetCommerce.SharedKernel.Events;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 using PaymentProviderDomain = NetCommerce.Payments.Domain.Transactions.PaymentProvider;
 

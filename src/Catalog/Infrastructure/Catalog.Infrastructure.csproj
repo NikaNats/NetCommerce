@@ -16,8 +16,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Domain\Catalog.Domain.csproj"/>
     <ProjectReference Include="..\Application\Catalog.Application.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
+    <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
+    <ProjectReference Include="..\..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
     <ProjectReference Include="..\..\Ordering\Ordering.Domain\Ordering.Domain.csproj"/>
   </ItemGroup>
 

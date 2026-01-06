@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Application.Orders.Commands;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Ordering.Application.EventHandlers;

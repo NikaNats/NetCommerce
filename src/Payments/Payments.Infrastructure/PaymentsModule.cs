@@ -7,7 +7,8 @@ using NetCommerce.Payments.Infrastructure.BackgroundJobs;
 using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Payments.Infrastructure;
 

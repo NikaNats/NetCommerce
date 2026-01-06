@@ -3,7 +3,7 @@ using NetCommerce.Catalog.Application.Categories.DTOs;
 using NetCommerce.Catalog.Application.Categories.Mappers;
 using NetCommerce.Catalog.Application.Categories.Queries;
 using NetCommerce.Catalog.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Results;
+using NetCommerce.Kernel.Core.Results;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Catalog.Infrastructure.Handlers;

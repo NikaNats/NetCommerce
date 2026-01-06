@@ -10,8 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Basket.Application\Basket.Application.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel\SharedKernel.csproj"/>
-    <ProjectReference Include="..\..\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
+    <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
   </ItemGroup>
 
 </Project>

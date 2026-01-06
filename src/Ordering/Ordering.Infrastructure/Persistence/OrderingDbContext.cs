@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Ordering.Infrastructure.Persistence;
 

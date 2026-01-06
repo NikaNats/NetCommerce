@@ -1,4 +1,4 @@
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Catalog.Domain.Products;
 

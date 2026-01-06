@@ -1,4 +1,5 @@
-using NetCommerce.SharedKernel.Application;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Compliance.Audit;
 
 namespace NetCommerce.Ordering.Application.Orders.Commands;
 

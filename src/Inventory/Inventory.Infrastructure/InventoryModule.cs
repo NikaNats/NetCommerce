@@ -6,7 +6,8 @@ using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Inventory.Infrastructure;
 

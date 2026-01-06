@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Inventory.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Events;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Inventory.Infrastructure.Handlers;
