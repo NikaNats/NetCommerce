@@ -47,6 +47,7 @@ public static class VersioningExtensions
     {
         return app.NewApiVersionSet()
             .HasApiVersion(new ApiVersion(1, 0))
+            .ReportApiVersions()
             .Build();
     }
 }
