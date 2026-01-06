@@ -648,9 +648,6 @@
           "WolverineFx": "[5.9.2, )"
         }
       },
-      "netcommerce.kernel.sourcegenerators": {
-        "type": "Project"
-      },
       "ordering.application": {
         "type": "Project",
         "dependencies": {
@@ -664,8 +661,7 @@
         "type": "Project",
         "dependencies": {
           "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "NetCommerce.Kernel.SourceGenerators": "[1.0.0, )"
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "sharedkernel": {

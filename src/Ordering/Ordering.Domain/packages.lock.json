@@ -612,9 +612,6 @@
       "netcommerce.kernel.core": {
         "type": "Project"
       },
-      "netcommerce.kernel.sourcegenerators": {
-        "type": "Project"
-      },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",
         "requested": "[3.11.0, )",

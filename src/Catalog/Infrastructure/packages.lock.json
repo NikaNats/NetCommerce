@@ -779,15 +779,11 @@
           "WolverineFx": "[5.9.2, )"
         }
       },
-      "netcommerce.kernel.sourcegenerators": {
-        "type": "Project"
-      },
       "ordering.domain": {
         "type": "Project",
         "dependencies": {
           "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "NetCommerce.Kernel.SourceGenerators": "[1.0.0, )"
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "FluentValidation": {
