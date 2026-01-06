@@ -1,13 +1,16 @@
 using Asp.Versioning;
+using Asp.Versioning.Builder; // Required for ApiVersionSet
 using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Api.Endpoints.Media;
 
 public class MediaEndpoints : IEndpointGroup
 {
-    public void MapEndpoints(IEndpointRouteBuilder app)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var group = app.MapGroup("/api/v{version:apiVersion}/media")
+            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
+            .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Media");
 
         group.MapGet("/upload-url", GetUploadUrl)

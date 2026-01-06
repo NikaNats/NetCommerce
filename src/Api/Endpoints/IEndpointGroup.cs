@@ -1,3 +1,6 @@
+#nullable enable
+using Asp.Versioning.Builder; // Required for ApiVersionSet
+
 namespace NetCommerce.Api.Endpoints;
 
 /// <summary>
@@ -5,7 +8,8 @@ namespace NetCommerce.Api.Endpoints;
 /// </summary>
 public interface IEndpointGroup
 {
-    void MapEndpoints(IEndpointRouteBuilder app);
+    // Added ApiVersionSet parameter
+    void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet);
 }
 
 /// <summary>
@@ -13,7 +17,7 @@ public interface IEndpointGroup
 /// </summary>
 public static class EndpointExtensions
 {
-    public static IEndpointRouteBuilder MapEndpointGroups(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapEndpointGroups(this IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var endpointGroupType = typeof(IEndpointGroup);
         var assembly = typeof(IEndpointGroup).Assembly;
@@ -23,7 +27,10 @@ public static class EndpointExtensions
             .Select(Activator.CreateInstance)
             .Cast<IEndpointGroup>();
 
-        foreach (var group in endpointGroups) group.MapEndpoints(app);
+        foreach (var group in endpointGroups)
+        {
+            group.MapEndpoints(app, versionSet); // Pass it down
+        }
 
         return app;
     }

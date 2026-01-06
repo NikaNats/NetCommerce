@@ -1,3 +1,4 @@
+using Asp.Versioning.Builder; // Required for ApiVersionSet
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Application.Stock.Queries;
 using NetCommerce.SharedKernel.Results;
@@ -7,9 +8,11 @@ namespace NetCommerce.Api.Endpoints.Inventory;
 
 public class InventoryEndpoints : IEndpointGroup
 {
-    public void MapEndpoints(IEndpointRouteBuilder app)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var group = app.MapGroup("/api/v{version:apiVersion}/inventory")
+            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
+            .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Inventory");
 
         group.MapGet("/product/{productId:guid}", GetByProductId)

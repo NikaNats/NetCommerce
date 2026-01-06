@@ -1,6 +1,7 @@
 #nullable enable
 
 using Asp.Versioning;
+using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Catalog.Application.Products.Commands;
@@ -20,9 +21,11 @@ public class ProductEndpoints : IEndpointGroup
     private const int MaxPageSize = 100;
     private const int DefaultPageSize = 20;
 
-    public void MapEndpoints(IEndpointRouteBuilder app)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var group = app.MapGroup("/api/v{version:apiVersion}/products")
+            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
+            .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Products")
             .WithDescription("Manage product catalog resources");
 

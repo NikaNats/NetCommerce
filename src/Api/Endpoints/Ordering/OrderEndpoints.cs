@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Api.Endpoints.Common;
@@ -15,9 +16,11 @@ namespace NetCommerce.Api.Endpoints.Ordering;
 
 public class OrderEndpoints : IEndpointGroup
 {
-    public void MapEndpoints(IEndpointRouteBuilder app)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var group = app.MapGroup("/api/v{version:apiVersion}/orders")
+            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
+            .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Orders")
             .WithDescription("Submit and manage orders");
 

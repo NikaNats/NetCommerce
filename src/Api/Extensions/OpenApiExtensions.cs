@@ -10,8 +10,16 @@ public static class OpenApiExtensions
 {
     public static IHostApplicationBuilder AddNetCommerceOpenApi(this IHostApplicationBuilder builder)
     {
-        // .NET 10 Native OpenAPI (replaces AddSwaggerGen)
-        builder.Services.AddOpenApi();
+        // .NET 10 Native OpenAPI replacement for SwaggerGen
+        builder.Services.AddOpenApi(options =>
+        {
+            options.AddDocumentTransformer((document, context, cancellationToken) =>
+            {
+                document.Info.Title = "NetCommerce Enterprise API";
+                document.Info.Version = "v1";
+                return Task.CompletedTask;
+            });
+        });
 
         return builder;
     }

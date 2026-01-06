@@ -192,7 +192,8 @@ app.MapWolverineSignalRHub("/api/messages");
 // ============================================================================
 // Map Minimal API Endpoints
 // ============================================================================
-app.MapEndpointGroups();
+var versionSet = app.GetDefaultApiVersionSet();
+app.MapEndpointGroups(versionSet); // <--- Pass the versionSet here!
 
 // ============================================================================
 // Map MVC Controllers

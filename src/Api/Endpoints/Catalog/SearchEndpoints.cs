@@ -2,6 +2,7 @@
 
 #region
 
+using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Meilisearch;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
@@ -22,9 +23,11 @@ public sealed class SearchEndpoints : IEndpointGroup
 {
     private const string ProductsIndexName = "products";
 
-    public void MapEndpoints(IEndpointRouteBuilder app)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
-        RouteGroupBuilder group = app.MapGroup("/api/products/search")
+        RouteGroupBuilder group = app.MapGroup("/api/v{version:apiVersion}/products/search")
+            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
+            .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Search");
 
         group.MapGet("/", SearchProducts)

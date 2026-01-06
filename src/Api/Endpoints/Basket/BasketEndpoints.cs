@@ -1,14 +1,17 @@
 #nullable enable
 using System.Security.Claims;
+using Asp.Versioning.Builder; // Required for ApiVersionSet
 using NetCommerce.Basket.Application;
 
 namespace NetCommerce.Api.Endpoints.Basket;
 
 public class BasketEndpoints : IEndpointGroup
 {
-    public void MapEndpoints(IEndpointRouteBuilder app)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var group = app.MapGroup("/api/v{version:apiVersion}/basket")
+            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
+            .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Basket")
             .RequireAuthorization();
 

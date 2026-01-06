@@ -1,5 +1,9 @@
+#nullable enable
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using Asp.Versioning.Builder; // Required for ApiVersionSet
+using Asp.Versioning.Conventions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace NetCommerce.SharedKernel.Versioning;
@@ -36,5 +40,13 @@ public static class VersioningExtensions
             });
 
         return services;
+    }
+
+    // Helper to create the version set used in MapEndpointGroups
+    public static Asp.Versioning.Builder.ApiVersionSet GetDefaultApiVersionSet(this WebApplication app)
+    {
+        return app.NewApiVersionSet()
+            .HasApiVersion(new ApiVersion(1, 0))
+            .Build();
     }
 }
