@@ -34,14 +34,14 @@ public sealed class GlobalExceptionHandler(
         if (statusCode >= 500)
         {
             logger.LogError(exception,
-                "[{ErrorCode}] Server-side error. TraceId: {TraceId}. Path: {Path}",
-                errorCode, traceId, httpContext.Request.Path);
+                "[{ErrorCode}] Server error at {Path}. Trace: {TraceId}",
+                errorCode, httpContext.Request.Path, traceId);
         }
         else
         {
             logger.LogWarning(
-                "[{ErrorCode}] Client-side error. TraceId: {TraceId}. Message: {Message}",
-                errorCode, traceId, exception.Message);
+                "[{ErrorCode}] Client error: {Message}. Trace: {TraceId}",
+                errorCode, exception.Message, traceId);
         }
 
         // 3. Construct RFC 9457 Problem Details
@@ -76,7 +76,7 @@ public sealed class GlobalExceptionHandler(
         }
 
         // Set Instance for better traceability
-        problemDetails.Instance = httpContext.Request.Path;
+        problemDetails.Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}";
 
         // 5. Extensions for DX (Machine-readable code & Tracing)
         problemDetails.Extensions["code"] = errorCode; // Best Practice #6
