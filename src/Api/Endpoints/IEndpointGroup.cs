@@ -34,4 +34,19 @@ public static class EndpointExtensions
 
         return app;
     }
+
+    public static IEndpointRouteBuilder MapAllEndpoints(this IEndpointRouteBuilder app, ApiVersionSet versionSet)
+    {
+        var endpointTypes = AppDomain.CurrentDomain.GetAssemblies()
+            .SelectMany(s => s.GetTypes())
+            .Where(t => t.IsAssignableTo(typeof(IEndpoint)) && t is { IsInterface: false, IsAbstract: false });
+
+        foreach (var endpointType in endpointTypes)
+        {
+            // ვიყენებთ static abstract მეთოდს
+            endpointType.GetMethod(nameof(IEndpoint.Map))?.Invoke(null, [app, versionSet]);
+        }
+
+        return app;
+    }
 }

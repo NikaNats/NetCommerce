@@ -137,6 +137,14 @@ builder.Services.AddApiServicesMinimal(builder.Configuration);
 builder.Services.AddControllers();
 
 // ============================================================================
+// JSON Source Generation for Native AOT
+// ============================================================================
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.TypeInfoResolverChain.Insert(0, NetCommerce.Api.Serialization.ApiJsonContext.Default);
+});
+
+// ============================================================================
 // Module Registration
 // ============================================================================
 builder.Services.AddModules(builder.Configuration);
@@ -215,6 +223,7 @@ app.UseAntiforgery();
 // ============================================================================
 var versionSet = app.GetDefaultApiVersionSet();
 app.MapEndpointGroups(versionSet); // <--- Pass the versionSet here!
+app.MapAllEndpoints(versionSet); // REPR Pattern: Vertical Slice Endpoints
 
 // ============================================================================
 // Map MVC Controllers
