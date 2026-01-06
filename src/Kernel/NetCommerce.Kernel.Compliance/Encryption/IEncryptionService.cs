@@ -1,4 +1,6 @@
 #nullable enable
+using NetCommerce.Kernel.Core.Encryption; // Dependency on Core
+
 namespace NetCommerce.Kernel.Compliance.Encryption;
 
 /// <summary>
@@ -35,40 +37,23 @@ public interface IKeyManagementService
 }
 
 /// <summary>
-///     Encryption service for PII and sensitive data.
-///     Provides both deterministic (searchable) and probabilistic (max security) encryption.
+/// The "How" - Business logic for performing encryption.
+/// Implementation will reside in Infrastructure/Adapters.
 /// </summary>
 public interface IEncryptionService
 {
     /// <summary>
-    ///     Encrypts plaintext data.
+    /// Returns the consolidated EncryptedData model from Core.
     /// </summary>
-    /// <param name="plaintext">The data to encrypt.</param>
-    /// <param name="isDeterministic">
-    ///     True: Same plaintext → Same ciphertext (enables equality searches)
-    ///     False: Same plaintext → Different ciphertext (prevents frequency analysis)
-    /// </param>
     Task<EncryptedData> EncryptAsync(string plaintext, bool isDeterministic = false, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    ///     Decrypts encrypted data back to plaintext.
-    /// </summary>
     Task<string> DecryptAsync(EncryptedData encryptedData, CancellationToken cancellationToken = default);
 
     /// <summary>
-    ///     Encrypts plaintext data synchronously (for EF Core value converters).
-    ///     ⚠️ Use only in EF Core converters where async is not possible.
+    /// Synchronous versions for EF Core Value Converters.
     /// </summary>
     EncryptedData Encrypt(string plaintext, bool isDeterministic = false);
-
-    /// <summary>
-    ///     Decrypts encrypted data synchronously (for EF Core value converters).
-    ///     ⚠️ Use only in EF Core converters where async is not possible.
-    /// </summary>
     string Decrypt(EncryptedData encryptedData);
 
-    /// <summary>
-    ///     Computes a blind index for searchable encrypted fields.
-    /// </summary>
     BlindIndex ComputeBlindIndex(string plaintext);
 }

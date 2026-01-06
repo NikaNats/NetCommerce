@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NetCommerce.Kernel.Web</RootNamespace>
+    <PackageId>NetCommerce.Kernel.Web</PackageId>
+    <Description>ASP.NET Core integration for NetCommerce Kernel</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Results" Version="10.0.0" />
+  </ItemGroup>
+
+</Project></content>
+<parameter name="filePath">c:\Users\Nika\source\repos\NikaNats\NetCommerce\src\Kernel.Adapters\NetCommerce.Kernel.Web\NetCommerce.Kernel.Web.csproj

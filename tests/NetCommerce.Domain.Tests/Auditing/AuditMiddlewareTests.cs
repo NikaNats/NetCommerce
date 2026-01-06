@@ -5,6 +5,7 @@ using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;
+using AuditUserContext = NetCommerce.Kernel.Compliance.Audit.IUserContext;
 
 #endregion
 
@@ -19,7 +20,7 @@ public class AuditMiddlewareTests
         var command = new CancelOrderCommand(Guid.NewGuid(), "Customer requested refund - Item not as described");
         var envelope = new Envelope { CorrelationId = "correlation_abc123" };
 
-        IUserContext? userContext = Substitute.For<IUserContext>();
+        AuditUserContext? userContext = Substitute.For<AuditUserContext>();
         userContext.UserId.Returns("admin_xyz789");
         userContext.Role.Returns("Admin");
         userContext.IpAddress.Returns("192.168.1.100");
@@ -51,7 +52,7 @@ public class AuditMiddlewareTests
 
         // Act & Assert - Compliance Rule: Audit failure must block execution
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await AuditMiddleware.Before(command, new Envelope(), Substitute.For<IUserContext>(), auditRepository));
+            await AuditMiddleware.Before(command, new Envelope(), Substitute.For<AuditUserContext>(), auditRepository));
     }
 
     [Fact]
@@ -60,7 +61,7 @@ public class AuditMiddlewareTests
         // Arrange
         var command = new CancelOrderCommand(Guid.NewGuid(), "Reason");
         var envelope = new Envelope { CorrelationId = null }; // Missing
-        IUserContext? userContext = Substitute.For<IUserContext>();
+        AuditUserContext? userContext = Substitute.For<AuditUserContext>();
         userContext.UserId.Returns("user123");
         IAuditRepository? repo = Substitute.For<IAuditRepository>();
         AuditEntry? entry = null;
@@ -81,7 +82,7 @@ public class AuditMiddlewareTests
         var orderId = Guid.NewGuid();
         var command = new CancelOrderCommand(orderId, "Fraud Suspected");
         var envelope = new Envelope();
-        IUserContext? userContext = Substitute.For<IUserContext>();
+        AuditUserContext? userContext = Substitute.For<AuditUserContext>();
         userContext.UserId.Returns("user123");
         IAuditRepository? repo = Substitute.For<IAuditRepository>();
         AuditEntry? entry = null;
@@ -107,7 +108,7 @@ public class AuditMiddlewareTests
         var envelope1 = new Envelope { CorrelationId = "corr1" };
         var envelope2 = new Envelope { CorrelationId = "corr2" };
 
-        IUserContext? userContext = Substitute.For<IUserContext>();
+        AuditUserContext? userContext = Substitute.For<AuditUserContext>();
         userContext.UserId.Returns("admin123");
         userContext.Role.Returns("Admin");
 

@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
+    <ProjectReference Include="..\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
   </ItemGroup>
 
 </Project>

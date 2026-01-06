@@ -1,6 +1,7 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetCommerce.Kernel.Compliance.Encryption;
+using CoreEncryption = NetCommerce.Kernel.Core.Encryption;
 
 namespace NetCommerce.Kernel.EfCore.Converters;
 
@@ -55,12 +56,12 @@ public class PiiEncryptionConverter : ValueConverter<string, string>
 ///     EF Core Value Converter for blind indexes.
 ///     Stores HMAC-SHA256 hash for searchable encrypted fields.
 /// </summary>
-public class BlindIndexConverter : ValueConverter<BlindIndex, string>
+public class BlindIndexConverter : ValueConverter<CoreEncryption.BlindIndex, string>
 {
     public BlindIndexConverter()
         : base(
             blindIndex => blindIndex.Value,
-            hashValue => BlindIndex.FromHash(hashValue)
+            hashValue => CoreEncryption.BlindIndex.FromHash(hashValue)
         )
     {
     }

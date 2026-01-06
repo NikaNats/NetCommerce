@@ -79,6 +79,9 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
     {
         base.OnModelCreating(modelBuilder);
 
+        // Configure strongly typed ID converters
+        modelBuilder.ConfigureStronglyTypedIdConverters();
+
         // Configure soft delete global query filter
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

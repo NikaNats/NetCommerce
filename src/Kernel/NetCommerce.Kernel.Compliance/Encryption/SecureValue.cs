@@ -64,12 +64,15 @@ public sealed record BlindIndex
 /// </summary>
 public sealed record EncryptedData
 {
-    private EncryptedData(byte[] ciphertext, string keyId, byte[] iv, byte[]? encryptedDek)
+    private EncryptedData(byte[] ciphertext, string keyId, byte[] iv, byte[]? encryptedDek, int version = 1, string algorithmType = "AES-256-GCM", int algorithmVersion = 1)
     {
         Ciphertext = ciphertext;
         KeyId = keyId;
         Iv = iv;
         EncryptedDek = encryptedDek;
+        Version = version;
+        AlgorithmType = algorithmType;
+        AlgorithmVersion = algorithmVersion;
     }
 
     /// <summary>
@@ -96,15 +99,33 @@ public sealed record EncryptedData
     public byte[]? EncryptedDek { get; init; }
 
     /// <summary>
+    ///     Version of the encryption format.
+    ///     Enables future encryption algorithm upgrades.
+    /// </summary>
+    public int Version { get; init; }
+
+    /// <summary>
+    ///     The encryption algorithm type (e.g., "AES-256-GCM", "ChaCha20-Poly1305").
+    ///     Enables future algorithm migrations.
+    /// </summary>
+    public string AlgorithmType { get; init; }
+
+    /// <summary>
+    ///     Version of the encryption algorithm.
+    ///     Enables algorithm upgrades within the same type.
+    /// </summary>
+    public int AlgorithmVersion { get; init; }
+
+    /// <summary>
     ///     Creates an EncryptedData instance.
     /// </summary>
-    public static EncryptedData Create(byte[] ciphertext, string keyId, byte[] iv, byte[]? encryptedDek = null)
+    public static EncryptedData Create(byte[] ciphertext, string keyId, byte[] iv, byte[]? encryptedDek = null, int version = 1, string algorithmType = "AES-256-GCM", int algorithmVersion = 1)
     {
-        return new EncryptedData(ciphertext, keyId, iv, encryptedDek);
+        return new EncryptedData(ciphertext, keyId, iv, encryptedDek, version, algorithmType, algorithmVersion);
     }
 
     /// <summary>
-    ///     Serializes to a storage-friendly format: "KeyId|IV|Ciphertext|EncryptedDEK"
+    ///     Serializes to a storage-friendly format: "v{Version}|a{AlgorithmType}:{AlgorithmVersion}|KeyId|IV|Ciphertext|EncryptedDEK"
     /// </summary>
     public string ToStorageFormat()
     {
@@ -112,7 +133,7 @@ public sealed record EncryptedData
         var ciphertextBase64 = Convert.ToBase64String(Ciphertext);
         var dekBase64 = EncryptedDek != null ? Convert.ToBase64String(EncryptedDek) : string.Empty;
 
-        return $"{KeyId}|{ivBase64}|{ciphertextBase64}|{dekBase64}";
+        return $"v{Version}|a{AlgorithmType}:{AlgorithmVersion}|{KeyId}|{ivBase64}|{ciphertextBase64}|{dekBase64}";
     }
 
     /// <summary>
@@ -121,16 +142,43 @@ public sealed record EncryptedData
     public static EncryptedData FromStorageFormat(string storageFormat)
     {
         var parts = storageFormat.Split('|');
-        if (parts.Length < 3)
+        if (parts.Length < 5)
             throw new ArgumentException("Invalid encrypted data format.", nameof(storageFormat));
 
-        var keyId = parts[0];
-        var iv = Convert.FromBase64String(parts[1]);
-        var ciphertext = Convert.FromBase64String(parts[2]);
-        var encryptedDek = parts.Length > 3 && !string.IsNullOrEmpty(parts[3])
-            ? Convert.FromBase64String(parts[3])
+        int version = 1; // Default for backward compatibility
+        string algorithmType = "AES-256-GCM"; // Default
+        int algorithmVersion = 1; // Default
+        int keyIdIndex = 0;
+
+        // Parse version
+        if (parts[0].StartsWith("v"))
+        {
+            if (!int.TryParse(parts[0].AsSpan(1), out version))
+                throw new ArgumentException("Invalid version format.", nameof(storageFormat));
+            keyIdIndex = 1;
+        }
+
+        // Parse algorithm info
+        if (parts.Length > keyIdIndex && parts[keyIdIndex].StartsWith("a"))
+        {
+            var algorithmPart = parts[keyIdIndex];
+            var colonIndex = algorithmPart.IndexOf(':');
+            if (colonIndex > 1)
+            {
+                algorithmType = algorithmPart.Substring(1, colonIndex - 1);
+                if (!int.TryParse(algorithmPart.AsSpan(colonIndex + 1), out algorithmVersion))
+                    throw new ArgumentException("Invalid algorithm version format.", nameof(storageFormat));
+                keyIdIndex++;
+            }
+        }
+
+        var keyId = parts[keyIdIndex];
+        var iv = Convert.FromBase64String(parts[keyIdIndex + 1]);
+        var ciphertext = Convert.FromBase64String(parts[keyIdIndex + 2]);
+        var encryptedDek = parts.Length > keyIdIndex + 3 && !string.IsNullOrEmpty(parts[keyIdIndex + 3])
+            ? Convert.FromBase64String(parts[keyIdIndex + 3])
             : null;
 
-        return new EncryptedData(ciphertext, keyId, iv, encryptedDek);
+        return new EncryptedData(ciphertext, keyId, iv, encryptedDek, version, algorithmType, algorithmVersion);
     }
 }
