@@ -17,6 +17,7 @@ using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
+using NetCommerce.SharedKernel.Infrastructure.Kestrel;
 using Wolverine.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,16 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Aspire Service Defaults (OpenTelemetry, Health Checks, Service Discovery, Polly)
 // ============================================================================
 builder.AddServiceDefaults();
+
+// ============================================================================
+// Enterprise-Hardened Web Host (Kestrel Security & Performance)
+// ============================================================================
+builder.AddEnterpriseWebHost();
+
+// ============================================================================
+// Defense in Depth: Antiforgery Protection
+// ============================================================================
+builder.Services.AddAntiforgery();
 
 // ============================================================================
 // Wolverine Message Bus with Transactional Outbox
@@ -169,6 +180,11 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 
 if (app.Environment.IsDevelopment()) app.UseNetCommerceOpenApi();
 
+// ============================================================================
+// Enterprise-Hardened Web Host Middleware
+// ============================================================================
+app.UseEnterpriseWebHost();
+
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthentication();
@@ -188,6 +204,11 @@ app.UseZeroTrustMiddleware();
 // Wolverine's built-in WolverineHub provides WebSocket messaging to browsers.
 // Frontend connects to this endpoint to receive order status updates.
 app.MapWolverineSignalRHub("/api/messages");
+
+// ============================================================================
+// Defense in Depth: Antiforgery Middleware
+// ============================================================================
+app.UseAntiforgery();
 
 // ============================================================================
 // Map Minimal API Endpoints
