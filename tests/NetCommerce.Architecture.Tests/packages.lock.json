@@ -1510,8 +1510,10 @@
           "OpenTelemetry.Instrumentation.AspNetCore": "[1.14.0, )",
           "OpenTelemetry.Instrumentation.EntityFrameworkCore": "[1.11.0-beta.1, )",
           "OpenTelemetry.Instrumentation.Http": "[1.14.0, )",
+          "OpenTelemetry.Instrumentation.Process": "[1.14.0-beta.2, )",
           "OpenTelemetry.Instrumentation.Runtime": "[1.14.0, )",
           "OpenTelemetry.Instrumentation.StackExchangeRedis": "[1.11.0-beta.1, )",
+          "OpenTelemetry.Resources.Process": "[1.14.0-beta.1, )",
           "Polly": "[8.6.5, )",
           "Polly.Extensions": "[8.6.5, )"
         }
@@ -1975,6 +1977,15 @@
           "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.14.0, 2.0.0)"
         }
       },
+      "OpenTelemetry.Instrumentation.Process": {
+        "type": "CentralTransitive",
+        "requested": "[1.14.0-beta.2, )",
+        "resolved": "1.14.0-beta.2",
+        "contentHash": "a3wmmz3Vrby0BIiHxIJifTQqtKREoWKg4yd+tFgi2aiTJ5oq2uYRRL70EuMYCGQHhGFeT2YSN+jonD1U81XoSA==",
+        "dependencies": {
+          "OpenTelemetry.Api": "[1.14.0, 2.0.0)"
+        }
+      },
       "OpenTelemetry.Instrumentation.Runtime": {
         "type": "CentralTransitive",
         "requested": "[1.14.0, )",
@@ -1993,6 +2004,15 @@
           "Microsoft.Extensions.Options": "9.0.0",
           "OpenTelemetry.Api.ProviderBuilderExtensions": "[1.11.1, 2.0.0)",
           "StackExchange.Redis": "[2.6.122, 3.0.0)"
+        }
+      },
+      "OpenTelemetry.Resources.Process": {
+        "type": "CentralTransitive",
+        "requested": "[1.14.0-beta.1, )",
+        "resolved": "1.14.0-beta.1",
+        "contentHash": "Z9SAezCNvz9jdW4lICurxB4KcFkQKftLO6Ep0qwntTUWFd2bUO4rgL2nEBPTGPvdjxTeAK3oBg0GZOx3/ta9+w==",
+        "dependencies": {
+          "OpenTelemetry": "[1.14.0, 2.0.0)"
         }
       },
       "Polly": {
