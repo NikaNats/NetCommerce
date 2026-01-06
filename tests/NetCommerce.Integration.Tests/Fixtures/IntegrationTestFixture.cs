@@ -88,7 +88,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             DbAdapter = DbAdapter.Postgres,
             // Include wolverine schema for outbox tables (wolverine_incoming_envelopes, wolverine_outgoing_envelopes)
             // This prevents test contamination from messages persisted during previous test runs
-            SchemasToInclude = ["catalog", "inventory", "ordering", "payments", "wolverine", "public"],
+            SchemasToInclude = ["catalog", "inventory", "ordering", "payments", "finance", "wolverine", "public"],
             // Never truncate migration history
             TablesToIgnore = ["__EFMigrationsHistory"],
             // Explicitly include wolverine envelope tables to prevent outbox leakage
@@ -164,6 +164,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderHandler).Assembly); // Ordering.Infrastructure
                 opts.Discovery.IncludeAssembly(typeof(CreateStockHandler).Assembly); // Inventory.Infrastructure
                 opts.Discovery.IncludeAssembly(typeof(RefundPaymentTransactionHandler).Assembly); // Payments.Infrastructure
+                opts.Discovery.IncludeAssembly(typeof(NetCommerce.Finance.Infrastructure.Handlers.ReconciliationSchedulerHandler).Assembly); // Finance.Infrastructure
 
                 // Use PostgreSQL persistence with outbox
                 opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
@@ -190,6 +191,21 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                     options.UseNpgsql(PostgresConnectionString));
                 services.AddDbContext<PaymentsDbContext>(options =>
                     options.UseNpgsql(PostgresConnectionString));
+                services.AddDbContext<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>(options =>
+                    options.UseNpgsql(PostgresConnectionString));
+
+                // Register repositories for Finance module
+                services.AddScoped<NetCommerce.Finance.Domain.Reconciliation.IReconciliationSessionRepository,
+                    NetCommerce.Finance.Infrastructure.Persistence.Repositories.ReconciliationSessionRepository>();
+                services.AddScoped<NetCommerce.Payments.Domain.Transactions.IPaymentTransactionRepository,
+                    NetCommerce.Payments.Infrastructure.Persistence.Repositories.PaymentTransactionRepository>();
+
+                // Register UnitOfWork for Finance (needed by ReconciliationEngine)
+                services.AddScoped<NetCommerce.SharedKernel.Domain.IUnitOfWork>(sp =>
+                    sp.GetRequiredService<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>());
+
+                // Register ReconciliationEngine for Finance tests
+                services.AddScoped<NetCommerce.Finance.Application.Services.ReconciliationEngine>();
 
                 // Register mock payment gateway for testing
                 services.AddSingleton<IPaymentGateway, TestPaymentGateway>();
@@ -254,6 +270,15 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         return new PaymentsDbContext(options);
     }
 
+    public NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext CreateFinanceDbContext()
+    {
+        var options = new DbContextOptionsBuilder<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>()
+            .UseNpgsql(PostgresConnectionString)
+            .Options;
+
+        return new NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext(options);
+    }
+
     private async Task InitializeDatabaseAsync()
     {
         // Create schemas first using raw SQL
@@ -265,6 +290,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             CREATE SCHEMA IF NOT EXISTS inventory;
             CREATE SCHEMA IF NOT EXISTS ordering;
             CREATE SCHEMA IF NOT EXISTS payments;
+            CREATE SCHEMA IF NOT EXISTS finance;
             CREATE SCHEMA IF NOT EXISTS wolverine;
         ";
         await cmd.ExecuteNonQueryAsync();
@@ -288,6 +314,11 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await using var paymentsContext = CreatePaymentsDbContext();
         var paymentsCreator = paymentsContext.GetService<IRelationalDatabaseCreator>();
         await paymentsCreator.CreateTablesAsync();
+
+        // Initialize Finance schema
+        await using var financeContext = CreateFinanceDbContext();
+        var financeCreator = financeContext.GetService<IRelationalDatabaseCreator>();
+        await financeCreator.CreateTablesAsync();
     }
 
     /// <summary>

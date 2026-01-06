@@ -257,6 +257,9 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                     services.AddRouting();
                     services.AddAuthorization();
 
+                    // Add distributed cache for token introspection
+                    services.AddDistributedMemoryCache();
+
                     // Configure Zero-Trust auth options
                     services.AddOptions<ZeroTrustAuthOptions>()
                         .Bind(context.Configuration.GetSection("Auth"))
@@ -326,7 +329,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
                         endpoints.MapGet("/api/test/roles", async context =>
                         {
                             var roles = context.User.Claims
-                                .Where(c => c.Type == ClaimTypes.Role)
+                                .Where(c => c.Type == "roles")
                                 .Select(c => c.Value)
                                 .ToList();
                             var permissions = context.User.Claims

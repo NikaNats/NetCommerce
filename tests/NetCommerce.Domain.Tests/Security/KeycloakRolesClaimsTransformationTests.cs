@@ -34,11 +34,11 @@ public class KeycloakRolesClaimsTransformationTests
         // Act
         ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
-        // Assert
-        result.IsInRole("admin").ShouldBeTrue();
-        result.IsInRole("customer").ShouldBeTrue();
-        result.IsInRole("vendor").ShouldBeTrue();
-        result.IsInRole("nonexistent").ShouldBeFalse();
+        // Assert - check that claims with type "roles" are added
+        result.HasClaim("roles", "admin").ShouldBeTrue();
+        result.HasClaim("roles", "customer").ShouldBeTrue();
+        result.HasClaim("roles", "vendor").ShouldBeTrue();
+        result.HasClaim("roles", "nonexistent").ShouldBeFalse();
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class KeycloakRolesClaimsTransformationTests
 
         // Assert
         // Realm role
-        result.IsInRole("admin").ShouldBeTrue();
+        result.HasClaim("roles", "admin").ShouldBeTrue();
         // API client role
         result.HasClaim("permissions", "catalog:read").ShouldBeTrue();
         // Other service role (with namespace prefix)
@@ -142,7 +142,7 @@ public class KeycloakRolesClaimsTransformationTests
         ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
-        result.Claims.Where(c => c.Type == ClaimTypes.Role).ShouldBeEmpty();
+        result.Claims.Where(c => c.Type == "roles").ShouldBeEmpty();
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class KeycloakRolesClaimsTransformationTests
         ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert - should only have one "admin" role claim
-        IEnumerable<Claim> adminClaims = result.Claims.Where(c => c.Type == ClaimTypes.Role && c.Value == "admin");
+        IEnumerable<Claim> adminClaims = result.Claims.Where(c => c.Type == "roles" && c.Value == "admin");
         adminClaims.Count().ShouldBe(1);
     }
 
@@ -195,6 +195,6 @@ public class KeycloakRolesClaimsTransformationTests
         ClaimsPrincipal result = await _transformer.TransformAsync(principal);
 
         // Assert
-        result.IsInRole(roleName).ShouldBeTrue();
+        result.HasClaim("roles", roleName).ShouldBeTrue();
     }
 }

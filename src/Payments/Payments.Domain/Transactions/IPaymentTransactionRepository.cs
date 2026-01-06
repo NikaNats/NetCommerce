@@ -20,4 +20,12 @@ public interface IPaymentTransactionRepository : IRepository<PaymentTransaction,
     Task<IReadOnlyList<PaymentTransaction>> GetPendingPaymentsAsync(
         DateTime olderThan,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get completed payment transactions for a specific date.
+    /// Used by Financial Reconciliation System for comparing internal vs external ledgers.
+    /// </summary>
+    Task<IReadOnlyList<PaymentTransaction>> GetCompletedByDateAsync(
+        DateTime date,
+        CancellationToken cancellationToken = default);
 }

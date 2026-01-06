@@ -85,7 +85,7 @@ public sealed class TokenIntrospectionMiddleware
         IntrospectionResult introspectionResult = await IntrospectTokenAsync(token, authOptions, clientFactory);
 
         // Cache the result
-        if (cache is not null)
+        if (cache is not null && authOptions.IntrospectionCacheSeconds > 0)
         {
             var cacheOptions = new DistributedCacheEntryOptions
             {

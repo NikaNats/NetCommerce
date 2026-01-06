@@ -1290,6 +1290,34 @@
           "WolverineFx": "[5.9.2, )"
         }
       },
+      "finance.application": {
+        "type": "Project",
+        "dependencies": {
+          "Finance.Domain": "[1.0.0, )",
+          "Payments.Domain": "[1.0.0, )",
+          "SharedKernel": "[1.0.0, )",
+          "WolverineFx": "[5.9.2, )"
+        }
+      },
+      "finance.domain": {
+        "type": "Project",
+        "dependencies": {
+          "SharedKernel": "[1.0.0, )"
+        }
+      },
+      "finance.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Finance.Application": "[1.0.0, )",
+          "Finance.Domain": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.1, )",
+          "Payments.Domain": "[1.0.0, )",
+          "Payments.Infrastructure": "[1.0.0, )",
+          "SharedKernel": "[1.0.0, )",
+          "SharedKernel.Infrastructure": "[1.0.0, )",
+          "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
+        }
+      },
       "inventory.application": {
         "type": "Project",
         "dependencies": {

@@ -43,7 +43,7 @@ public class ProductEndpoints : IEndpointGroup
 
         // GET /api/v1/products - Search/List products with pagination and filtering
         group.MapGet("/", Search)
-            .WithName("SearchProducts")
+            .WithName("ListProducts")
             .WithSummary("Search and list products with pagination")
             .WithDescription(
                 "Returns a paginated list of products. Supports filtering by category, price range, and full-text search.")

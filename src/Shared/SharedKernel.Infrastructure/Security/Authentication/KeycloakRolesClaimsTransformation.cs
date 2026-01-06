@@ -23,6 +23,7 @@ public sealed class KeycloakRolesClaimsTransformation : IClaimsTransformation
     private const string RealmAccessClaim = "realm_access";
     private const string ResourceAccessClaim = "resource_access";
     private const string RolesProperty = "roles";
+    private const string RolesClaim = "roles";
     private const string PermissionsClaim = "permissions";
     private const string DefaultApiClientId = "netcommerce-api";
 
@@ -57,7 +58,7 @@ public sealed class KeycloakRolesClaimsTransformation : IClaimsTransformation
 
         try
         {
-            ParseAndAddRoles(identity, realmJson, ClaimTypes.Role);
+            ParseAndAddRoles(identity, realmJson, RolesClaim);
         }
         catch (JsonException)
         {

@@ -72,6 +72,10 @@
     <!-- Media Module -->
     <ProjectReference Include="..\Media\Media.Application\Media.Application.csproj"/>
     <ProjectReference Include="..\Media\Media.Infrastructure\Media.Infrastructure.csproj"/>
+
+    <!-- Finance Module -->
+    <ProjectReference Include="..\Finance\Finance.Application\Finance.Application.csproj"/>
+    <ProjectReference Include="..\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj"/>
   </ItemGroup>
 
 </Project>

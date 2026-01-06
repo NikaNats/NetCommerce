@@ -6,6 +6,8 @@ using NetCommerce.Api.Extensions;
 using NetCommerce.Api.Middleware;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
+using NetCommerce.Finance.Application.Commands;
+using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Ordering.Application.Orders.Commands;
@@ -33,7 +35,8 @@ builder.Host.UseWolverineMessaging(
     typeof(CreateProductCommand),          // Catalog
     typeof(ReserveStockCommand),           // Inventory
     typeof(CreateOrderCommand),            // Ordering
-    typeof(RefundPaymentTransactionCommand)// Payments
+    typeof(RefundPaymentTransactionCommand), // Payments
+    typeof(CheckDailyReconciliation)       // Finance
 );
 
 // ============================================================================
@@ -117,6 +120,11 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 builder.Services.AddApiServicesMinimal(builder.Configuration);
 
 // ============================================================================
+// MVC Controllers (for webhook endpoints)
+// ============================================================================
+builder.Services.AddControllers();
+
+// ============================================================================
 // Module Registration
 // ============================================================================
 builder.Services.AddModules(builder.Configuration);
@@ -142,6 +150,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMig
     await app.Services.ApplyMigrationsAsync<OrderingDbContext>();
     await app.Services.ApplyMigrationsAsync<InventoryDbContext>();
     await app.Services.ApplyMigrationsAsync<PaymentsDbContext>();
+    await app.Services.ApplyMigrationsAsync<FinanceDbContext>();
 }
 
 // ============================================================================
@@ -182,5 +191,10 @@ app.MapWolverineSignalRHub("/api/messages");
 // Map Minimal API Endpoints
 // ============================================================================
 app.MapEndpointGroups();
+
+// ============================================================================
+// Map MVC Controllers
+// ============================================================================
+app.MapControllers();
 
 app.Run();

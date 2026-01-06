@@ -5,8 +5,11 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Amazon.S3;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Payments.Infrastructure.Gateways;
 using NetCommerce.SharedKernel.Application.Notifications;
 using NSubstitute;
@@ -20,17 +23,32 @@ namespace NetCommerce.Integration.Tests.Payments;
 ///     Integration tests for Stripe webhook endpoint.
 ///     Tests the complete webhook-first payment pattern implementation.
 /// </summary>
-[Collection("IntegrationTests")]
-public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(nameof(IntegrationTestCollection))]
+public class PaymentWebhookTests : IntegrationTestBase
 {
     private const string WebhookSecret = "whsec_test_secret";
     private readonly HttpClient _client;
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly WebApplicationFactory<NetCommerce.Api.Endpoints.Payments.PaymentWebhookController> _factory;
 
-    public PaymentWebhookTests(WebApplicationFactory<Program> factory)
+    public PaymentWebhookTests(IntegrationTestFixture fixture) : base(fixture)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
+        _factory = new WebApplicationFactory<NetCommerce.Api.Endpoints.Payments.PaymentWebhookController>().WithWebHostBuilder(builder =>
         {
+            // Set environment to Testing to skip auto-migrations (Program.cs only runs migrations in Development)
+            builder.UseEnvironment("Testing");
+
+            // Disable auto-migrations for tests - IntegrationTestFixture handles database setup
+            builder.UseSetting("AutoMigrate", "false");
+
+            // Set all required connection strings to use TestContainers
+            builder.UseSetting("ConnectionStrings:CatalogDb", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:InventoryDb", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:OrderingDb", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:PaymentsDb", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:FinanceDb", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:postgres", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:Redis", fixture.RedisConnectionString);
+
             builder.ConfigureServices(services =>
             {
                 // Override Stripe configuration with test values
@@ -40,6 +58,9 @@ public class PaymentWebhookTests : IClassFixture<WebApplicationFactory<Program>>
                     options.PublishableKey = "pk_test_mock";
                     options.WebhookSecret = WebhookSecret;
                 });
+
+                // Add distributed cache for TokenIntrospectionMiddleware
+                services.AddDistributedMemoryCache();
 
                 // Register fake S3 service for tests (Media module requires IAmazonS3)
                 services.AddScoped<IAmazonS3>(_ => Substitute.For<IAmazonS3>());

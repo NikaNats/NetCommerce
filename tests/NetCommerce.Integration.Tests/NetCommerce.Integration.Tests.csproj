@@ -41,6 +41,9 @@
     <ProjectReference Include="..\..\src\Payments\Payments.Domain\Payments.Domain.csproj"/>
     <ProjectReference Include="..\..\src\Payments\Payments.Application\Payments.Application.csproj"/>
     <ProjectReference Include="..\..\src\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj"/>
+    <ProjectReference Include="..\..\src\Finance\Finance.Domain\Finance.Domain.csproj"/>
+    <ProjectReference Include="..\..\src\Finance\Finance.Application\Finance.Application.csproj"/>
+    <ProjectReference Include="..\..\src\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Shared\SharedKernel\SharedKernel.csproj"/>
     <ProjectReference Include="..\..\src\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Api\NetCommerce.Api.csproj"/>

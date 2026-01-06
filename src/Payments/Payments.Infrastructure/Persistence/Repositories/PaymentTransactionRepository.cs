@@ -46,4 +46,19 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
             .Take(100) // Limit to prevent overload
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<PaymentTransaction>> GetCompletedByDateAsync(
+        DateTime date,
+        CancellationToken cancellationToken = default)
+    {
+        var startOfDay = date.Date;
+        var endOfDay = startOfDay.AddDays(1);
+
+        return await DbSet
+            .Where(pt => pt.Status == PaymentStatus.Completed &&
+                        pt.CompletedAt >= startOfDay &&
+                        pt.CompletedAt < endOfDay)
+            .OrderBy(pt => pt.CompletedAt)
+            .ToListAsync(cancellationToken);
+    }
 }

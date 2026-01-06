@@ -46,6 +46,11 @@
     <Folder Name="/src/Api/">
         <Project Path="src/Api/NetCommerce.Api.csproj"/>
     </Folder>
+    <Folder Name="/src/Finance/">
+        <Project Path="src/Finance/Finance.Domain/Finance.Domain.csproj"/>
+        <Project Path="src/Finance/Finance.Application/Finance.Application.csproj"/>
+        <Project Path="src/Finance/Finance.Infrastructure/Finance.Infrastructure.csproj"/>
+    </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/NetCommerce.Architecture.Tests/NetCommerce.Architecture.Tests.csproj"/>
         <Project Path="tests/NetCommerce.AppHost.Tests/NetCommerce.AppHost.Tests.csproj"/>

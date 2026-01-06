@@ -2,6 +2,7 @@ using FluentValidation;
 using NetCommerce.Basket.Infrastructure;
 using NetCommerce.Catalog.Application.Products.Validators;
 using NetCommerce.Catalog.Infrastructure;
+using NetCommerce.Finance.Infrastructure;
 using NetCommerce.Inventory.Infrastructure;
 using NetCommerce.Media.Infrastructure;
 using NetCommerce.Ordering.Infrastructure;
@@ -50,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddInventoryModule(configuration);
         services.AddPaymentsModule(configuration);
         services.AddMediaModule(configuration);
+        services.AddFinanceModule();
 
         return services;
     }
