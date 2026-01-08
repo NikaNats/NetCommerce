@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -9,6 +10,7 @@ using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Handlers;
 using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.Catalog.Infrastructure.Persistence;
+using NetCommerce.Finance.Application.Services;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Handlers;
 using NetCommerce.Inventory.Infrastructure.Persistence;
@@ -23,7 +25,10 @@ using NetCommerce.Payments.Infrastructure.Handlers;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using NetCommerce.Kernel.Core.Results;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.EfCore;
 using Npgsql;
+using NSubstitute;
 using Respawn;
 using Respawn.Graph;
 using Testcontainers.PostgreSql;
@@ -181,51 +186,38 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             })
             .ConfigureServices(services =>
             {
-                // Register DbContexts
-                services.AddDbContext<CatalogDbContext>(options =>
-                    options.UseNpgsql(PostgresConnectionString));
+                // 1. Mocks for Interceptors
+                var mockTenantContext = Substitute.For<ITenantContext>();
+                mockTenantContext.TenantId.Returns("test-tenant");
+                mockTenantContext.HasTenant.Returns(true);
+                services.AddSingleton(mockTenantContext);
+
+                var mockUserContext = Substitute.For<IUserContext>();
+                mockUserContext.UserId.Returns("test-user");
+                services.AddSingleton(mockUserContext);
+
+                // 2. Register DbContexts using KERNEL EXTENSIONS (Wires up Interceptors)
+                services.AddKernelEfCore<CatalogDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
+                services.AddKernelEfCore<InventoryDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
+                services.AddKernelEfCore<OrderingDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
+                services.AddKernelEfCore<PaymentsDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
+                services.AddKernelEfCore<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
+
+                // 3. Domain Services & Repositories
                 services.AddScoped<IPriceLookupService, OrderingPriceLookup>();
-                services.AddDbContext<InventoryDbContext>(options =>
-                    options.UseNpgsql(PostgresConnectionString));
-                services.AddDbContext<OrderingDbContext>(options =>
-                    options.UseNpgsql(PostgresConnectionString));
-                services.AddDbContext<PaymentsDbContext>(options =>
-                    options.UseNpgsql(PostgresConnectionString));
-                services.AddDbContext<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>(options =>
-                    options.UseNpgsql(PostgresConnectionString));
-
-                // Register repositories for Finance module
-                services.AddScoped<NetCommerce.Finance.Domain.Reconciliation.IReconciliationSessionRepository,
-                    NetCommerce.Finance.Infrastructure.Persistence.Repositories.ReconciliationSessionRepository>();
-                services.AddScoped<NetCommerce.Payments.Domain.Transactions.IPaymentTransactionRepository,
-                    NetCommerce.Payments.Infrastructure.Persistence.Repositories.PaymentTransactionRepository>();
-
-                // Register UnitOfWork for Finance (needed by ReconciliationEngine)
-                services.AddScoped<NetCommerce.Kernel.Application.IUnitOfWork>(sp =>
-                    sp.GetRequiredService<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>());
-
-                // Register ReconciliationEngine for Finance tests
-                services.AddScoped<NetCommerce.Finance.Application.Services.ReconciliationEngine>();
-
-                // Register mock payment gateway for testing
+                services.AddScoped<NetCommerce.Finance.Domain.Reconciliation.IReconciliationSessionRepository, NetCommerce.Finance.Infrastructure.Persistence.Repositories.ReconciliationSessionRepository>();
+                services.AddScoped<NetCommerce.Payments.Domain.Transactions.IPaymentTransactionRepository, NetCommerce.Payments.Infrastructure.Persistence.Repositories.PaymentTransactionRepository>();
+                services.AddScoped<NetCommerce.Kernel.Application.IUnitOfWork>(sp => sp.GetRequiredService<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>());
+                services.AddScoped<ReconciliationEngine>();
                 services.AddSingleton<IPaymentGateway, TestPaymentGateway>();
 
-                // Register IPromotionEngine (required by CreateOrderHandler)
-                services.AddScoped<NetCommerce.Ordering.Application.Orders.Services.IPromotionEngine,
-                    NetCommerce.Ordering.Infrastructure.Services.SimplePromotionEngine>();
+                services.AddScoped<NetCommerce.Ordering.Application.Orders.Services.IPromotionEngine, NetCommerce.Ordering.Infrastructure.Services.SimplePromotionEngine>();
+                services.AddScoped<ITaxProvider, NetCommerce.Ordering.Infrastructure.Services.LocalTaxProvider>();
 
-                // Register ITaxProvider (required by CreateOrderHandler)
-                services.AddScoped<NetCommerce.Ordering.Domain.Orders.ITaxProvider,
-                    NetCommerce.Ordering.Infrastructure.Services.LocalTaxProvider>();
-
-                // Register fake S3 service for tests (Media module requires IAmazonS3)
-                services.AddScoped<Amazon.S3.IAmazonS3>(_ => NSubstitute.Substitute.For<Amazon.S3.IAmazonS3>());
-
-                // Register OrderNotificationHandler dependencies
-                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>(_ =>
-                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>());
-                services.AddScoped<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>(_ =>
-                    NSubstitute.Substitute.For<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>());
+                // Mocks
+                services.AddScoped(_ => Substitute.For<Amazon.S3.IAmazonS3>());
+                services.AddScoped(_ => Substitute.For<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>());
+                services.AddScoped(_ => Substitute.For<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>());
             });
 
         var host = builder.Build();
@@ -233,57 +225,51 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         return host;
     }
 
-    // DbContext factories
+    // Helper to create scopes for initialization
+    public ScopedDbContext<T> CreateScopedDbContext<T>() where T : DbContext
+    {
+        var scope = Host.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<T>();
+        return new ScopedDbContext<T>(context, scope);
+    }
+
+    // DbContext factories for backward compatibility - return from DI with interceptors
     public CatalogDbContext CreateCatalogDbContext()
     {
-        var options = new DbContextOptionsBuilder<CatalogDbContext>()
-            .UseNpgsql(PostgresConnectionString)
-            .Options;
-
-        return new CatalogDbContext(options);
+        var scope = Host.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
     }
 
     public InventoryDbContext CreateInventoryDbContext()
     {
-        var options = new DbContextOptionsBuilder<InventoryDbContext>()
-            .UseNpgsql(PostgresConnectionString)
-            .Options;
-
-        return new InventoryDbContext(options);
+        var scope = Host.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
     }
 
     public OrderingDbContext CreateOrderingDbContext()
     {
-        var options = new DbContextOptionsBuilder<OrderingDbContext>()
-            .UseNpgsql(PostgresConnectionString)
-            .Options;
-
-        return new OrderingDbContext(options);
+        var scope = Host.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
     }
 
     public PaymentsDbContext CreatePaymentsDbContext()
     {
-        var options = new DbContextOptionsBuilder<PaymentsDbContext>()
-            .UseNpgsql(PostgresConnectionString)
-            .Options;
-
-        return new PaymentsDbContext(options);
+        var scope = Host.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
     }
 
     public NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext CreateFinanceDbContext()
     {
-        var options = new DbContextOptionsBuilder<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>()
-            .UseNpgsql(PostgresConnectionString)
-            .Options;
-
-        return new NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext(options);
+        var scope = Host.Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>();
     }
 
     private async Task InitializeDatabaseAsync()
     {
-        // Create schemas first using raw SQL
         await using var connection = new NpgsqlConnection(PostgresConnectionString);
         await connection.OpenAsync();
+
+        // Create Schemas
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = @"
             CREATE SCHEMA IF NOT EXISTS catalog;
@@ -291,34 +277,21 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             CREATE SCHEMA IF NOT EXISTS ordering;
             CREATE SCHEMA IF NOT EXISTS payments;
             CREATE SCHEMA IF NOT EXISTS finance;
-            CREATE SCHEMA IF NOT EXISTS wolverine;
-        ";
+            CREATE SCHEMA IF NOT EXISTS wolverine;";
         await cmd.ExecuteNonQueryAsync();
 
-        // Initialize Catalog schema
-        await using var catalogContext = CreateCatalogDbContext();
-        var catalogCreator = catalogContext.GetService<IRelationalDatabaseCreator>();
-        await catalogCreator.CreateTablesAsync();
+        // Create Tables
+        await CreateTablesFor<CatalogDbContext>();
+        await CreateTablesFor<InventoryDbContext>();
+        await CreateTablesFor<OrderingDbContext>();
+        await CreateTablesFor<PaymentsDbContext>();
+        await CreateTablesFor<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>();
+    }
 
-        // Initialize Inventory schema
-        await using var inventoryContext = CreateInventoryDbContext();
-        var inventoryCreator = inventoryContext.GetService<IRelationalDatabaseCreator>();
-        await inventoryCreator.CreateTablesAsync();
-
-        // Initialize Ordering schema
-        await using var orderingContext = CreateOrderingDbContext();
-        var orderingCreator = orderingContext.GetService<IRelationalDatabaseCreator>();
-        await orderingCreator.CreateTablesAsync();
-
-        // Initialize Payments schema
-        await using var paymentsContext = CreatePaymentsDbContext();
-        var paymentsCreator = paymentsContext.GetService<IRelationalDatabaseCreator>();
-        await paymentsCreator.CreateTablesAsync();
-
-        // Initialize Finance schema
-        await using var financeContext = CreateFinanceDbContext();
-        var financeCreator = financeContext.GetService<IRelationalDatabaseCreator>();
-        await financeCreator.CreateTablesAsync();
+    private async Task CreateTablesFor<T>() where T : DbContext
+    {
+        using var scoped = CreateScopedDbContext<T>();
+        await scoped.Context.GetService<IRelationalDatabaseCreator>().CreateTablesAsync();
     }
 
     /// <summary>
@@ -338,6 +311,24 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     public TrackedSessionConfiguration StartTrackedSession() => Host.TrackActivity();
 }
 
+public class ScopedDbContext<TContext> : IDisposable where TContext : DbContext
+{
+    public TContext Context { get; }
+    private readonly IServiceScope _scope;
+
+    public ScopedDbContext(TContext context, IServiceScope scope)
+    {
+        Context = context;
+        _scope = scope;
+    }
+
+    public void Dispose()
+    {
+        Context.Dispose();
+        _scope.Dispose();
+    }
+}
+
 /// <summary>
 ///     Collection definition for sharing IntegrationTestFixture across tests.
 /// </summary>
@@ -353,23 +344,35 @@ public class IntegrationTestCollection : ICollectionFixture<IntegrationTestFixtu
 public abstract class IntegrationTestBase : IAsyncLifetime
 {
     protected readonly IntegrationTestFixture Fixture;
+    private IServiceScope _scope = null!;
 
     protected IntegrationTestBase(IntegrationTestFixture fixture)
     {
         Fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    protected IServiceProvider Services => _scope.ServiceProvider;
+
+    public virtual async Task InitializeAsync()
     {
         await Fixture.ResetDatabaseAsync();
-        // Reset test payment gateway configuration for each test
         TestPaymentGateway.Reset();
+
+        // Create a fresh scope for this test execution
+        _scope = Fixture.Host.Services.CreateScope();
     }
 
-    public Task DisposeAsync()
+    public virtual async Task DisposeAsync()
     {
-        return Task.CompletedTask;
+        if (_scope is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync();
+        else
+            _scope.Dispose();
     }
+
+    // Helper to get services from the current test scope
+    protected T GetService<T>() where T : notnull
+        => Services.GetRequiredService<T>();
 }
 
 /// <summary>

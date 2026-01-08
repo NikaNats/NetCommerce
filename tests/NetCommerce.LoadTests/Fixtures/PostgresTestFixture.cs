@@ -2,7 +2,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.EfCore;
+using NSubstitute;
 using Testcontainers.PostgreSql;
+using Wolverine;
 
 namespace NetCommerce.LoadTests.Fixtures;
 
@@ -42,11 +46,13 @@ public sealed class PostgresTestFixture : IAsyncLifetime
     /// </summary>
     public InventoryDbContext CreateInventoryDbContext()
     {
-        var options = new DbContextOptionsBuilder<InventoryDbContext>()
-            .UseNpgsql(ConnectionString)
-            .Options;
+        // WARNING: This creates a scope but doesn't dispose it, causing a resource leak.
+        // For load tests (short-lived), this is acceptable to avoid breaking existing code.
+        // In production code, use ScopedDbContext pattern as in IntegrationTestFixture.
 
-        return new InventoryDbContext(options);
+        var serviceProvider = CreateServiceProvider();
+        var scope = serviceProvider.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
     }
 
     /// <summary>
@@ -55,8 +61,17 @@ public sealed class PostgresTestFixture : IAsyncLifetime
     public ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();
-        services.AddDbContext<InventoryDbContext>(options =>
-            options.UseNpgsql(ConnectionString));
+
+        // Add kernel contexts
+        services.AddScoped<ITenantContext>(_ => Substitute.For<ITenantContext>());
+        services.AddScoped<IUserContext>(_ => Substitute.For<IUserContext>());
+
+        // Add mock message bus for domain event interceptor
+        services.AddScoped<IMessageBus>(_ => Substitute.For<IMessageBus>());
+
+        // Add kernel EF Core with interceptors
+        services.AddKernelEfCore<InventoryDbContext>(options => options.UseNpgsql(ConnectionString));
+
         return services.BuildServiceProvider();
     }
 

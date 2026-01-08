@@ -1,4 +1,5 @@
 #nullable enable
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
@@ -6,37 +7,70 @@ using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Kernel.EfCore;
 
-/// <summary>
-///     Extension methods for registering EF Core kernel services.
-/// </summary>
 public static class EfCoreExtensions
 {
     /// <summary>
-    ///     Registers the universal EF Core kernel services.
+    ///     Registers EF Core with all Kernel interceptors (Audit, Tenant, DomainEvents)
+    ///     and allows configuring the DB Provider options.
     /// </summary>
-    /// <typeparam name="TContext">The DbContext type.</typeparam>
-    public static IServiceCollection AddKernelEfCore<TContext>(this IServiceCollection services)
+    public static IServiceCollection AddKernelEfCore<TContext>(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder> configureOptions)
         where TContext : BaseDbContext
     {
+        // 1. Core Services
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<TContext>());
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<AuditService>();
-        services.AddSingleton<AuditInterceptor>();
+
+        // 2. Register Interceptors (Scoped)
+        services.AddScoped<TenantSaveInterceptor>();
+        services.AddScoped<AuditInterceptor>();
+        services.AddScoped<DomainEventDispatchInterceptor>();
+
+        // 3. Register DbContext with wired-up Interceptors
+        services.AddDbContext<TContext>((sp, options) =>
+        {
+            var tenantInterceptor = sp.GetRequiredService<TenantSaveInterceptor>();
+            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
+            var domainInterceptor = sp.GetRequiredService<DomainEventDispatchInterceptor>();
+
+            // Order matters: Tenant (Data Isolation) -> Audit (Compliance) -> Domain Events (Side Effects)
+            options.AddInterceptors(tenantInterceptor, auditInterceptor, domainInterceptor);
+
+            // Apply specific provider config (Npgsql, Sqlite, etc.)
+            configureOptions(options);
+        });
 
         return services;
     }
 
     /// <summary>
-    ///     Registers the universal EF Core kernel services with a custom audit repository.
+    ///     Overload for custom Audit Repository.
     /// </summary>
-    public static IServiceCollection AddKernelEfCore<TContext, TAuditRepository>(this IServiceCollection services)
+    public static IServiceCollection AddKernelEfCore<TContext, TAuditRepository>(
+        this IServiceCollection services,
+        Action<DbContextOptionsBuilder> configureOptions)
         where TContext : BaseDbContext
         where TAuditRepository : class, IAuditRepository
     {
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<TContext>());
         services.AddScoped<IAuditRepository, TAuditRepository>();
         services.AddScoped<AuditService>();
-        services.AddSingleton<AuditInterceptor>();
+
+        services.AddScoped<TenantSaveInterceptor>();
+        services.AddScoped<AuditInterceptor>();
+        services.AddScoped<DomainEventDispatchInterceptor>();
+
+        services.AddDbContext<TContext>((sp, options) =>
+        {
+            var tenantInterceptor = sp.GetRequiredService<TenantSaveInterceptor>();
+            var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
+            var domainInterceptor = sp.GetRequiredService<DomainEventDispatchInterceptor>();
+
+            options.AddInterceptors(tenantInterceptor, auditInterceptor, domainInterceptor);
+            configureOptions(options);
+        });
 
         return services;
     }

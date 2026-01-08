@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Payments.Domain.Transactions;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Payments.Infrastructure.Persistence;
@@ -8,8 +9,8 @@ public class PaymentsDbContext : BaseDbContext
 {
     public const string Schema = "payments";
 
-    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options)
-        : base(options)
+    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options, ITenantContext tenantContext)
+        : base(options, tenantContext)
     {
     }
 

@@ -6,27 +6,30 @@ using NetCommerce.Kernel.Core.Domain;
 namespace NetCommerce.Kernel.EfCore.Persistence;
 
 /// <summary>
-///     Base DbContext with domain events and audit support.
-///     Implements IUnitOfWork for transactional consistency.
+///     Base DbContext with Tenant Isolation, Audit, and Domain Events.
 /// </summary>
 public abstract class BaseDbContext : DbContext, IUnitOfWork
 {
-    protected BaseDbContext(DbContextOptions options) : base(options)
+    // We inject the TenantContext to use it in Query Filters
+    private readonly ITenantContext _tenantContext;
+
+    protected BaseDbContext(
+        DbContextOptions options,
+        ITenantContext tenantContext) : base(options)
     {
+        _tenantContext = tenantContext;
     }
 
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        // Update audit fields
-        UpdateAuditableEntities();
+    /// <summary>
+    ///     Exposes the current TenantId to the Expression Tree compiler.
+    ///     This property is accessed by the Query Filter lambda.
+    /// </summary>
+    public string? CurrentTenantId => _tenantContext.TenantId;
 
-        // Handle soft deletes
-        UpdateSoftDeletedEntities();
-
-        var result = await base.SaveChangesAsync(cancellationToken);
-
-        return result;
-    }
+    // ---------------------------------------------------------------
+    // REMOVED: SaveChangesAsync override
+    // REASON: Logic moved to AuditInterceptor & TenantSaveInterceptor
+    // ---------------------------------------------------------------
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
@@ -43,38 +46,6 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
         await Database.RollbackTransactionAsync(cancellationToken);
     }
 
-    private void UpdateAuditableEntities()
-    {
-        var entries = ChangeTracker.Entries<IAuditableEntity>();
-        var utcNow = DateTime.UtcNow;
-
-        foreach (var entry in entries)
-        {
-            if (entry.State == EntityState.Added)
-                entry.Entity.CreatedAt = utcNow;
-
-            if (entry.State == EntityState.Modified)
-                entry.Entity.ModifiedAt = utcNow;
-        }
-    }
-
-    private void UpdateSoftDeletedEntities()
-    {
-        var entries = ChangeTracker.Entries<ISoftDelete>();
-        var utcNow = DateTime.UtcNow;
-
-        foreach (var entry in entries)
-        {
-            if (entry.State == EntityState.Deleted)
-            {
-                // Convert hard delete to soft delete
-                entry.State = EntityState.Modified;
-                entry.Entity.DeletedAt = utcNow;
-                // DeletedBy should be set by the caller via SoftDelete(userId)
-            }
-        }
-    }
-
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         // Register the convention
@@ -87,28 +58,7 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
     {
         base.OnModelCreating(modelBuilder);
 
-        // Configure soft delete global query filter
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            if (typeof(ISoftDelete).IsAssignableFrom(entityType.ClrType))
-            {
-                var parameter = System.Linq.Expressions.Expression.Parameter(entityType.ClrType, "e");
-                var property = System.Linq.Expressions.Expression.Property(parameter, nameof(ISoftDelete.DeletedAt));
-                var filter = System.Linq.Expressions.Expression.Lambda(
-                    System.Linq.Expressions.Expression.Equal(property, System.Linq.Expressions.Expression.Constant(null)),
-                    parameter);
-
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(filter);
-            }
-        }
+        // Apply Soft Delete & Multi-Tenancy Filters
+        modelBuilder.ApplyKernelGlobalFilters(this);
     }
-}
-
-/// <summary>
-///     Interface for auditable entities.
-/// </summary>
-public interface IAuditableEntity
-{
-    DateTime CreatedAt { get; set; }
-    DateTime? ModifiedAt { get; set; }
 }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Inventory.Domain.Stock;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Inventory.Infrastructure.Persistence;
@@ -8,8 +9,8 @@ public class InventoryDbContext : BaseDbContext
 {
     public const string Schema = "inventory";
 
-    public InventoryDbContext(DbContextOptions<InventoryDbContext> options)
-        : base(options)
+    public InventoryDbContext(DbContextOptions<InventoryDbContext> options, ITenantContext tenantContext)
+        : base(options, tenantContext)
     {
     }
 

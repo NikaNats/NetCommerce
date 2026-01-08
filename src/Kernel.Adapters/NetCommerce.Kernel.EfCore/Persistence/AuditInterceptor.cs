@@ -1,6 +1,7 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Kernel.EfCore.Persistence;
 

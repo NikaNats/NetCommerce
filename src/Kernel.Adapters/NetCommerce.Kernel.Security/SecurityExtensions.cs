@@ -12,33 +12,32 @@ namespace NetCommerce.Kernel.Security;
 public static class SecurityExtensions
 {
     /// <summary>
-    ///     Registers HTTP-based user context for web applications.
+    ///     Registers HTTP-based tenant context for web applications.
     /// </summary>
-    public static IServiceCollection AddKernelHttpUserContext(this IServiceCollection services)
+    public static IServiceCollection AddKernelHttpTenantContext(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
-        services.AddScoped<IUserContext, HttpUserContext>();
+        services.AddScoped<ITenantContext, HttpTenantContext>();
         return services;
     }
 
     /// <summary>
-    ///     Registers system user context for background services.
+    ///     Registers system tenant context for background services.
     /// </summary>
-    public static IServiceCollection AddKernelSystemUserContext(this IServiceCollection services, string? systemIdentifier = null)
+    public static IServiceCollection AddKernelSystemTenantContext(this IServiceCollection services, string tenantId)
     {
-        services.AddSingleton<IUserContext>(new SystemUserContext(systemIdentifier));
+        services.AddSingleton<ITenantContext>(new SystemTenantContext(tenantId));
         return services;
     }
 
     /// <summary>
-    ///     Registers development user context for testing.
+    ///     Registers development tenant context for testing.
     /// </summary>
-    public static IServiceCollection AddKernelDevelopmentUserContext(
+    public static IServiceCollection AddKernelDevelopmentTenantContext(
         this IServiceCollection services,
-        string userId = "dev_user",
-        string role = "Admin")
+        string tenantId = "dev_tenant")
     {
-        services.AddSingleton<IUserContext>(new DevelopmentUserContext(userId, role));
+        services.AddSingleton<ITenantContext>(new DevelopmentTenantContext(tenantId));
         return services;
     }
 

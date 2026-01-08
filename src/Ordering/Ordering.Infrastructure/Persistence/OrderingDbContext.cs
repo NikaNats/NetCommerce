@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Ordering.Infrastructure.Persistence;
@@ -8,8 +9,8 @@ public class OrderingDbContext : BaseDbContext
 {
     public const string Schema = "ordering";
 
-    public OrderingDbContext(DbContextOptions<OrderingDbContext> options)
-        : base(options)
+    public OrderingDbContext(DbContextOptions<OrderingDbContext> options, ITenantContext tenantContext)
+        : base(options, tenantContext)
     {
     }
 

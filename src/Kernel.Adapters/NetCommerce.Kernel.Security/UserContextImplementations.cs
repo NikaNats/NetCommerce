@@ -52,3 +52,32 @@ public class AnonymousUserContext : IUserContext
     public string? UserAgent { get; init; }
     public bool IsAuthenticated => false;
 }
+
+/// <summary>
+///     System/Background Job tenant context.
+///     Used when running background jobs for a specific tenant.
+/// </summary>
+public class SystemTenantContext : ITenantContext
+{
+    public SystemTenantContext(string tenantId)
+    {
+        TenantId = tenantId;
+    }
+
+    public string? TenantId { get; }
+    public bool HasTenant => !string.IsNullOrEmpty(TenantId);
+}
+
+/// <summary>
+///     Development/Testing stub that simulates a tenant context.
+/// </summary>
+public class DevelopmentTenantContext : ITenantContext
+{
+    public DevelopmentTenantContext(string tenantId = "dev_tenant")
+    {
+        TenantId = tenantId;
+    }
+
+    public string? TenantId { get; }
+    public bool HasTenant => !string.IsNullOrEmpty(TenantId);
+}

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Finance.Infrastructure.Persistence.Configurations;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Finance.Infrastructure.Persistence;
@@ -15,11 +16,19 @@ public class FinanceDbContext : BaseDbContext
 {
     public const string Schema = "finance";
 
-    public FinanceDbContext(DbContextOptions<FinanceDbContext> options) : base(options)
+    public FinanceDbContext(DbContextOptions<FinanceDbContext> options, ITenantContext tenantContext) : base(options, tenantContext)
     {
     }
 
-    public DbSet<ReconciliationSession> ReconciliationSessions { get; set; }
+    // Best Practice: Use expression body for DbSets
+    public DbSet<ReconciliationSession> ReconciliationSessions => Set<ReconciliationSession>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        // Default to NoTracking for performance (Finance is primarily read-only)
+        optionsBuilder.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+        base.OnConfiguring(optionsBuilder);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

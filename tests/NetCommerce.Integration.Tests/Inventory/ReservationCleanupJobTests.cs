@@ -6,8 +6,12 @@ using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.EfCore;
+using NetCommerce.Kernel.Security;
 using NSubstitute;
 using Shouldly;
+using Wolverine;
 
 namespace NetCommerce.Integration.Tests.Inventory;
 
@@ -76,8 +80,16 @@ public class ReservationCleanupJobTests : IntegrationTestBase
     {
         var services = new ServiceCollection();
 
-        // Register DbContext factory
-        services.AddDbContextPool<InventoryDbContext>(options =>
+        // 1. Register Kernel Contexts
+        services.AddSingleton<ITenantContext>(new NetCommerce.Kernel.Security.SystemTenantContext("test-tenant"));
+        services.AddSingleton<IUserContext>(new NetCommerce.Kernel.Security.SystemUserContext());
+
+        // 2. Add mock message bus for domain event interceptor
+        services.AddScoped<IMessageBus>(_ => Substitute.For<IMessageBus>());
+
+        // 3. Register EF Core WITH INTERCEPTORS
+        // Use AddKernelEfCore, not just AddDbContext
+        services.AddKernelEfCore<InventoryDbContext>(options =>
             options.UseNpgsql(Fixture.PostgresConnectionString));
 
         var serviceProvider = services.BuildServiceProvider();
