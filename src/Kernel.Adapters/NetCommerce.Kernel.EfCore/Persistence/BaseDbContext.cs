@@ -75,12 +75,17 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
         }
     }
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Register the convention
+        configurationBuilder.Conventions.Add(_ => new StronglyTypedIdConvention());
+
+        base.ConfigureConventions(configurationBuilder);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        // Configure strongly typed ID converters
-        modelBuilder.ConfigureStronglyTypedIdConverters();
 
         // Configure soft delete global query filter
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
