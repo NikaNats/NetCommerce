@@ -2,6 +2,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using NetCommerce.Kernel.Core.Encryption;
 
 #endregion
 
