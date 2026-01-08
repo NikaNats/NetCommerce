@@ -829,6 +829,15 @@
           "WolverineFx": "5.9.2"
         }
       },
+      "netcommerce.kernel.compliance": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.core": {
+        "type": "Project"
+      },
       "sharedkernel": {
         "type": "Project",
         "dependencies": {

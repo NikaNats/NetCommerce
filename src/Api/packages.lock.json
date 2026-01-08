@@ -1226,6 +1226,7 @@
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
+          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
           "Polly": "[8.6.5, )",
           "Polly.Extensions": "[8.6.5, )",

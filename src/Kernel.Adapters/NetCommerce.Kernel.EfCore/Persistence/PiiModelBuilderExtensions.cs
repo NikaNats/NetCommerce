@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using NetCommerce.Kernel.Compliance.Encryption;
 using NetCommerce.Kernel.Compliance.Pii;
 using NetCommerce.Kernel.EfCore.Converters;
+using NetCommerce.Kernel.Core.Encryption; // Required for typeof(BlindIndex)
 
 namespace NetCommerce.Kernel.EfCore.Persistence;
 
@@ -17,8 +18,8 @@ public static class PiiModelBuilderExtensions
     ///     Automatically applies PiiEncryptionConverter to all properties marked with [PiiSensitive].
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
-    /// <param name="encryptionService">The encryption service to use.</param>
-    public static void ConfigurePiiEncryption(this ModelBuilder modelBuilder, IEncryptionService encryptionService)
+    /// <param name="cryptoProvider">The crypto provider to use for encryption.</param>
+    public static void ConfigurePiiEncryption(this ModelBuilder modelBuilder, ICryptoProvider cryptoProvider)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -29,7 +30,7 @@ public static class PiiModelBuilderExtensions
                 if (piiAttribute is not null && property.ClrType == typeof(string))
                 {
                     // Apply PiiEncryptionConverter
-                    var converter = new PiiEncryptionConverter(encryptionService, piiAttribute.IsDeterministic);
+                    var converter = new PiiEncryptionConverter(cryptoProvider, piiAttribute.IsDeterministic);
                     property.SetValueConverter(converter);
 
                     // Configure blind index if specified
@@ -41,7 +42,18 @@ public static class PiiModelBuilderExtensions
 
                         if (blindIndexProperty is not null)
                         {
-                            blindIndexProperty.SetValueConverter(new BlindIndexConverter());
+                            // FIX: Safety check to prevent crashing if user defined property as 'string'
+                            if (blindIndexProperty.ClrType == typeof(NetCommerce.Kernel.Core.Encryption.BlindIndex))
+                            {
+                                blindIndexProperty.SetValueConverter(new BlindIndexValueConverter());
+                            }
+                            else
+                            {
+                                // Optional: Log warning or throw specific error
+                                // For now, we skip or throw to enforce type safety
+                                throw new InvalidOperationException(
+                                    $"Blind Index property '{blindIndexProperty.Name}' on '{entityType.Name}' must be of type 'NetCommerce.Kernel.Core.Encryption.BlindIndex'. Found: '{blindIndexProperty.ClrType.Name}'.");
+                            }
                         }
                     }
                 }
@@ -51,18 +63,18 @@ public static class PiiModelBuilderExtensions
 
     /// <summary>
     ///     Automatically applies PiiEncryptionConverter to all properties marked with [PiiSensitive].
-    ///     Resolves IEncryptionService from the service provider.
+    ///     Resolves ICryptoProvider from the service provider.
     /// </summary>
     public static void ConfigurePiiEncryption(this ModelBuilder modelBuilder, IServiceProvider serviceProvider)
     {
-        var encryptionService = serviceProvider.GetService(typeof(IEncryptionService)) as IEncryptionService;
+        var cryptoProvider = serviceProvider.GetService(typeof(ICryptoProvider)) as ICryptoProvider;
 
-        if (encryptionService is null)
+        if (cryptoProvider is null)
         {
             throw new InvalidOperationException(
-                "IEncryptionService not registered. Call services.AddSingleton<IEncryptionService, YourImplementation>() first.");
+                "ICryptoProvider not registered. Call services.AddEnterpriseEncryption() first.");
         }
 
-        modelBuilder.ConfigurePiiEncryption(encryptionService);
+        modelBuilder.ConfigurePiiEncryption(cryptoProvider);
     }
 }

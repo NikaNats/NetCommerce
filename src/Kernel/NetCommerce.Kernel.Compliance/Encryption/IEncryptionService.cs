@@ -10,35 +10,37 @@ namespace NetCommerce.Kernel.Compliance.Encryption;
 public interface IKeyManagementService
 {
     /// <summary>
-    ///     Generates a new Data Encryption Key (DEK) for a specific customer/record.
-    ///     Returns: Plaintext DEK (use immediately), Encrypted DEK (persist with data)
+    ///     Decrypts the Data Encryption Key (DEK) using the Cloud Master Key.
+    ///     This is the SLOW HTTP call.
     /// </summary>
-    Task<(byte[] PlaintextDek, byte[] EncryptedDek)> GenerateDataKeyAsync(
-        string keyId,
-        CancellationToken cancellationToken = default);
+    Task<byte[]> UnwrapKeyAsync(string encryptedDekBase64, CancellationToken ct = default);
 
     /// <summary>
-    ///     Decrypts a Data Encryption Key (DEK) using the Master Key (KEK).
+    ///     Gets the currently active Encrypted DEK (usually from config or DB).
     /// </summary>
-    Task<byte[]> DecryptDataKeyAsync(
-        string keyId,
-        byte[] encryptedDek,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    ///     Gets the current (active) Master Key ID for encrypting new data.
-    /// </summary>
-    Task<string> GetCurrentKeyIdAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    ///     Validates that a key ID exists and is active.
-    /// </summary>
-    Task<bool> ValidateKeyIdAsync(string keyId, CancellationToken cancellationToken = default);
+    Task<string> GetActiveEncryptedDekAsync(CancellationToken ct = default);
 }
 
 /// <summary>
 /// The "How" - Business logic for performing encryption.
 /// Implementation will reside in Infrastructure/Adapters.
+/// </summary>
+public interface ICryptoProvider
+{
+    // Fast, synchronous, allocation-free (where possible)
+    NetCommerce.Kernel.Core.Encryption.EncryptedData Encrypt(ReadOnlySpan<char> plaintext, bool isDeterministic = false);
+    string Decrypt(NetCommerce.Kernel.Core.Encryption.EncryptedData data);
+
+    /// <summary>
+    ///     Computes the Blind Index (HMAC-SHA256) for searching.
+    ///     Must be deterministic (Same Input + Same Salt = Same Output).
+    /// </summary>
+    NetCommerce.Kernel.Core.Encryption.BlindIndex ComputeBlindIndex(ReadOnlySpan<char> plaintext);
+}
+
+/// <summary>
+/// Legacy interface - kept for backward compatibility.
+/// New implementations should use ICryptoProvider for performance.
 /// </summary>
 public interface IEncryptionService
 {
