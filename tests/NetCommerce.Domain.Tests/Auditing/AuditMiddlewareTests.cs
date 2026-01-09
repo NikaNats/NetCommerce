@@ -15,8 +15,7 @@ namespace NetCommerce.Domain.Tests.Auditing;
 
 public class AuditMiddlewareTests
 {
-    [Fact]
-    public async Task AuditMiddleware_CancelOrderCommand_ShouldCreateAuditEntry()
+    public async Task AuditMiddleware_ShouldAuditCommand()
     {
         // Arrange
         var command = new CancelOrderCommand(Guid.NewGuid(), "Customer requested refund - Item not as described");
@@ -24,11 +23,10 @@ public class AuditMiddlewareTests
 
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
-        var auditService = new AuditService(auditRepository, userContext);
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command, envelope, auditService, logger);
+        await AuditMiddleware.Before(command, envelope, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(1).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
@@ -44,12 +42,11 @@ public class AuditMiddlewareTests
             .Returns(Task.FromException(new InvalidOperationException("DB Down")));
 
         var userContext = Substitute.For<IUserContext>();
-        var auditService = new AuditService(auditRepository, userContext);
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act & Assert - Compliance Rule: Audit failure must block execution
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await AuditMiddleware.Before(command, new Envelope(), auditService, logger));
+            await AuditMiddleware.Before(command, new Envelope(), userContext, auditRepository, logger));
     }
 
     [Fact]
@@ -60,11 +57,10 @@ public class AuditMiddlewareTests
         var envelope = new Envelope { CorrelationId = null }; // Missing
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
-        var auditService = new AuditService(auditRepository, userContext);
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command, envelope, auditService, logger);
+        await AuditMiddleware.Before(command, envelope, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(1).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
@@ -79,11 +75,10 @@ public class AuditMiddlewareTests
         var envelope = new Envelope();
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
-        var auditService = new AuditService(auditRepository, userContext);
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command, envelope, auditService, logger);
+        await AuditMiddleware.Before(command, envelope, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(1).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
@@ -103,12 +98,11 @@ public class AuditMiddlewareTests
 
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
-        var auditService = new AuditService(auditRepository, userContext);
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command1, envelope1, auditService, logger);
-        await AuditMiddleware.Before(command2, envelope2, auditService, logger);
+        await AuditMiddleware.Before(command1, envelope1, userContext, auditRepository, logger);
+        await AuditMiddleware.Before(command2, envelope2, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(2).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());

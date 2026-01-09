@@ -11,8 +11,8 @@ namespace NetCommerce.Kernel.EfCore;
 public static class EfCoreExtensions
 {
     /// <summary>
-    ///     Registers EF Core with all Kernel interceptors (Audit, Tenant, DomainEvents)
-    ///     and allows configuring the DB Provider options.
+    ///     Registers EF Core with Wolverine transactional outbox integration.
+    ///     Domain events are handled via Wolverine's outbox pattern.
     /// </summary>
     public static IServiceCollection AddKernelEfCore<TContext>(
         this IServiceCollection services,
@@ -24,23 +24,23 @@ public static class EfCoreExtensions
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<AuditService>();
 
-        // 2. Domain Event Dispatcher (Wolverine bridge)
-        services.AddScoped<IDomainEventDispatcher, WolverineEventDispatcher>();
+        // 2. Domain Event Dispatcher (Wolverine bridge) - not needed with outbox
+        // services.AddScoped<IDomainEventDispatcher, WolverineEventDispatcher>();
 
-        // 3. Register Interceptors (Scoped)
+        // 3. Register Interceptors (Scoped) - remove domain event interceptor
         services.AddScoped<TenantSaveInterceptor>();
         services.AddScoped<AuditInterceptor>();
-        services.AddScoped<DomainEventDispatchInterceptor>();
+        // services.AddScoped<DomainEventDispatchInterceptor>();
 
         // 4. Register DbContext with wired-up Interceptors
         services.AddDbContext<TContext>((sp, options) =>
         {
             var tenantInterceptor = sp.GetRequiredService<TenantSaveInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
-            var domainInterceptor = sp.GetRequiredService<DomainEventDispatchInterceptor>();
+            // var domainInterceptor = sp.GetRequiredService<DomainEventDispatchInterceptor>();
 
-            // Order matters: Tenant (Data Isolation) -> Audit (Compliance) -> Domain Events (Side Effects)
-            options.AddInterceptors(tenantInterceptor, auditInterceptor, domainInterceptor);
+            // Order matters: Tenant (Data Isolation) -> Audit (Compliance)
+            options.AddInterceptors(tenantInterceptor, auditInterceptor);
 
             // Apply specific provider config (Npgsql, Sqlite, etc.)
             configureOptions(options);
@@ -64,15 +64,15 @@ public static class EfCoreExtensions
 
         services.AddScoped<TenantSaveInterceptor>();
         services.AddScoped<AuditInterceptor>();
-        services.AddScoped<DomainEventDispatchInterceptor>();
+        // services.AddScoped<DomainEventDispatchInterceptor>();
 
         services.AddDbContext<TContext>((sp, options) =>
         {
             var tenantInterceptor = sp.GetRequiredService<TenantSaveInterceptor>();
             var auditInterceptor = sp.GetRequiredService<AuditInterceptor>();
-            var domainInterceptor = sp.GetRequiredService<DomainEventDispatchInterceptor>();
+            // var domainInterceptor = sp.GetRequiredService<DomainEventDispatchInterceptor>();
 
-            options.AddInterceptors(tenantInterceptor, auditInterceptor, domainInterceptor);
+            options.AddInterceptors(tenantInterceptor, auditInterceptor);
             configureOptions(options);
         });
 

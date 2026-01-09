@@ -19,26 +19,26 @@ public static class AuditMiddleware
     /// </summary>
     /// <param name="command">The message being handled</param>
     /// <param name="envelope">The wolverine metadata wrapper</param>
-    /// <param name="auditService">Injected automatically from the Scoped container</param>
+    /// <param name="userContext">Injected user context</param>
+    /// <param name="auditRepository">Injected audit repository</param>
     /// <param name="logger">Standard ILogger</param>
     public static async Task Before(
         AuditCommand command,
         Envelope envelope,
-        AuditService auditService,
+        IUserContext userContext,
+        IAuditRepository auditRepository,
         ILogger<AuditEntry> logger)
     {
         try
         {
-            // The correlation ID is natively tracked by Wolverine
-            var correlationId = envelope.CorrelationId ?? Guid.NewGuid().ToString();
-
-            await auditService.AuditAsync(command, correlationId);
+            var auditService = new AuditService(auditRepository, userContext);
+            // Use the built-in CorrelationId from the envelope
+            await auditService.AuditAsync(command, envelope.CorrelationId ?? Guid.NewGuid().ToString());
         }
         catch (Exception ex)
         {
-            // CRITICAL: Decide on the 'Railway' failure strategy.
-            // For legal compliance, we fail the entire handler if the audit log fails.
-            logger.LogError(ex, "Compliance failure: Audit logging failed for {MessageType}", command.GetType().Name);
+            // For legal compliance, we fail the operation if auditing fails
+            logger.LogError(ex, "Audit logging failed for {MessageType}", command.GetType().Name);
             throw;
         }
     }

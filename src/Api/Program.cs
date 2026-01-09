@@ -18,6 +18,8 @@ using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Kernel.Security;
 using NetCommerce.SharedKernel.Infrastructure.Kestrel;
+using Wolverine;
+using NetCommerce.Kernel.EfCore.Persistence;
 using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
 using Wolverine.SignalR;
@@ -52,6 +54,9 @@ builder.Host.UseWolverineMessaging(
     typeof(RefundPaymentTransactionCommand), // Payments
     typeof(CheckDailyReconciliation)       // Finance
 );
+
+// Configure Wolverine options
+builder.Services.Configure<WolverineOptions>(opts => opts.ConfigureKernelDefaults<BaseDbContext>());
 
 // ============================================================================
 // Problem Details for consistent error responses

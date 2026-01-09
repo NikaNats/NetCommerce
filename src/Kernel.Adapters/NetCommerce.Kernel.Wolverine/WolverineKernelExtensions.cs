@@ -1,6 +1,8 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -38,11 +40,6 @@ public static class WolverineKernelExtensions
         // Wolverine is smart enough to only apply AuditMiddleware
         // to messages implementing IAuditableCommand.
         opts.Policies.AddMiddleware(typeof(AuditMiddleware));
-        opts.Policies.AddMiddleware(typeof(LoggingMiddleware));
-
-        // 4. Optimization: Sequential Handling per Tenant/Group
-        // Prevents concurrency race conditions on the same entity.
-        opts.MessagePartitioning.UseInferredMessageGrouping();
 
         return opts;
     }

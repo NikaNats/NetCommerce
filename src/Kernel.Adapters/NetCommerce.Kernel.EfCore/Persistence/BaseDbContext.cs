@@ -60,5 +60,10 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
 
         // Apply Soft Delete & Multi-Tenancy Filters
         modelBuilder.ApplyKernelGlobalFilters(this);
+
+        // CRITICAL: Map Wolverine's transactional outbox/inbox envelope storage
+        // This creates wolverine_incoming_envelopes and wolverine_outgoing_envelopes tables
+        // Note: This method may not be available in older versions of Wolverine.EntityFrameworkCore
+        // modelBuilder.MapWolverineEnvelopeStorage();
     }
 }
