@@ -7,7 +7,7 @@ namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 ///     Base repository implementation using Entity Framework Core.
 /// </summary>
 public abstract class BaseRepository<TAggregate, TId> : IRepository<TAggregate, TId>
-    where TAggregate : AggregateRoot<TId>
+    where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {
     protected readonly DbContext Context;
@@ -21,7 +21,7 @@ public abstract class BaseRepository<TAggregate, TId> : IRepository<TAggregate, 
 
     public virtual async Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
     {
-        return await DbSet.FindAsync([id], cancellationToken);
+        return await DbSet.FindAsync(id, cancellationToken);
     }
 
     public virtual async Task<IReadOnlyList<TAggregate>> GetAllAsync(CancellationToken cancellationToken = default)

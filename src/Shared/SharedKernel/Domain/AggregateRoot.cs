@@ -3,7 +3,7 @@ namespace NetCommerce.SharedKernel.Domain;
 /// <summary>
 ///     Base class for aggregate roots with optimistic concurrency support.
 /// </summary>
-public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot where TId : notnull
+public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot<TId> where TId : notnull
 {
     protected AggregateRoot()
     {
@@ -25,12 +25,4 @@ public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot where TId
     {
         AddDomainEvent(domainEvent);
     }
-}
-
-/// <summary>
-///     Marker interface for aggregate roots.
-/// </summary>
-public interface IAggregateRoot
-{
-    uint Version { get; }
 }

@@ -21,6 +21,14 @@ public class TopologyTests
         appHost.Configuration["Logging:LogLevel:Microsoft"] = "Warning";
         appHost.Configuration["Logging:LogLevel:Aspire"] = "Warning";
 
+        // Disable DCP (Docker Compose Protocol) and related services to prevent background service failures in test environment
+        appHost.Configuration["Dcp:Enabled"] = "false";
+        appHost.Configuration["Dcp:ContainerRuntime"] = "none";
+        appHost.Configuration["Dcp:Orchestrator:Enabled"] = "false";
+
+        // Configure background service exception behavior to ignore failures instead of stopping the host
+        appHost.Configuration["HostOptions:BackgroundServiceExceptionBehavior"] = "Ignore";
+
         // Mock the secret parameter "PostgresPassword" to prevent build errors
         appHost.Configuration["Parameters:PostgresPassword"] = "test-password";
 
@@ -96,6 +104,14 @@ public class TopologyTests
         appHost.Configuration["Logging:LogLevel:Default"] = "Warning";
         appHost.Configuration["Logging:LogLevel:Microsoft"] = "Warning";
         appHost.Configuration["Logging:LogLevel:Aspire"] = "Warning";
+
+        // Disable DCP (Docker Compose Protocol) and related services to prevent background service failures in test environment
+        appHost.Configuration["Dcp:Enabled"] = "false";
+        appHost.Configuration["Dcp:ContainerRuntime"] = "none";
+        appHost.Configuration["Dcp:Orchestrator:Enabled"] = "false";
+
+        // Configure background service exception behavior to ignore failures instead of stopping the host
+        appHost.Configuration["HostOptions:BackgroundServiceExceptionBehavior"] = "Ignore";
 
         appHost.Configuration["Parameters:PostgresPassword"] = "test-password";
 

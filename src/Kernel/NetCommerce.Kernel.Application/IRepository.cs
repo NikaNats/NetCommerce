@@ -7,7 +7,7 @@ namespace NetCommerce.Kernel.Application;
 ///     Generic repository interface for aggregate roots.
 /// </summary>
 public interface IRepository<TAggregate, TId>
-    where TAggregate : AggregateRoot<TId>
+    where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {
     Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
@@ -21,7 +21,7 @@ public interface IRepository<TAggregate, TId>
 ///     Read-only repository interface for query operations.
 /// </summary>
 public interface IReadOnlyRepository<TAggregate, TId>
-    where TAggregate : AggregateRoot<TId>
+    where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {
     Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);

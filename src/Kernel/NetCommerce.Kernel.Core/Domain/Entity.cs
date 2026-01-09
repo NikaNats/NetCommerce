@@ -13,7 +13,7 @@ public interface IHasDomainEvents
 /// <summary>
 ///     Base class for all domain entities with identity and domain events support.
 /// </summary>
-public abstract class Entity<TId> : IEquatable<Entity<TId>>, IHasDomainEvents where TId : notnull
+public abstract class Entity<TId> : IEquatable<Entity<TId>>, IHasDomainEvents, IEntity<TId> where TId : notnull
 {
     private readonly List<IDomainEvent> _domainEvents = [];
 

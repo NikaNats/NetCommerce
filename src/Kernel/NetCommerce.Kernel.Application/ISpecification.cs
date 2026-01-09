@@ -104,7 +104,7 @@ public abstract class Specification<T> : ISpecification<T> where T : class
 ///     Repository interface with specification support.
 /// </summary>
 public interface ISpecificationRepository<TAggregate, TId>
-    where TAggregate : AggregateRoot<TId>
+    where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {
     Task<TAggregate?> GetBySpecAsync(ISpecification<TAggregate> specification, CancellationToken cancellationToken = default);

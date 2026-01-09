@@ -65,7 +65,7 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
 
         // Configure rowversion for all aggregate roots (optimistic concurrency)
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-            if (typeof(IAggregateRoot).IsAssignableFrom(entityType.ClrType))
+            if (entityType.ClrType.IsAssignableTo(typeof(AggregateRoot<>)))
                 modelBuilder.Entity(entityType.ClrType)
                     .Property<uint>("Version")
                     .IsRowVersion();
