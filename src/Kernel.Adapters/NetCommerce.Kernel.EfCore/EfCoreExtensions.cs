@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.Kernel.EfCore.Persistence;
+using NetCommerce.Kernel.Wolverine;
 
 namespace NetCommerce.Kernel.EfCore;
 
@@ -23,12 +24,15 @@ public static class EfCoreExtensions
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<AuditService>();
 
-        // 2. Register Interceptors (Scoped)
+        // 2. Domain Event Dispatcher (Wolverine bridge)
+        services.AddScoped<IDomainEventDispatcher, WolverineEventDispatcher>();
+
+        // 3. Register Interceptors (Scoped)
         services.AddScoped<TenantSaveInterceptor>();
         services.AddScoped<AuditInterceptor>();
         services.AddScoped<DomainEventDispatchInterceptor>();
 
-        // 3. Register DbContext with wired-up Interceptors
+        // 4. Register DbContext with wired-up Interceptors
         services.AddDbContext<TContext>((sp, options) =>
         {
             var tenantInterceptor = sp.GetRequiredService<TenantSaveInterceptor>();

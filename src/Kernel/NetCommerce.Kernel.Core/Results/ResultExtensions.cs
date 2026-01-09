@@ -1,4 +1,5 @@
 #nullable enable
+
 namespace NetCommerce.Kernel.Core.Results;
 
 /// <summary>

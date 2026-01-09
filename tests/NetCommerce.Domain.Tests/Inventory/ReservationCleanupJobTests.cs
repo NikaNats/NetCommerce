@@ -30,42 +30,47 @@ public class ReservationCleanupJobTests : IDisposable
     private ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();
-        
+
         // Register mock tenant context for testing
         var mockTenantContext = Substitute.For<NetCommerce.Kernel.Application.ITenantContext>();
         mockTenantContext.TenantId.Returns("test-tenant");
         mockTenantContext.HasTenant.Returns(true);
         services.AddSingleton(mockTenantContext);
-        
+
         // Register mock user context
         var mockUserContext = Substitute.For<NetCommerce.Kernel.Application.IUserContext>();
         services.AddSingleton(mockUserContext);
-        
+
         // Register mock audit repository
         var mockAuditRepository = Substitute.For<NetCommerce.Kernel.Compliance.Audit.IAuditRepository>();
         services.AddSingleton(mockAuditRepository);
-        
+
         // Register mock message bus for domain events
         var mockMessageBus = Substitute.For<Wolverine.IMessageBus>();
         services.AddSingleton(mockMessageBus);
-        
+
+        // Register domain event dispatcher
+        services.AddSingleton<NetCommerce.Kernel.Application.IDomainEventDispatcher>(
+            sp => new NetCommerce.Kernel.Wolverine.WolverineEventDispatcher(
+                sp.GetRequiredService<Wolverine.IMessageBus>()));
+
         // Register interceptors
         services.AddScoped<NetCommerce.Kernel.EfCore.Persistence.TenantSaveInterceptor>();
         services.AddScoped<NetCommerce.Kernel.EfCore.Persistence.AuditInterceptor>();
         services.AddScoped<NetCommerce.Kernel.EfCore.Persistence.DomainEventDispatchInterceptor>();
-        
+
         // Register DbContext with interceptors
         services.AddDbContext<InventoryDbContext>((sp, options) =>
         {
             options.UseSqlite(_connection);
-            
+
             var tenantInterceptor = sp.GetRequiredService<NetCommerce.Kernel.EfCore.Persistence.TenantSaveInterceptor>();
             var auditInterceptor = sp.GetRequiredService<NetCommerce.Kernel.EfCore.Persistence.AuditInterceptor>();
             var domainInterceptor = sp.GetRequiredService<NetCommerce.Kernel.EfCore.Persistence.DomainEventDispatchInterceptor>();
-            
+
             options.AddInterceptors(tenantInterceptor, auditInterceptor, domainInterceptor);
         });
-        
+
         return services.BuildServiceProvider();
     }
 

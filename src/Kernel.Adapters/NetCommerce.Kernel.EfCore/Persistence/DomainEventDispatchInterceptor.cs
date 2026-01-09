@@ -1,22 +1,23 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
-using Wolverine;
 
 namespace NetCommerce.Kernel.EfCore.Persistence;
 
 /// <summary>
-///     EF Core interceptor for automatic domain event dispatching via Wolverine.
+///     EF Core interceptor for automatic domain event dispatching.
 ///     Publishes domain events after SaveChanges completes successfully.
+///     Uses abstraction to avoid direct dependency on messaging infrastructure.
 /// </summary>
 public sealed class DomainEventDispatchInterceptor : SaveChangesInterceptor
 {
-    private readonly IMessageBus _messageBus;
+    private readonly IDomainEventDispatcher _dispatcher;
 
-    public DomainEventDispatchInterceptor(IMessageBus messageBus)
+    public DomainEventDispatchInterceptor(IDomainEventDispatcher dispatcher)
     {
-        _messageBus = messageBus;
+        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
     }
 
     public override async ValueTask<int> SavedChangesAsync(
@@ -34,14 +35,8 @@ public sealed class DomainEventDispatchInterceptor : SaveChangesInterceptor
 
     public override int SavedChanges(SaveChangesCompletedEventData eventData, int result)
     {
-        if (eventData.Context is not null)
-        {
-            DispatchDomainEventsAsync(eventData.Context, CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-        }
-
-        return base.SavedChanges(eventData, result);
+        // Microsoft Internal Guideline: Prevent synchronous IO in async-first infrastructures
+        throw new InvalidOperationException("Use SaveChangesAsync when using the Domain Event Interceptor to prevent deadlocks.");
     }
 
     private async Task DispatchDomainEventsAsync(DbContext context, CancellationToken cancellationToken)
@@ -62,10 +57,10 @@ public sealed class DomainEventDispatchInterceptor : SaveChangesInterceptor
             aggregate.ClearDomainEvents();
         }
 
-        // Publish all domain events via Wolverine
+        // Publish all domain events via the abstracted dispatcher
         foreach (var domainEvent in domainEvents)
         {
-            await _messageBus.PublishAsync(domainEvent);
+            await _dispatcher.DispatchAsync(domainEvent);
         }
     }
 }

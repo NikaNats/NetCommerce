@@ -70,6 +70,17 @@ public class PaymentWebhookTests : IntegrationTestBase
                     Substitute.For<IEmailProvider>());
                 services.AddScoped<ITemplateEngine>(_ =>
                     Substitute.For<ITemplateEngine>());
+
+                // Register mocked ITenantContext (required by DbContexts)
+                var mockTenantContext = Substitute.For<NetCommerce.Kernel.Application.ITenantContext>();
+                mockTenantContext.TenantId.Returns("test-tenant");
+                mockTenantContext.HasTenant.Returns(true);
+                services.AddSingleton(mockTenantContext);
+
+                // Register mocked IUserContext
+                var mockUserContext = Substitute.For<NetCommerce.Kernel.Application.IUserContext>();
+                mockUserContext.UserId.Returns("test-user");
+                services.AddSingleton(mockUserContext);
             });
         });
         _client = _factory.CreateClient();

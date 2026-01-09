@@ -1,5 +1,6 @@
 #nullable enable
 using Asp.Versioning.Builder; // Required for ApiVersionSet
+using System.Reflection;
 
 namespace NetCommerce.Api.Endpoints;
 
@@ -37,8 +38,28 @@ public static class EndpointExtensions
 
     public static IEndpointRouteBuilder MapAllEndpoints(this IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
-        var endpointTypes = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(s => s.GetTypes())
+        // REFINED: Don't scan the whole world - default to executing assembly only
+        return app.MapAllEndpoints(versionSet, Assembly.GetExecutingAssembly());
+    }
+
+    public static IEndpointRouteBuilder MapAllEndpoints(this IEndpointRouteBuilder app, ApiVersionSet versionSet, params Assembly[] assemblies)
+    {
+        // If no assemblies provided, default to the entry assembly only
+        var targetAssemblies = assemblies.Length > 0 ? assemblies : [Assembly.GetExecutingAssembly()];
+
+        var endpointTypes = targetAssemblies
+            .SelectMany(s =>
+            {
+                try
+                {
+                    return s.GetTypes();
+                }
+                catch (ReflectionTypeLoadException)
+                {
+                    // Skip assemblies that fail to load types (e.g., Microsoft.Build)
+                    return Array.Empty<Type>();
+                }
+            })
             .Where(t => t.IsAssignableTo(typeof(IEndpoint)) && t is { IsInterface: false, IsAbstract: false });
 
         foreach (var endpointType in endpointTypes)
