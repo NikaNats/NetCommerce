@@ -1,5 +1,6 @@
 #nullable enable
 using System.Text.Json;
+using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Kernel.Compliance.Audit;
 

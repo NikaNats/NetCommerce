@@ -829,9 +829,16 @@
           "WolverineFx": "5.9.2"
         }
       },
+      "netcommerce.kernel.application": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
       "netcommerce.kernel.compliance": {
         "type": "Project",
         "dependencies": {
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
@@ -844,6 +851,7 @@
           "FluentValidation": "[12.1.1, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.SignalR": "[5.9.2, )"
         }

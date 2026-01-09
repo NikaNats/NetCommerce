@@ -5,7 +5,7 @@ using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;
-using AuditUserContext = NetCommerce.Kernel.Compliance.Audit.IUserContext;
+using AuditUserContext = NetCommerce.Kernel.Application.IUserContext;
 
 #endregion
 

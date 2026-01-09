@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore"/>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
     <PackageReference Include="WolverineFx.SignalR"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
   </ItemGroup>
 
 </Project>

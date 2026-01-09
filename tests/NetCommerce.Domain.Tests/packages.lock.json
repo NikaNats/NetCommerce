@@ -1378,6 +1378,7 @@
       "netcommerce.kernel.compliance": {
         "type": "Project",
         "dependencies": {
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
@@ -1460,6 +1461,7 @@
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.SignalR": "[5.9.2, )"
         }

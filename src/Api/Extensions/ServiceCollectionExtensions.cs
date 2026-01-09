@@ -7,7 +7,6 @@ using NetCommerce.Inventory.Infrastructure;
 using NetCommerce.Media.Infrastructure;
 using NetCommerce.Ordering.Infrastructure;
 using NetCommerce.Payments.Infrastructure;
-using NetCommerce.SharedKernel.Infrastructure;
 
 namespace NetCommerce.Api.Extensions;
 
@@ -30,9 +29,6 @@ public static class ServiceCollectionExtensions
                     .AllowAnyHeader();
             });
         });
-
-        // Date/Time provider for testability
-        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
         // FluentValidation - Wolverine uses this via WolverineFx.FluentValidation middleware
         services.AddValidatorsFromAssemblyContaining<CreateProductCommandValidator>();

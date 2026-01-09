@@ -3,7 +3,7 @@ using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
 using AuditCommand = NetCommerce.Kernel.Compliance.Audit.IAuditableCommand;
 using AuditRepository = NetCommerce.Kernel.Compliance.Audit.IAuditRepository;
-using AuditContext = NetCommerce.Kernel.Compliance.Audit.IUserContext;
+using AuditContext = NetCommerce.Kernel.Application.IUserContext;
 using AuditService = NetCommerce.Kernel.Compliance.Audit.AuditService;
 using Wolverine;
 
