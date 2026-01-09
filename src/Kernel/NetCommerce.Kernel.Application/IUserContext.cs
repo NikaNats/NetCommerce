@@ -1,39 +1,46 @@
 #nullable enable
+using System.Security.Claims;
+
 namespace NetCommerce.Kernel.Application;
 
 /// <summary>
-///     User context service for extracting claims from JWT tokens or other authentication mechanisms.
-///     Provides WHO is performing the action for audit logging and authorization.
+///     High-performance, Claims-based User Context.
+///     Follows .NET Principal/Identity guidelines from the official Security Guide.
 /// </summary>
 public interface IUserContext
 {
     /// <summary>
-    ///     The unique identifier of the currently authenticated user.
-    ///     Examples: "user_abc123", "admin_xyz789", "system@netcommerce.com"
+    ///     The underlying .NET Principal. Enables standard [Authorize] and IsInRole logic.
+    /// </summary>
+    ClaimsPrincipal User { get; }
+
+    /// <summary>
+    ///     Strongly-typed User ID (extracted from 'sub' or 'NameIdentifier' claim).
     /// </summary>
     string UserId { get; }
 
     /// <summary>
-    ///     The role(s) of the user at the time of the action.
-    ///     Examples: "Admin", "Vendor", "Customer", "System"
-    ///     CRITICAL: This should reflect the role at action time, not current role.
+    ///     Standardized Tenant ID (extracted from custom 'tid' or 'tenant_id' claim).
     /// </summary>
-    string Role { get; }
+    string? TenantId { get; }
 
     /// <summary>
-    ///     Optional: The IP address from which the request originated.
-    ///     Useful for security audits and geographic compliance.
-    /// </summary>
-    string? IpAddress { get; }
-
-    /// <summary>
-    ///     Optional: The user agent (browser/API client) making the request.
-    /// </summary>
-    string? UserAgent { get; }
-
-    /// <summary>
-    ///     Whether a user is currently authenticated.
-    ///     For background jobs, this might be false and UserId would be "system".
+    ///     Checks if the principal is authenticated.
     /// </summary>
     bool IsAuthenticated { get; }
+
+    /// <summary>
+    ///     Direct access to specific claims without iterating manually.
+    /// </summary>
+    string? GetClaim(string claimType);
+
+    /// <summary>
+    ///     All roles associated with the user (for audit/compliance purposes).
+    /// </summary>
+    IEnumerable<string> Roles { get; }
+
+    /// <summary>
+    ///     Checks membership in a role using the standard IPrincipal.IsInRole logic.
+    /// </summary>
+    bool IsInRole(string role);
 }

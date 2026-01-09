@@ -1,5 +1,6 @@
 #nullable enable
 using System.Text.Json;
+using System.Security.Claims;
 using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Kernel.Compliance.Audit;
@@ -37,14 +38,14 @@ public class AuditService
 
         var auditEntry = AuditEntry.Create(
             _userContext.UserId,
-            _userContext.Role,
+            string.Join(",", _userContext.Roles) ?? "Unknown",
             $"{command.Module}.{actionName}",
             command.GetResourceId(),
             command.Module,
             contextJson,
             correlationId ?? Guid.NewGuid().ToString(),
-            _userContext.IpAddress,
-            _userContext.UserAgent
+            _userContext.GetClaim("ip_address"),
+            _userContext.GetClaim("user_agent")
         );
 
         await _auditRepository.StoreAsync(auditEntry, cancellationToken);
@@ -67,14 +68,14 @@ public class AuditService
 
         var auditEntry = AuditEntry.Create(
             _userContext.UserId,
-            _userContext.Role,
+            string.Join(",", _userContext.Roles) ?? "Unknown",
             action,
             resourceId,
             module,
             contextJson,
             correlationId ?? Guid.NewGuid().ToString(),
-            _userContext.IpAddress,
-            _userContext.UserAgent
+            _userContext.GetClaim("ip_address"),
+            _userContext.GetClaim("user_agent")
         );
 
         await _auditRepository.StoreAsync(auditEntry, cancellationToken);

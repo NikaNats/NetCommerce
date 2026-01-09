@@ -1,26 +1,40 @@
 #nullable enable
+using System.Security.Principal;
+using System.Security.Claims;
 using NetCommerce.Kernel.Application;
 
 namespace NetCommerce.Kernel.Security;
 
 /// <summary>
-///     System/Background Job user context.
-///     Used when no authenticated user exists (e.g., scheduled jobs, event handlers).
+///     Represents the 'System' user for background processing.
+///     Uses GenericPrincipal to satisfy .NET Identity requirements.
 /// </summary>
-public class SystemUserContext : IUserContext
+public sealed class SystemUserContext : IUserContext
 {
-    private readonly string _systemIdentifier;
+    private readonly ClaimsPrincipal _systemPrincipal;
 
-    public SystemUserContext(string? systemIdentifier = null)
+    public SystemUserContext(string systemName = "system-worker", string? tenantId = null)
     {
-        _systemIdentifier = systemIdentifier ?? "system";
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, systemName),
+            new(ClaimTypes.Role, "System"),
+            new("sub", systemName)
+        };
+
+        if (tenantId != null) claims.Add(new Claim("tenant_id", tenantId));
+
+        var identity = new ClaimsIdentity(claims, "SystemAuth");
+        _systemPrincipal = new ClaimsPrincipal(identity);
     }
 
-    public string UserId => $"{_systemIdentifier}@background";
-    public string Role => "System";
-    public string? IpAddress => null;
-    public string? UserAgent => "Kernel/BackgroundJob";
+    public ClaimsPrincipal User => _systemPrincipal;
+    public string UserId => _systemPrincipal.FindFirst(ClaimTypes.NameIdentifier)!.Value;
+    public string? TenantId => GetClaim("tenant_id");
     public bool IsAuthenticated => true;
+    public string? GetClaim(string claimType) => _systemPrincipal.FindFirst(claimType)?.Value;
+    public IEnumerable<string> Roles => _systemPrincipal.FindAll(ClaimTypes.Role).Select(c => c.Value);
+    public bool IsInRole(string role) => _systemPrincipal.IsInRole(role);
 }
 
 /// <summary>
@@ -28,17 +42,30 @@ public class SystemUserContext : IUserContext
 /// </summary>
 public class DevelopmentUserContext : IUserContext
 {
-    public DevelopmentUserContext(string userId = "dev_user", string role = "Admin")
+    private readonly ClaimsPrincipal _devPrincipal;
+
+    public DevelopmentUserContext(string userId = "dev_user", string role = "Admin", string? tenantId = null)
     {
-        UserId = userId;
-        Role = role;
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Role, role),
+            new("sub", userId)
+        };
+
+        if (tenantId != null) claims.Add(new Claim("tenant_id", tenantId));
+
+        var identity = new ClaimsIdentity(claims, "DevelopmentAuth");
+        _devPrincipal = new ClaimsPrincipal(identity);
     }
 
-    public string UserId { get; }
-    public string Role { get; }
-    public string? IpAddress => "127.0.0.1";
-    public string? UserAgent => "Kernel/Development";
+    public ClaimsPrincipal User => _devPrincipal;
+    public string UserId => GetClaim(ClaimTypes.NameIdentifier) ?? "dev_user";
+    public string? TenantId => GetClaim("tenant_id");
     public bool IsAuthenticated => true;
+    public string? GetClaim(string claimType) => _devPrincipal.FindFirst(claimType)?.Value;
+    public IEnumerable<string> Roles => _devPrincipal.FindAll(ClaimTypes.Role).Select(c => c.Value);
+    public bool IsInRole(string role) => GetClaim(ClaimTypes.Role) == role;
 }
 
 /// <summary>
@@ -46,11 +73,31 @@ public class DevelopmentUserContext : IUserContext
 /// </summary>
 public class AnonymousUserContext : IUserContext
 {
+    private readonly ClaimsPrincipal _anonymousPrincipal;
+
+    public AnonymousUserContext(string? ipAddress = null, string? userAgent = null)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "anonymous"),
+            new(ClaimTypes.Role, "Guest"),
+            new("sub", "anonymous")
+        };
+
+        if (ipAddress != null) claims.Add(new Claim("ip_address", ipAddress));
+        if (userAgent != null) claims.Add(new Claim("user_agent", userAgent));
+
+        var identity = new ClaimsIdentity(claims); // No AuthType = Unauthenticated
+        _anonymousPrincipal = new ClaimsPrincipal(identity);
+    }
+
+    public ClaimsPrincipal User => _anonymousPrincipal;
     public string UserId => "anonymous";
-    public string Role => "Guest";
-    public string? IpAddress { get; init; }
-    public string? UserAgent { get; init; }
+    public string? TenantId => null;
     public bool IsAuthenticated => false;
+    public string? GetClaim(string claimType) => _anonymousPrincipal.FindFirst(claimType)?.Value;
+    public IEnumerable<string> Roles => _anonymousPrincipal.FindAll(ClaimTypes.Role).Select(c => c.Value);
+    public bool IsInRole(string role) => role == "Guest";
 }
 
 /// <summary>

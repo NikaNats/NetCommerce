@@ -5,6 +5,7 @@ using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;
+using System.Security.Claims;
 using AuditUserContext = NetCommerce.Kernel.Application.IUserContext;
 
 #endregion
@@ -22,9 +23,9 @@ public class AuditMiddlewareTests
 
         AuditUserContext? userContext = Substitute.For<AuditUserContext>();
         userContext.UserId.Returns("admin_xyz789");
-        userContext.Role.Returns("Admin");
-        userContext.IpAddress.Returns("192.168.1.100");
-        userContext.UserAgent.Returns("Mozilla/5.0");
+        userContext.GetClaim(System.Security.Claims.ClaimTypes.Role).Returns("Admin");
+        userContext.GetClaim("ip_address").Returns("192.168.1.100");
+        userContext.GetClaim("user_agent").Returns("Mozilla/5.0");
 
         IAuditRepository? auditRepository = Substitute.For<IAuditRepository>();
         AuditEntry? capturedEntry = null;
@@ -110,7 +111,7 @@ public class AuditMiddlewareTests
 
         AuditUserContext? userContext = Substitute.For<AuditUserContext>();
         userContext.UserId.Returns("admin123");
-        userContext.Role.Returns("Admin");
+        userContext.GetClaim(System.Security.Claims.ClaimTypes.Role).Returns("Admin");
 
         IAuditRepository? auditRepository = Substitute.For<IAuditRepository>();
         var capturedEntries = new List<AuditEntry>();

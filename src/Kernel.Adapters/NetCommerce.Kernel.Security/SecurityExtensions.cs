@@ -51,4 +51,28 @@ public static class SecurityExtensions
         services.AddSingleton<IClaimsTransformation>(new OidcRoleClaimsTransformation(apiClientId));
         return services;
     }
+
+    /// <summary>
+    ///     Registers Claims-Based Identity for web applications.
+    ///     Uses HttpContext.User as ClaimsPrincipal.
+    /// </summary>
+    public static IServiceCollection AddKernelWebIdentity(this IServiceCollection services)
+    {
+        services.AddHttpContextAccessor();
+        services.AddScoped<IUserContext, HttpUserContext>();
+        return services;
+    }
+
+    /// <summary>
+    ///     Registers Claims-Based Identity for background services.
+    ///     Uses GenericPrincipal with system claims.
+    /// </summary>
+    public static IServiceCollection AddKernelSystemIdentity(
+        this IServiceCollection services,
+        string systemName = "system-worker",
+        string? tenantId = null)
+    {
+        services.AddSingleton<IUserContext>(new SystemUserContext(systemName, tenantId));
+        return services;
+    }
 }
