@@ -1,10 +1,13 @@
 #region
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Results;
 using NetCommerce.Shipping.Application.Adapters;
 using NetCommerce.Shipping.Application.Handlers;
+using NetCommerce.Shipping.Application.Repositories;
 using NetCommerce.Shipping.Application.Services;
 using NetCommerce.Shipping.Domain;
 using NetCommerce.Shipping.Infrastructure.Adapters;
@@ -22,11 +25,19 @@ public class ShippingModuleTests
 {
     private readonly ILogger<OrderReadyForShippingHandler> _handlerLogger;
     private readonly ILogger<ShippingService> _serviceLogger;
+    private readonly ILogger<DhlCourierAdapter> _dhlLogger;
+    private readonly IOptions<CourierOptions> _courierOptions;
+    private readonly IShipmentRepository _shipmentRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     public ShippingModuleTests()
     {
         _serviceLogger = Substitute.For<ILogger<ShippingService>>();
         _handlerLogger = Substitute.For<ILogger<OrderReadyForShippingHandler>>();
+        _dhlLogger = Substitute.For<ILogger<DhlCourierAdapter>>();
+        _courierOptions = Options.Create(new CourierOptions { UseMockMode = true });
+        _shipmentRepository = Substitute.For<IShipmentRepository>();
+        _unitOfWork = Substitute.For<IUnitOfWork>();
     }
 
     #region Courier Adapter Tests
@@ -35,7 +46,7 @@ public class ShippingModuleTests
     public async Task CourierAdapter_ShouldReturnValidTrackingNumber()
     {
         // Arrange
-        var adapter = new DhlCourierAdapter(Substitute.For<ILogger<DhlCourierAdapter>>());
+        var adapter = new DhlCourierAdapter(_courierOptions, _dhlLogger);
         var address = new Address(
             "John Doe",
             "123 Main St",
@@ -62,7 +73,7 @@ public class ShippingModuleTests
     public async Task CourierAdapter_ShouldCalculateInternationalSurcharge()
     {
         // Arrange
-        var adapter = new DhlCourierAdapter(Substitute.For<ILogger<DhlCourierAdapter>>());
+        var adapter = new DhlCourierAdapter(_courierOptions, _dhlLogger);
         Address domesticAddress = CreateAddress("US");
         Address internationalAddress = CreateAddress("GE");
         var dimensions = new ShipmentDimensions(30, 20, 15);
@@ -97,6 +108,8 @@ public class ShippingModuleTests
 
         var service = new ShippingService(
             new[] { dhlAdapter, fedexAdapter },
+            _shipmentRepository,
+            _unitOfWork,
             _serviceLogger);
 
         ShippingAddressDto addressDto = CreateShippingAddressDto();
@@ -131,6 +144,8 @@ public class ShippingModuleTests
         // Arrange
         var service = new ShippingService(
             new ICourierAdapter[] { },
+            _shipmentRepository,
+            _unitOfWork,
             _serviceLogger);
 
         // Act
@@ -161,7 +176,7 @@ public class ShippingModuleTests
                 Arg.Any<CancellationToken>())
             .Returns(new CourierLabelResult("TRK123", "http://label.com", 30m, "USD", null));
 
-        var service = new ShippingService(new[] { adapter }, _serviceLogger);
+        var service = new ShippingService(new[] { adapter }, _shipmentRepository, _unitOfWork, _serviceLogger);
 
         var items = new List<ShippingItemDto>
         {
@@ -195,7 +210,7 @@ public class ShippingModuleTests
                 Arg.Any<CancellationToken>())
             .Returns<CourierLabelResult>(_ => throw new Exception("Courier API unavailable"));
 
-        var service = new ShippingService(new[] { adapter }, _serviceLogger);
+        var service = new ShippingService(new[] { adapter }, _shipmentRepository, _unitOfWork, _serviceLogger);
 
         // Act
         Result<ShippingLabelDto>? result = await service.CreateLabelAsync(
@@ -246,18 +261,19 @@ public class ShippingModuleTests
             CreateShippingAddressDto());
 
         // Act
-        ShipmentCreatedIntegrationEvent? result = await handler.Handle(@event, CancellationToken.None);
+        var result = await handler.Handle(@event, CancellationToken.None);
 
         // Assert
         result.ShouldNotBeNull();
-        result.OrderId.ShouldBe(orderId);
-        result.ShipmentId.ShouldBe(shipmentId);
-        result.TrackingNumber.ShouldBe("DHL987654321");
-        result.CourierProvider.ShouldBe("DHL");
+        var shipmentCreated = result.ShouldBeOfType<ShipmentCreatedIntegrationEvent>();
+        shipmentCreated.OrderId.ShouldBe(orderId);
+        shipmentCreated.ShipmentId.ShouldBe(shipmentId);
+        shipmentCreated.TrackingNumber.ShouldBe("DHL987654321");
+        shipmentCreated.CourierProvider.ShouldBe("DHL");
     }
 
     [Fact]
-    public async Task OrderReadyForShippingHandler_ShouldReturnNull_WhenShippingServiceFails()
+    public async Task OrderReadyForShippingHandler_ShouldReturnFailureEvent_WhenShippingServiceFails()
     {
         // Arrange
         IShippingService? shippingService = Substitute.For<IShippingService>();
@@ -280,10 +296,11 @@ public class ShippingModuleTests
             CreateShippingAddressDto());
 
         // Act
-        ShipmentCreatedIntegrationEvent? result = await handler.Handle(@event, CancellationToken.None);
+        var result = await handler.Handle(@event, CancellationToken.None);
 
         // Assert
-        result.ShouldBeNull(); // Handler returns null, Wolverine will retry
+        result.ShouldNotBeNull();
+        result.ShouldBeOfType<ShipmentCreationFailedEvent>(); // Handler returns failure event for retry handling
     }
 
     #endregion

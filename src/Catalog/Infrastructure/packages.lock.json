@@ -939,6 +939,23 @@
           "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
+      "inventory.application": {
+        "type": "Project",
+        "dependencies": {
+          "FluentValidation": "[12.1.1, )",
+          "Inventory.Domain": "[1.0.0, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "WolverineFx": "[5.9.2, )"
+        }
+      },
+      "inventory.domain": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
       "netcommerce.domain.shared": {
         "type": "Project",
         "dependencies": {

@@ -79,6 +79,10 @@
     <!-- Finance Module -->
     <ProjectReference Include="..\Finance\Finance.Application\Finance.Application.csproj"/>
     <ProjectReference Include="..\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj"/>
+
+    <!-- Shipping Module -->
+    <ProjectReference Include="..\Shipping\Shipping.Application\Shipping.Application.csproj"/>
+    <ProjectReference Include="..\Shipping\Shipping.Infrastructure\Shipping.Infrastructure.csproj"/>
   </ItemGroup>
 
 </Project>

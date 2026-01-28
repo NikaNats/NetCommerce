@@ -153,10 +153,19 @@ public class PaymentWebhookController : ControllerBase
         }
         catch (Exception ex)
         {
-            // Unexpected error - log but return 200 to prevent Stripe retries
-            // We'll catch this via reconciliation job
-            _logger.LogError(ex, "Error processing Stripe webhook. Event will be reconciled.");
-            return Ok(); // Return 200 to prevent infinite retries
+            // CRITICAL: Return 500 to signal Stripe to retry
+            // Stripe has exponential backoff (up to 72 hours of retries)
+            // Returning 200 on error causes permanent data loss!
+            _logger.LogError(ex,
+                "Error processing Stripe webhook. Returning 500 to trigger Stripe retry. " +
+                "Reconciliation job will also catch this.");
+
+            // Return 500 with structured error for monitoring
+            return StatusCode(500, new {
+                error = "Internal processing error",
+                message = "Webhook will be retried by Stripe",
+                correlationId = HttpContext.TraceIdentifier
+            });
         }
     }
 }

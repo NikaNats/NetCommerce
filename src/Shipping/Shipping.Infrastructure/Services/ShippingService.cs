@@ -2,8 +2,10 @@
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Results;
 using NetCommerce.Shipping.Application.Adapters;
+using NetCommerce.Shipping.Application.Repositories;
 using NetCommerce.Shipping.Application.Services;
 using NetCommerce.Shipping.Domain;
 
@@ -12,18 +14,24 @@ namespace NetCommerce.Shipping.Infrastructure.Services;
 /// <summary>
 ///     Implementation of the shipping service.
 ///     Orchestrates courier adapters and manages shipment creation.
+///     Persists shipments to database for tracking and audit.
 /// </summary>
 public sealed class ShippingService : IShippingService
 {
     private readonly Dictionary<string, ICourierAdapter> _courierAdapters;
+    private readonly IShipmentRepository _shipmentRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ShippingService> _logger;
-    // TODO: Add IShipmentRepository for persistence
 
     public ShippingService(
         IEnumerable<ICourierAdapter> courierAdapters,
+        IShipmentRepository shipmentRepository,
+        IUnitOfWork unitOfWork,
         ILogger<ShippingService> logger)
     {
         _courierAdapters = courierAdapters.ToDictionary(a => a.CourierName, StringComparer.OrdinalIgnoreCase);
+        _shipmentRepository = shipmentRepository;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -83,8 +91,9 @@ public sealed class ShippingService : IShippingService
                 dimensions,
                 labelResult.EstimatedDeliveryDate);
 
-            // TODO: Persist shipment to database via repository
-            // await _shipmentRepository.AddAsync(shipment, cancellationToken);
+            // Persist shipment to database
+            await _shipmentRepository.AddAsync(shipment, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
                 "Shipment {ShipmentId} created for Order {OrderId} with tracking {TrackingNumber}",

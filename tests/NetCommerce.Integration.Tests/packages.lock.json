@@ -42,9 +42,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.1, )",
-        "resolved": "10.0.1",
-        "contentHash": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ=="
+        "requested": "[10.0.2, )",
+        "resolved": "10.0.2",
+        "contentHash": "sXdDtMf2qcnbygw9OdE535c2lxSxrZP8gO4UhDJ0xiJbl1wIqXS1OTcTDFTIJPOFd6Mhcm8gPEthqWGUxBsTqw=="
       },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
@@ -2360,6 +2360,7 @@
           "Catalog.Application": "[1.0.0, )",
           "Catalog.Domain": "[1.0.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
+          "Inventory.Application": "[1.0.0, )",
           "MeiliSearch": "[0.18.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.Extensions.Caching.Hybrid": "[10.1.0, )",
@@ -2482,6 +2483,8 @@
           "Scalar.AspNetCore": "[1.2.0, )",
           "Scrutor": "[7.0.0, )",
           "SharedKernel.Infrastructure": "[1.0.0, )",
+          "Shipping.Application": "[1.0.0, )",
+          "Shipping.Infrastructure": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )",
           "WolverineFx.FluentValidation": "[5.9.2, )",
@@ -2648,6 +2651,28 @@
           "WolverineFx.FluentValidation": "[5.9.2, )",
           "WolverineFx.Postgresql": "[5.9.2, )",
           "WolverineFx.SignalR": "[5.9.2, )"
+        }
+      },
+      "shipping.application": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "Shipping.Domain": "[1.0.0, )"
+        }
+      },
+      "shipping.domain": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
+      "shipping.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "Shipping.Application": "[1.0.0, )"
         }
       },
       "Asp.Versioning.Mvc": {

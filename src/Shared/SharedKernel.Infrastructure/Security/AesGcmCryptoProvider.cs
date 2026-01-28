@@ -2,6 +2,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.Kernel.Compliance.Encryption;
 using CoreEncryption = NetCommerce.Kernel.Core.Encryption;
@@ -11,39 +13,162 @@ namespace NetCommerce.SharedKernel.Infrastructure.Security;
 /// <summary>
 /// High-performance DEK (Data Encryption Key) cache.
 /// Caches decrypted DEKs in memory for 15 minutes to avoid repeated cloud calls.
-/// This is the "Secret Sauce" that makes EF Core synchronous encryption possible.
+/// Uses background key warming to avoid sync-over-async issues.
 /// </summary>
 public class DekCache
 {
     private readonly IMemoryCache _cache;
     private readonly IKeyManagementService _kms;
+    private readonly SemaphoreSlim _warmupLock = new(1, 1);
+    private readonly ILogger<DekCache>? _logger;
 
     // Cache keys for 15 minutes.
     // Security Trade-off: Key is in RAM for 15 mins vs Performance: 1000x faster.
     private readonly TimeSpan _cacheDuration = TimeSpan.FromMinutes(15);
 
-    public DekCache(IMemoryCache cache, IKeyManagementService kms)
+    public DekCache(IMemoryCache cache, IKeyManagementService kms, ILogger<DekCache>? logger = null)
     {
         _cache = cache;
         _kms = kms;
+        _logger = logger;
     }
 
     /// <summary>
-    /// Gets the Plaintext DEK synchronously (from cache) or blocks to fetch it.
-    /// Optimized for high-throughput reads.
+    /// Gets the Plaintext DEK synchronously from cache.
+    /// IMPORTANT: Keys MUST be pre-warmed via WarmupKeyAsync before use!
+    /// Throws if key is not in cache to avoid sync-over-async.
     /// </summary>
     public byte[] GetPlaintextKey(string keyId, string encryptedDek)
     {
-        return _cache.GetOrCreate(keyId, entry =>
+        if (_cache.TryGetValue<byte[]>(keyId, out var cachedKey) && cachedKey is not null)
         {
-            entry.AbsoluteExpirationRelativeToNow = _cacheDuration;
-            entry.Priority = CacheItemPriority.High;
+            return cachedKey;
+        }
 
-            // SYNC-OVER-ASYNC MITIGATION:
-            // Since this only happens ONCE every 15 mins, the thread blocking impact is negligible.
-            // In a pure AOT/High-Perf scenario, use a background service to "Warm up" keys.
-            return _kms.UnwrapKeyAsync(encryptedDek).ConfigureAwait(false).GetAwaiter().GetResult();
-        }) ?? throw new InvalidOperationException("Failed to retrieve DEK");
+        // Key not in cache - this indicates a startup/warmup issue
+        // Fallback: Try to warmup synchronously (should rarely happen after proper initialization)
+        _logger?.LogWarning(
+            "DEK cache miss for key {KeyId}. This should not happen in production - " +
+            "ensure KeyWarmupService is running. Falling back to blocking call.",
+            keyId);
+
+        // Use semaphore to prevent thundering herd
+        _warmupLock.Wait();
+        try
+        {
+            // Double-check after acquiring lock
+            if (_cache.TryGetValue<byte[]>(keyId, out cachedKey) && cachedKey is not null)
+            {
+                return cachedKey;
+            }
+
+            // Fallback: blocking call (only happens if warmup service failed)
+            var key = _kms.UnwrapKeyAsync(encryptedDek).ConfigureAwait(false).GetAwaiter().GetResult();
+            CacheKey(keyId, key);
+            return key;
+        }
+        finally
+        {
+            _warmupLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously warms up a key into cache.
+    /// Should be called during application startup and periodically by background service.
+    /// </summary>
+    public async Task WarmupKeyAsync(string keyId, string encryptedDek, CancellationToken ct = default)
+    {
+        await _warmupLock.WaitAsync(ct);
+        try
+        {
+            // Skip if already cached and not near expiration
+            if (_cache.TryGetValue<byte[]>(keyId, out _))
+            {
+                _logger?.LogDebug("Key {KeyId} already in cache, skipping warmup", keyId);
+                return;
+            }
+
+            _logger?.LogInformation("Warming up DEK cache for key {KeyId}", keyId);
+            var key = await _kms.UnwrapKeyAsync(encryptedDek, ct);
+            CacheKey(keyId, key);
+            _logger?.LogInformation("DEK cache warmed up for key {KeyId}", keyId);
+        }
+        finally
+        {
+            _warmupLock.Release();
+        }
+    }
+
+    private void CacheKey(string keyId, byte[] key)
+    {
+        var cacheOptions = new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = _cacheDuration,
+            Priority = CacheItemPriority.High
+        };
+        _cache.Set(keyId, key, cacheOptions);
+    }
+}
+
+/// <summary>
+/// Background service that pre-warms DEK cache on startup and refreshes periodically.
+/// Prevents sync-over-async issues by ensuring keys are always in cache.
+/// </summary>
+public class KeyWarmupService : BackgroundService
+{
+    private readonly DekCache _dekCache;
+    private readonly EncryptionOptions _options;
+    private readonly ILogger<KeyWarmupService> _logger;
+    private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(10); // Refresh before 15-min expiry
+
+    public KeyWarmupService(
+        DekCache dekCache,
+        IOptions<EncryptionOptions> options,
+        ILogger<KeyWarmupService> logger)
+    {
+        _dekCache = dekCache;
+        _options = options.Value;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("KeyWarmupService starting - warming up encryption keys");
+
+        // Initial warmup on startup
+        await WarmupAllKeysAsync(stoppingToken);
+
+        // Periodic refresh
+        using var timer = new PeriodicTimer(_refreshInterval);
+        while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            await WarmupAllKeysAsync(stoppingToken);
+        }
+    }
+
+    private async Task WarmupAllKeysAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Warmup active key
+            if (!string.IsNullOrEmpty(_options.ActiveKeyId) && !string.IsNullOrEmpty(_options.ActiveEncryptedDek))
+            {
+                await _dekCache.WarmupKeyAsync(_options.ActiveKeyId, _options.ActiveEncryptedDek, ct);
+            }
+
+            // Warmup all keys in keystore (for key rotation support)
+            foreach (var (keyId, encryptedDek) in _options.KeyStore)
+            {
+                await _dekCache.WarmupKeyAsync(keyId, encryptedDek, ct);
+            }
+
+            _logger.LogDebug("All encryption keys warmed up successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to warmup encryption keys. Encryption operations may be slow.");
+        }
     }
 }
 

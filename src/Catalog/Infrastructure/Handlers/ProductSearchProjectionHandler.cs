@@ -4,6 +4,7 @@ using Meilisearch;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Models;
+using NetCommerce.Inventory.Application.Stock.Queries;
 using Index = Meilisearch.Index;
 
 #endregion
@@ -26,6 +27,7 @@ public static class ProductSearchProjectionHandler
     public static async Task Handle(
         ProductPublishedDomainEvent @event,
         IProductRepository productRepository,
+        IStockQueryService stockQueryService,
         MeilisearchClient meilisearchClient,
         ILogger<ProductPublishedDomainEvent> logger,
         CancellationToken cancellationToken)
@@ -40,6 +42,11 @@ public static class ProductSearchProjectionHandler
                 return;
             }
 
+            // Fetch stock quantity from Inventory module
+            var stockQuantity = await stockQueryService.GetAvailableQuantityAsync(
+                product.Id,
+                cancellationToken);
+
             // Transform domain model to search document (read model)
             var searchDocument = new ProductSearchDocument(
                 product.Id.ToString(),
@@ -51,7 +58,7 @@ public static class ProductSearchProjectionHandler
                 [product.CategoryId.ToString()],
                 product.Attributes.Select(a => $"{a.Key}:{a.Value}").ToArray(),
                 product.Status == ProductStatus.Published,
-                0, // TODO: Fetch from Inventory module via query
+                stockQuantity, // Real stock from Inventory module
                 DateTimeOffset.UtcNow, // Snapshot time
                 null
             );

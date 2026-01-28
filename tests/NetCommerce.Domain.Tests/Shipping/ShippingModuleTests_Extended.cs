@@ -1,8 +1,11 @@
 #region
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Shipping.Application.Adapters;
+using NetCommerce.Shipping.Application.Repositories;
 using NetCommerce.Shipping.Application.Services;
 using NetCommerce.Shipping.Domain;
 using NetCommerce.Shipping.Infrastructure.Adapters;
@@ -16,12 +19,15 @@ public class ShippingModuleTests_Extended
 {
     private readonly ILogger<DhlCourierAdapter> _dhlLogger = Substitute.For<ILogger<DhlCourierAdapter>>();
     private readonly ILogger<ShippingService> _serviceLogger = Substitute.For<ILogger<ShippingService>>();
+    private readonly IOptions<CourierOptions> _courierOptions = Options.Create(new CourierOptions { UseMockMode = true });
+    private readonly IShipmentRepository _shipmentRepository = Substitute.For<IShipmentRepository>();
+    private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
     [Fact]
     public async Task CourierAdapter_ShouldCalculateInternationalSurcharge()
     {
         // Arrange
-        var adapter = new DhlCourierAdapter(_dhlLogger);
+        var adapter = new DhlCourierAdapter(_courierOptions, _dhlLogger);
         var domestic = new Address("Name", "St", "City", "State", "US", "00000", "Ph");
         var international = new Address("Name", "St", "Tbilisi", "Tbilisi", "GE", "0100", "Ph"); // Georgia
         var dim = new ShipmentDimensions(10, 10, 10);
@@ -46,7 +52,7 @@ public class ShippingModuleTests_Extended
                 Arg.Any<ShipmentDimensions>())
             .Returns(new CourierLabelResult("TRK", "url", 10m, "USD", DateTime.UtcNow));
 
-        var service = new ShippingService([adapter], _serviceLogger);
+        var service = new ShippingService([adapter], _shipmentRepository, _unitOfWork, _serviceLogger);
 
         var items = new List<ShippingItemDto>
         {

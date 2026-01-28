@@ -197,8 +197,8 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     This is the "point of no return" - payment will now be captured.
     /// </summary>
     public (
-        LockInventoryForPaymentCommand LockCommand,
-        OrderStatusChanged Notification
+        LockInventoryForPaymentCommand? LockCommand,
+        OrderStatusChanged? Notification
         ) Handle(
         GracePeriodTimeout timeout,
         ILogger<OrderFulfillmentSaga> logger)
@@ -210,7 +210,8 @@ public sealed class OrderFulfillmentSaga : Saga
                 "Grace period expired for Order {OrderId} but order was already {State}. Ignoring.",
                 Id,
                 State);
-            return (null!, null!); // Saga already terminated
+            // Return null tuple - Wolverine will not cascade null messages
+            return (null, null);
         }
 
         logger.LogInformation(

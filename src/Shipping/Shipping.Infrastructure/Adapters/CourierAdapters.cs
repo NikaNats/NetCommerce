@@ -1,20 +1,57 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Shipping.Application.Adapters;
 using NetCommerce.Shipping.Domain;
 
 namespace NetCommerce.Shipping.Infrastructure.Adapters;
 
 /// <summary>
+///     Configuration options for courier integrations.
+///     In production, load from Azure Key Vault or environment variables.
+/// </summary>
+public sealed class CourierOptions
+{
+    public const string SectionName = "Couriers";
+
+    public DhlOptions Dhl { get; set; } = new();
+    public FedExOptions FedEx { get; set; } = new();
+
+    /// <summary>
+    ///     When true, use mock responses instead of real API calls.
+    ///     Useful for development and testing.
+    /// </summary>
+    public bool UseMockMode { get; set; } = true;
+}
+
+public sealed class DhlOptions
+{
+    public string ApiUrl { get; set; } = "https://api.dhl.com/";
+    public string ApiKey { get; set; } = string.Empty;
+    public string AccountNumber { get; set; } = string.Empty;
+}
+
+public sealed class FedExOptions
+{
+    public string ApiUrl { get; set; } = "https://apis.fedex.com/";
+    public string ClientId { get; set; } = string.Empty;
+    public string ClientSecret { get; set; } = string.Empty;
+    public string AccountNumber { get; set; } = string.Empty;
+}
+
+/// <summary>
 ///     DHL courier adapter implementation.
-///     In production, this would integrate with DHL's API.
+///     Supports both mock mode (development) and real API mode (production).
 /// </summary>
 public sealed class DhlCourierAdapter : ICourierAdapter
 {
+    private readonly CourierOptions _options;
     private readonly ILogger<DhlCourierAdapter> _logger;
-    // TODO: Inject DHL API client configuration
 
-    public DhlCourierAdapter(ILogger<DhlCourierAdapter> logger)
+    public DhlCourierAdapter(
+        IOptions<CourierOptions> options,
+        ILogger<DhlCourierAdapter> logger)
     {
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -27,64 +64,111 @@ public sealed class DhlCourierAdapter : ICourierAdapter
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Creating DHL shipping label for {RecipientName} at {City}, {Country}",
+            "Creating DHL shipping label for {RecipientName} at {City}, {Country}. MockMode: {MockMode}",
             shippingAddress.RecipientName,
             shippingAddress.City,
-            shippingAddress.Country);
+            shippingAddress.Country,
+            _options.UseMockMode);
 
-        // TODO: Replace with actual DHL API call
-        // Example:
-        // var dhlRequest = new CreateShipmentRequest
-        // {
-        //     ShipperAddress = _config.WarehouseAddress,
-        //     ReceiverAddress = MapToApiAddress(shippingAddress),
-        //     Weight = weightKg,
-        //     Dimensions = dimensions
-        // };
-        // var response = await _dhlClient.CreateShipmentAsync(dhlRequest, cancellationToken);
+        if (_options.UseMockMode)
+        {
+            return await CreateMockLabelAsync(shippingAddress, weightKg, cancellationToken);
+        }
 
-        // Simulate API call
+        return await CreateRealLabelAsync(shippingAddress, weightKg, dimensions, cancellationToken);
+    }
+
+    private async Task<CourierLabelResult> CreateMockLabelAsync(
+        Address shippingAddress,
+        decimal weightKg,
+        CancellationToken cancellationToken)
+    {
+        // Simulate API latency
         await Task.Delay(100, cancellationToken);
 
-        // Mock response for demonstration
-        var trackingNumber = $"DHL{Guid.NewGuid():N}".Substring(0, 16).ToUpperInvariant();
+        var trackingNumber = $"DHL{Guid.NewGuid():N}"[..16].ToUpperInvariant();
         var estimatedDelivery = DateTime.UtcNow.AddDays(3);
+
+        _logger.LogDebug(
+            "Mock DHL label created: {TrackingNumber}",
+            trackingNumber);
 
         return new CourierLabelResult(
             TrackingNumber: trackingNumber,
-            LabelUrl: $"https://dhl.example.com/labels/{trackingNumber}.pdf",
+            LabelUrl: $"https://mock.dhl.example.com/labels/{trackingNumber}.pdf",
             ShippingCost: CalculateShippingCost(weightKg, shippingAddress.Country),
             Currency: "USD",
             EstimatedDeliveryDate: estimatedDelivery);
+    }
+
+    private async Task<CourierLabelResult> CreateRealLabelAsync(
+        Address shippingAddress,
+        decimal weightKg,
+        ShipmentDimensions dimensions,
+        CancellationToken cancellationToken)
+    {
+        // Production implementation:
+        // 1. Build DHL API request payload
+        // 2. Call DHL Express API (shipment/v1/shipments)
+        // 3. Parse response and return result
+        //
+        // Example with HttpClient (inject IHttpClientFactory in production):
+        // var request = new DhlShipmentRequest
+        // {
+        //     CustomerAccountId = _options.Dhl.AccountNumber,
+        //     ReceiverDetails = MapAddress(shippingAddress),
+        //     Weight = weightKg,
+        //     Dimensions = new { dimensions.LengthCm, dimensions.WidthCm, dimensions.HeightCm }
+        // };
+        // var response = await _httpClient.PostAsJsonAsync(
+        //     $"{_options.Dhl.ApiUrl}shipments", request, cancellationToken);
+
+        _logger.LogWarning(
+            "DHL real API integration not yet implemented. " +
+            "Configure Couriers:UseMockMode=true or implement API calls.");
+
+        throw new NotImplementedException(
+            "DHL API integration requires valid API credentials. " +
+            "Set Couriers:UseMockMode=true for development.");
     }
 
     public async Task<bool> CancelLabelAsync(
         string trackingNumber,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Cancelling DHL label {TrackingNumber}", trackingNumber);
+        _logger.LogInformation("Cancelling DHL label {TrackingNumber}. MockMode: {MockMode}",
+            trackingNumber, _options.UseMockMode);
 
-        // TODO: Replace with actual DHL API call
-        await Task.Delay(50, cancellationToken);
+        if (_options.UseMockMode)
+        {
+            await Task.Delay(50, cancellationToken);
+            return true;
+        }
 
-        return true;
+        // Production: Call DHL API to cancel shipment
+        throw new NotImplementedException("DHL cancel API not implemented");
     }
 
     public async Task<CourierTrackingStatus> GetTrackingStatusAsync(
         string trackingNumber,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Fetching tracking status for {TrackingNumber}", trackingNumber);
+        _logger.LogInformation("Fetching tracking status for {TrackingNumber}. MockMode: {MockMode}",
+            trackingNumber, _options.UseMockMode);
 
-        // TODO: Replace with actual DHL tracking API call
-        await Task.Delay(50, cancellationToken);
+        if (_options.UseMockMode)
+        {
+            await Task.Delay(50, cancellationToken);
+            return new CourierTrackingStatus(
+                TrackingNumber: trackingNumber,
+                Status: "IN_TRANSIT",
+                StatusDescription: "Package is in transit to destination (mock)",
+                LastUpdated: DateTime.UtcNow,
+                IsDelivered: false);
+        }
 
-        return new CourierTrackingStatus(
-            TrackingNumber: trackingNumber,
-            Status: "IN_TRANSIT",
-            StatusDescription: "Package is in transit to destination",
-            LastUpdated: DateTime.UtcNow,
-            IsDelivered: false);
+        // Production: Call DHL Tracking API
+        throw new NotImplementedException("DHL tracking API not implemented");
     }
 
     private static decimal CalculateShippingCost(decimal weightKg, string destinationCountry)
@@ -100,14 +184,18 @@ public sealed class DhlCourierAdapter : ICourierAdapter
 
 /// <summary>
 ///     FedEx courier adapter implementation.
-///     In production, this would integrate with FedEx's API.
+///     Supports both mock mode (development) and real API mode (production).
 /// </summary>
 public sealed class FedExCourierAdapter : ICourierAdapter
 {
+    private readonly CourierOptions _options;
     private readonly ILogger<FedExCourierAdapter> _logger;
 
-    public FedExCourierAdapter(ILogger<FedExCourierAdapter> logger)
+    public FedExCourierAdapter(
+        IOptions<CourierOptions> options,
+        ILogger<FedExCourierAdapter> logger)
     {
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -120,17 +208,25 @@ public sealed class FedExCourierAdapter : ICourierAdapter
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "Creating FedEx shipping label for {RecipientName}",
-            shippingAddress.RecipientName);
+            "Creating FedEx shipping label for {RecipientName}. MockMode: {MockMode}",
+            shippingAddress.RecipientName,
+            _options.UseMockMode);
 
-        // TODO: Replace with actual FedEx API integration
+        if (!_options.UseMockMode)
+        {
+            _logger.LogWarning(
+                "FedEx real API integration not yet implemented. " +
+                "Configure Couriers:UseMockMode=true or implement API calls.");
+            throw new NotImplementedException("FedEx API integration requires valid credentials.");
+        }
+
         await Task.Delay(100, cancellationToken);
 
-        var trackingNumber = $"FDX{Guid.NewGuid():N}".Substring(0, 16).ToUpperInvariant();
+        var trackingNumber = $"FDX{Guid.NewGuid():N}"[..16].ToUpperInvariant();
 
         return new CourierLabelResult(
             TrackingNumber: trackingNumber,
-            LabelUrl: $"https://fedex.example.com/labels/{trackingNumber}.pdf",
+            LabelUrl: $"https://mock.fedex.example.com/labels/{trackingNumber}.pdf",
             ShippingCost: weightKg * 3.0m + 12.0m,
             Currency: "USD",
             EstimatedDeliveryDate: DateTime.UtcNow.AddDays(2));
@@ -140,23 +236,36 @@ public sealed class FedExCourierAdapter : ICourierAdapter
         string trackingNumber,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Cancelling FedEx label {TrackingNumber}", trackingNumber);
-        await Task.Delay(50, cancellationToken);
-        return true;
+        _logger.LogInformation("Cancelling FedEx label {TrackingNumber}. MockMode: {MockMode}",
+            trackingNumber, _options.UseMockMode);
+
+        if (_options.UseMockMode)
+        {
+            await Task.Delay(50, cancellationToken);
+            return true;
+        }
+
+        throw new NotImplementedException("FedEx cancel API not implemented");
     }
 
     public async Task<CourierTrackingStatus> GetTrackingStatusAsync(
         string trackingNumber,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Fetching FedEx tracking for {TrackingNumber}", trackingNumber);
-        await Task.Delay(50, cancellationToken);
+        _logger.LogInformation("Fetching FedEx tracking for {TrackingNumber}. MockMode: {MockMode}",
+            trackingNumber, _options.UseMockMode);
 
-        return new CourierTrackingStatus(
-            TrackingNumber: trackingNumber,
-            Status: "IN_TRANSIT",
-            StatusDescription: "In transit",
-            LastUpdated: DateTime.UtcNow,
-            IsDelivered: false);
+        if (_options.UseMockMode)
+        {
+            await Task.Delay(50, cancellationToken);
+            return new CourierTrackingStatus(
+                TrackingNumber: trackingNumber,
+                Status: "IN_TRANSIT",
+                StatusDescription: "In transit (mock)",
+                LastUpdated: DateTime.UtcNow,
+                IsDelivered: false);
+        }
+
+        throw new NotImplementedException("FedEx tracking API not implemented");
     }
 }

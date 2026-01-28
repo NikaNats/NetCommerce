@@ -15,6 +15,7 @@ using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
+using NetCommerce.Shipping.Infrastructure.Persistence;
 using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Kernel.Security;
 using NetCommerce.SharedKernel.Infrastructure.Kestrel;
@@ -186,6 +187,7 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMig
     await app.Services.ApplyMigrationsAsync<InventoryDbContext>();
     await app.Services.ApplyMigrationsAsync<PaymentsDbContext>();
     await app.Services.ApplyMigrationsAsync<FinanceDbContext>();
+    await app.Services.ApplyMigrationsAsync<ShippingDbContext>();
 }
 
 // ============================================================================
@@ -208,7 +210,8 @@ if (app.Environment.IsDevelopment()) app.UseNetCommerceOpenApi();
 app.UseEnterpriseWebHost();
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+app.UseRateLimiter(); // Rate limiting before CORS/Auth - prevents DoS
+app.UseCors("AllowConfigured");
 app.UseAuthentication();
 app.UseAuthorization();
 

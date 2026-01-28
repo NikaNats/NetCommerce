@@ -241,6 +241,15 @@ public sealed record ShipmentCreatedIntegrationEvent(
     string CourierProvider,
     DateTime? EstimatedDeliveryDate) : IntegrationEvent;
 
+/// <summary>
+///     Published when shipping label creation fails.
+///     Allows Ordering module to handle the failure gracefully.
+/// </summary>
+public sealed record ShipmentCreationFailedEvent(
+    Guid OrderId,
+    string ErrorCode,
+    string ErrorMessage) : IntegrationEvent;
+
 public sealed record ShipmentDeliveredIntegrationEvent(
     Guid OrderId,
     Guid ShipmentId,

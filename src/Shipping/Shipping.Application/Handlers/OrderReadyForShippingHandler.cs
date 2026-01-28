@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Shipping.Application.Services;
-using Wolverine;
 
 namespace NetCommerce.Shipping.Application.Handlers;
 
@@ -10,6 +9,9 @@ namespace NetCommerce.Shipping.Application.Handlers;
 ///     This handler creates shipping labels via courier adapters and publishes
 ///     confirmation events back to the Ordering module.
 /// </summary>
+/// <remarks>
+///     Retries are handled globally via WolverineExtensions.cs error policies.
+/// </remarks>
 public sealed class OrderReadyForShippingHandler
 {
     private readonly IShippingService _shippingService;
@@ -26,9 +28,10 @@ public sealed class OrderReadyForShippingHandler
     /// <summary>
     ///     Handles the OrderReadyForShipping event.
     ///     Creates a shipping label via the courier adapter and publishes
-    ///     a ShipmentCreatedIntegrationEvent back to Ordering.
+    ///     either a ShipmentCreatedIntegrationEvent or ShipmentCreationFailedEvent.
+    ///     Wolverine handles retries automatically via global error policy.
     /// </summary>
-    public async Task<ShipmentCreatedIntegrationEvent?> Handle(
+    public async Task<object> Handle(
         OrderReadyForShipping @event,
         CancellationToken cancellationToken)
     {
@@ -64,8 +67,11 @@ public sealed class OrderReadyForShippingHandler
                     @event.OrderId,
                     result.Error);
 
-                // TODO: Implement retry logic or publish a ShipmentCreationFailed event
-                return null;
+                // Publish failure event so Ordering module can handle it
+                return new ShipmentCreationFailedEvent(
+                    @event.OrderId,
+                    result.Error?.Code ?? "SHIPPING_FAILED",
+                    result.Error?.Description ?? "Failed to create shipping label");
             }
 
             var label = result.Value!;
