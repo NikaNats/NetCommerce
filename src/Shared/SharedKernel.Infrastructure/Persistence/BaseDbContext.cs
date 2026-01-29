@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NetCommerce.Kernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -65,7 +66,7 @@ public abstract class BaseDbContext : DbContext, IUnitOfWork
 
         // Configure rowversion for all aggregate roots (optimistic concurrency)
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-            if (entityType.ClrType.IsAssignableTo(typeof(AggregateRoot<>)))
+            if (entityType.ClrType.IsAssignableTo(typeof(NetCommerce.Kernel.Core.Domain.AggregateRoot<>)))
                 modelBuilder.Entity(entityType.ClrType)
                     .Property<uint>("Version")
                     .IsRowVersion();

@@ -1,3 +1,5 @@
+using NetCommerce.Kernel.Core.Domain;
+
 namespace NetCommerce.SharedKernel.Domain;
 
 /// <summary>

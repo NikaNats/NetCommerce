@@ -7,7 +7,7 @@ using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Architecture.Tests;
 

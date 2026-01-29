@@ -32,6 +32,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SharedKernel\SharedKernel.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
     <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
   </ItemGroup>
 

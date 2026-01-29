@@ -10,7 +10,7 @@ using NetCommerce.Inventory.Infrastructure;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Architecture.Tests;
 

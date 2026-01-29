@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.SharedKernel.Domain;
 

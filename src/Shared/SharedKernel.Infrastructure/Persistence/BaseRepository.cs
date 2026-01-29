@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 

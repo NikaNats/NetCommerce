@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using NetCommerce.Kernel.Core.Domain;
 
 #endregion
 
