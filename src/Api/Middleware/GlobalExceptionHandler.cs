@@ -4,12 +4,14 @@ using System.Net.Mime;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using NetCommerce.Kernel.AspNetCore;
 
 namespace NetCommerce.Api.Middleware;
 
 public sealed class GlobalExceptionHandler(
     ILogger<GlobalExceptionHandler> logger,
-    IWebHostEnvironment env) : IExceptionHandler
+    IWebHostEnvironment env,
+    ProblemDetailsUriGenerator uriGenerator) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -58,7 +60,7 @@ public sealed class GlobalExceptionHandler(
                 Status = statusCode,
                 Title = "Validation Failed",
                 Detail = "One or more validation errors occurred.",
-                Type = "https://netcommerce.com/errors/validation-failed"
+                Type = uriGenerator.GenerateTypeUri("VALIDATION_FAILED")
             };
         }
         else
@@ -71,7 +73,7 @@ public sealed class GlobalExceptionHandler(
                 Detail = (statusCode == 500 && !env.IsDevelopment())
                          ? "An unexpected internal error occurred."
                          : exception.Message,
-                Type = $"https://netcommerce.com/errors/{errorCode.ToLower().Replace("_", "-")}"
+                Type = uriGenerator.GenerateTypeUri(errorCode)
             };
         }
 

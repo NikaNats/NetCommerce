@@ -4,6 +4,7 @@ using Asp.Versioning;
 using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Api.Endpoints.Common;
+using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Queries;

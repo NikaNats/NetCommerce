@@ -46,6 +46,7 @@
     <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj"/>
 
     <!-- Kernel Packages -->
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.AspNetCore\NetCommerce.Kernel.AspNetCore.csproj"/>
     <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
     <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Wolverine\NetCommerce.Kernel.Wolverine.csproj"/>
     <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Security\NetCommerce.Kernel.Security.csproj"/>

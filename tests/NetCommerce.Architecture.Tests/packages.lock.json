@@ -1474,6 +1474,7 @@
           "Microsoft.AspNetCore.OpenApi": "[10.0.1, )",
           "Microsoft.Extensions.Caching.Hybrid": "[10.1.0, )",
           "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.AspNetCore": "[1.0.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "NetCommerce.Kernel.Security": "[1.0.0, )",
           "NetCommerce.Kernel.Wolverine": "[1.0.0, )",
@@ -1506,6 +1507,13 @@
       "netcommerce.kernel.application": {
         "type": "Project",
         "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.aspnetcore": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.AspNetCore.Http.Results": "[10.0.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },

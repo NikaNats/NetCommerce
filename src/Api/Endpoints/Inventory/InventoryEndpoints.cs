@@ -1,4 +1,5 @@
 using Asp.Versioning.Builder; // Required for ApiVersionSet
+using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Application.Stock.Queries;
 using NetCommerce.Kernel.Core.Results;

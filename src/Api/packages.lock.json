@@ -1102,6 +1102,12 @@
           "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
+      "netcommerce.kernel.aspnetcore": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
+        }
+      },
       "netcommerce.kernel.compliance": {
         "type": "Project",
         "dependencies": {

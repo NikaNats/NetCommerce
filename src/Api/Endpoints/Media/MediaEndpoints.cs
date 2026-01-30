@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using Asp.Versioning.Builder; // Required for ApiVersionSet
+using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Api.Endpoints.Media;

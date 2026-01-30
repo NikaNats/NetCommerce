@@ -3,7 +3,7 @@ using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Api.Endpoints.Common;
-using NetCommerce.Api.Endpoints;
+using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.Ordering.Infrastructure.Persistence;

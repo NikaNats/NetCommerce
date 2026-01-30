@@ -23,6 +23,7 @@
         <Project Path="src/Kernel/NetCommerce.Kernel.Compliance/NetCommerce.Kernel.Compliance.csproj"/>
     </Folder>
     <Folder Name="/src/Kernel.Adapters/">
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.AspNetCore/NetCommerce.Kernel.AspNetCore.csproj"/>
         <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.EfCore/NetCommerce.Kernel.EfCore.csproj"/>
         <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Wolverine/NetCommerce.Kernel.Wolverine.csproj"/>
         <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Security/NetCommerce.Kernel.Security.csproj"/>

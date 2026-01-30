@@ -18,6 +18,7 @@ using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Shipping.Infrastructure.Persistence;
 using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Kernel.Security;
+using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.SharedKernel.Infrastructure.Kestrel;
 using Wolverine;
 using NetCommerce.Kernel.EfCore.Persistence;
@@ -60,8 +61,10 @@ builder.Host.UseWolverineMessaging(
 builder.Services.Configure<WolverineOptions>(opts => opts.ConfigureKernelDefaults<BaseDbContext>());
 
 // ============================================================================
-// Problem Details for consistent error responses
+// Problem Details for consistent error responses (RFC 9457)
+// Configurable URIs for dev/prod environments
 // ============================================================================
+builder.Services.AddKernelAspNetCore(builder.Configuration);
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
