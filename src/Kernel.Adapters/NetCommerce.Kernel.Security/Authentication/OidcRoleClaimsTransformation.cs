@@ -10,7 +10,8 @@ namespace NetCommerce.Kernel.Security.Authentication;
 ///     Flattens nested JSON role structures (Keycloak, Auth0, etc.) into standard .NET ClaimsPrincipal roles.
 ///     Supports:
 ///     - realm_access.roles: Global realm roles
-///     - resource_access.{clientId}.roles: Client-specific roles
+///     - resource_access.{clientId}.roles: Client-specific roles (direct permissions for API client,
+///       prefixed for other clients)
 /// </summary>
 public sealed class OidcRoleClaimsTransformation : IClaimsTransformation
 {
@@ -19,12 +20,13 @@ public sealed class OidcRoleClaimsTransformation : IClaimsTransformation
     private const string RolesProperty = "roles";
     private const string RolesClaim = "roles";
     private const string PermissionsClaim = "permissions";
+    private const string DefaultApiClientId = "netcommerce-api";
 
     private readonly string _apiClientId;
 
     public OidcRoleClaimsTransformation(string? apiClientId = null)
     {
-        _apiClientId = apiClientId ?? "api";
+        _apiClientId = apiClientId ?? DefaultApiClientId;
     }
 
     public Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
@@ -64,9 +66,11 @@ public sealed class OidcRoleClaimsTransformation : IClaimsTransformation
         {
             using var doc = JsonDocument.Parse(resourceJson);
 
+            // Extract roles for the primary API client (added WITHOUT prefix)
             if (doc.RootElement.TryGetProperty(_apiClientId, out var clientElement))
                 ParseAndAddRoles(identity, clientElement.GetRawText(), PermissionsClaim);
 
+            // Extract roles from other clients (added WITH prefix for namespace separation)
             foreach (var client in doc.RootElement.EnumerateObject())
             {
                 if (client.Name == _apiClientId)
@@ -101,10 +105,12 @@ public sealed class OidcRoleClaimsTransformation : IClaimsTransformation
             var roleValue = role.GetString();
             if (!string.IsNullOrEmpty(roleValue))
             {
-                identity.AddClaim(new Claim(claimType, roleValue));
+                // Prevent duplicate claims
+                if (!identity.HasClaim(claimType, roleValue))
+                    identity.AddClaim(new Claim(claimType, roleValue));
 
                 // Also add as standard Role claim for [Authorize(Roles = "...")]
-                if (claimType == RolesClaim)
+                if (claimType == RolesClaim && !identity.HasClaim(ClaimTypes.Role, roleValue))
                     identity.AddClaim(new Claim(ClaimTypes.Role, roleValue));
             }
         }

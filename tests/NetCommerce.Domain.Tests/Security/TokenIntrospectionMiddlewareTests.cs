@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
+using NetCommerce.Kernel.Security.Authentication;
 
 #endregion
 

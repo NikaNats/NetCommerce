@@ -16,7 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
-using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
+using NetCommerce.Kernel.Security.Authentication;
 using Shouldly;
 using WireMock.RequestBuilders;
 using WireMock.ResponseBuilders;
@@ -299,7 +299,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
 
                     // Add claims transformation
                     services.AddTransient<IClaimsTransformation,
-                        KeycloakRolesClaimsTransformation>();
+                        OidcRoleClaimsTransformation>();
 
                     // Add HTTP client factory for introspection
                     services.AddHttpClient("KeycloakIntrospection");

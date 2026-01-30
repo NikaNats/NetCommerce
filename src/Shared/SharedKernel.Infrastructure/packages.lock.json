@@ -858,6 +858,13 @@
           "WolverineFx": "[5.9.2, )"
         }
       },
+      "netcommerce.kernel.security": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.1, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )"
+        }
+      },
       "netcommerce.kernel.wolverine": {
         "type": "Project",
         "dependencies": {
@@ -877,6 +884,7 @@
           "NetCommerce.Kernel.Compliance": "[1.0.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "NetCommerce.Kernel.Security": "[1.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.SignalR": "[5.9.2, )"
         }

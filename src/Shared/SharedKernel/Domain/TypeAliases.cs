@@ -5,6 +5,7 @@
 // This file provides type-forwarding to consolidate the split-brain architecture.
 // All domain primitives now come from NetCommerce.Kernel.Core.Domain.
 // All compliance types (PII, Audit) come from NetCommerce.Kernel.Compliance.
+// All security types come from NetCommerce.Kernel.Security.
 // This file maintains backward compatibility for existing code using SharedKernel namespace.
 // =============================================================================
 
@@ -24,18 +25,24 @@ global using ITemplateEngine = NetCommerce.Kernel.Application.Notifications.ITem
 
 // Phase 3 Consolidation: Forward BaseDbContext to Kernel.EfCore
 global using BaseDbContext = NetCommerce.Kernel.EfCore.Persistence.BaseDbContext;
+
+// Phase 4 Consolidation: Forward Zero-Trust Security to Kernel.Security
+// NOTE: Direct usage of Kernel.Security types is preferred (no aliasing for security)
+// These aliases exist ONLY for backward compatibility during migration
+global using ZeroTrustAuthOptions = NetCommerce.Kernel.Security.Authentication.ZeroTrustAuthOptions;
 // =============================================================================
 // Migration Notes
 // =============================================================================
-// Phase 1 (IN PROGRESS): PII/Audit types consolidated to Kernel.Compliance
-//   - PiiVaultEntry → NetCommerce.Kernel.Compliance.Pii.PiiVaultEntry
-//   - AuditEntry → NetCommerce.Kernel.Compliance.Audit.AuditEntry
+// Phase 4 (COMPLETE): Zero-Trust Security consolidated to Kernel.Security
+//   - ZeroTrustAuthOptions → NetCommerce.Kernel.Security.Authentication.ZeroTrustAuthOptions
+//   - TokenIntrospectionMiddleware → NetCommerce.Kernel.Security.Authentication.TokenIntrospectionMiddleware
+//   - TokenExchangeDelegatingHandler → NetCommerce.Kernel.Security.Authentication.TokenExchangeDelegatingHandler
+//   - OidcRoleClaimsTransformation → NetCommerce.Kernel.Security.Authentication.OidcRoleClaimsTransformation
+//   - IUserContext implementation → NetCommerce.Kernel.Security.HttpUserContext
 //
-// If you see compilation errors, update your using statements:
-//   OLD: using NetCommerce.SharedKernel.Domain;
-//   NEW: using NetCommerce.Kernel.Core.Domain;
-//   NEW (PII/Audit): using NetCommerce.Kernel.Compliance.Pii;
-//   NEW (PII/Audit): using NetCommerce.Kernel.Compliance.Audit;
+// IMPORTANT: Stop using type aliases for security. Use direct Kernel.Security types:
+//   OLD: using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
+//   NEW: using NetCommerce.Kernel.Security.Authentication;
 //
 // For IRepository<T,TId> and IUnitOfWork:
 //   OLD: using NetCommerce.SharedKernel.Domain;

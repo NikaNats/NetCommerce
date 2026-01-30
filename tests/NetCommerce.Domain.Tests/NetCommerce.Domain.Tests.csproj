@@ -44,6 +44,7 @@
     <ProjectReference Include="..\..\src\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
     <ProjectReference Include="..\..\src\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
     <ProjectReference Include="..\..\src\Kernel.Adapters\NetCommerce.Kernel.Wolverine\NetCommerce.Kernel.Wolverine.csproj"/>
+    <ProjectReference Include="..\..\src\Kernel.Adapters\NetCommerce.Kernel.Security\NetCommerce.Kernel.Security.csproj"/>
     <ProjectReference Include="..\..\src\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
     <ProjectReference Include="..\..\src\Shared\SharedKernel\SharedKernel.csproj"/>
     <ProjectReference Include="..\..\src\Shared\SharedKernel.Infrastructure\SharedKernel.Infrastructure.csproj"/>
