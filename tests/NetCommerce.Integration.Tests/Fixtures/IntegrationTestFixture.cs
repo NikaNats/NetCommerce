@@ -216,8 +216,8 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
                 // Mocks
                 services.AddScoped(_ => Substitute.For<Amazon.S3.IAmazonS3>());
-                services.AddScoped(_ => Substitute.For<NetCommerce.SharedKernel.Application.Notifications.IEmailProvider>());
-                services.AddScoped(_ => Substitute.For<NetCommerce.SharedKernel.Application.Notifications.ITemplateEngine>());
+                services.AddScoped(_ => Substitute.For<NetCommerce.Kernel.Application.Notifications.IEmailProvider>());
+                services.AddScoped(_ => Substitute.For<NetCommerce.Kernel.Application.Notifications.ITemplateEngine>());
             });
 
         var host = builder.Build();

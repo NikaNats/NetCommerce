@@ -3,7 +3,7 @@
 using System.Globalization;
 using System.Reflection;
 using System.Text;
-using NetCommerce.SharedKernel.Application.Notifications;
+using NetCommerce.Kernel.Application.Notifications;
 
 #endregion
 

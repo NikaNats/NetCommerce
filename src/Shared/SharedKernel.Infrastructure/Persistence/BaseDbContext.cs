@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Kernel.Application;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Core;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 

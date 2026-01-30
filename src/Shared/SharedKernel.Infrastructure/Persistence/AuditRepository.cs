@@ -1,8 +1,8 @@
 #region
 
 using Microsoft.EntityFrameworkCore;
+using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Domain;
 
 #endregion
 
@@ -19,7 +19,7 @@ namespace NetCommerce.SharedKernel.Infrastructure.Persistence;
 ///     - Composite indexes on common query patterns
 ///     - Consider TimescaleDB for time-series workloads
 /// </summary>
-public class AuditRepository : IAuditRepository
+public class AuditRepository : NetCommerce.SharedKernel.Application.IAuditRepository
 {
     private readonly DbSet<AuditEntry> _auditLogs;
     private readonly DbContext _dbContext;

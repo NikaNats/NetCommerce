@@ -77,7 +77,7 @@ public sealed record AuditEntry
     public string? UserAgent { get; init; }
 
     /// <summary>
-    ///     Factory method to create a new audit entry.
+    ///     Factory method for creating audit entries with validation.
     /// </summary>
     public static AuditEntry Create(
         string userId,
@@ -90,6 +90,15 @@ public sealed record AuditEntry
         string? ipAddress = null,
         string? userAgent = null)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("UserId is required for audit trail", nameof(userId));
+        if (string.IsNullOrWhiteSpace(action))
+            throw new ArgumentException("Action is required for audit trail", nameof(action));
+        if (string.IsNullOrWhiteSpace(resourceId))
+            throw new ArgumentException("ResourceId is required for audit trail", nameof(resourceId));
+        if (string.IsNullOrWhiteSpace(module))
+            throw new ArgumentException("Module is required for audit trail", nameof(module));
+
         return new AuditEntry
         {
             Id = Guid.NewGuid(),

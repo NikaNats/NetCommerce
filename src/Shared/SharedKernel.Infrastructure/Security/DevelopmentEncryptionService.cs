@@ -2,6 +2,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using NetCommerce.Kernel.Compliance.Pii;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 

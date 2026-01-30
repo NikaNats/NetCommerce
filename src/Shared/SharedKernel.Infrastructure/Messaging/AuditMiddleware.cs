@@ -1,8 +1,8 @@
 #region
 
 using System.Text.Json;
+using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.SharedKernel.Application;
-using NetCommerce.SharedKernel.Domain;
 using Wolverine;
 
 #endregion
@@ -35,10 +35,10 @@ public static class AuditMiddleware
     ///     - The command is passed as the first parameter
     /// </summary>
     public static async Task Before(
-        IAuditableCommand command,
+        NetCommerce.SharedKernel.Application.IAuditableCommand command,
         Envelope envelope,
         IUserContext userContext,
-        IAuditRepository auditRepository)
+        NetCommerce.SharedKernel.Application.IAuditRepository auditRepository)
     {
         try
         {
@@ -75,10 +75,10 @@ public static class AuditMiddleware
             // 2025 Elite Decision: Should audit failure block the command?
             // Option A: Throw (strict compliance - if audit fails, command fails)
             // Option B: Log and continue (availability over audit)
-            // 
+            //
             // For financial systems: THROW (can't execute trades without audit trail)
             // For e-commerce: LOG and continue (don't block customer orders)
-            // 
+            //
             // Here we throw to ensure no unaudited sensitive actions occur.
             throw new InvalidOperationException(
                 $"Critical: Audit logging failed for {command.GetType().Name}. " +
@@ -91,11 +91,11 @@ public static class AuditMiddleware
     ///     This can capture the RESULT of the command (e.g., "Order #12345 created").
     /// </summary>
     public static async Task After(
-        IAuditableCommand command,
+        NetCommerce.SharedKernel.Application.IAuditableCommand command,
         object? result,
         Envelope envelope,
         IUserContext userContext,
-        IAuditRepository auditRepository)
+        NetCommerce.SharedKernel.Application.IAuditRepository auditRepository)
     {
         // You can optionally log a "Success" audit entry here
         // This creates a two-phase audit: "Attempted" (Before) + "Completed" (After)

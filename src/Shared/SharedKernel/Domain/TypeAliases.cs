@@ -4,7 +4,8 @@
 // =============================================================================
 // This file provides type-forwarding to consolidate the split-brain architecture.
 // All domain primitives now come from NetCommerce.Kernel.Core.Domain.
-// This file maintains backward compatibility for existing code using SharedKernel.Domain namespace.
+// All compliance types (PII, Audit) come from NetCommerce.Kernel.Compliance.
+// This file maintains backward compatibility for existing code using SharedKernel namespace.
 // =============================================================================
 
 // Re-export core domain types with SharedKernel namespace for backward compatibility
@@ -13,22 +14,30 @@ global using KernelAggregateRoot = NetCommerce.Kernel.Core.Domain.AggregateRoot<
 global using KernelValueObject = NetCommerce.Kernel.Core.Domain.ValueObject;
 global using KernelDomainEvent = NetCommerce.Kernel.Core.Domain.DomainEvent;
 
-namespace NetCommerce.SharedKernel.Domain;
+// Phase 1 Consolidation: Forward PII/Audit types to Kernel.Compliance
+global using PiiVaultEntry = NetCommerce.Kernel.Compliance.Pii.PiiVaultEntry;
+global using AuditEntry = NetCommerce.Kernel.Compliance.Audit.AuditEntry;
 
-// =============================================================================
-// Type Aliases for backward compatibility
-// These inherit from Kernel.Core types to maintain the same behavior
-// while allowing existing code to use SharedKernel.Domain namespace.
-// =============================================================================
+// Phase 2 Consolidation: Forward Notification interfaces to Kernel.Application
+global using IEmailProvider = NetCommerce.Kernel.Application.Notifications.IEmailProvider;
+global using ITemplateEngine = NetCommerce.Kernel.Application.Notifications.ITemplateEngine;
 
-// Note: The original duplicate types (Entity<T>, AggregateRoot<T>, ValueObject,
-// IDomainEvent, IEntity<T>, IAggregateRoot, IAggregateRoot<T>, IHasDomainEvents)
-// have been removed. Code should use NetCommerce.Kernel.Core.Domain directly.
+// Phase 3 Consolidation: Forward BaseDbContext to Kernel.EfCore
+global using BaseDbContext = NetCommerce.Kernel.EfCore.Persistence.BaseDbContext;
+// =============================================================================
+// Migration Notes
+// =============================================================================
+// Phase 1 (IN PROGRESS): PII/Audit types consolidated to Kernel.Compliance
+//   - PiiVaultEntry → NetCommerce.Kernel.Compliance.Pii.PiiVaultEntry
+//   - AuditEntry → NetCommerce.Kernel.Compliance.Audit.AuditEntry
 //
 // If you see compilation errors, update your using statements:
 //   OLD: using NetCommerce.SharedKernel.Domain;
 //   NEW: using NetCommerce.Kernel.Core.Domain;
+//   NEW (PII/Audit): using NetCommerce.Kernel.Compliance.Pii;
+//   NEW (PII/Audit): using NetCommerce.Kernel.Compliance.Audit;
 //
 // For IRepository<T,TId> and IUnitOfWork:
 //   OLD: using NetCommerce.SharedKernel.Domain;
 //   NEW: using NetCommerce.Kernel.Application;
+

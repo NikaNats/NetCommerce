@@ -9,7 +9,7 @@ using NetCommerce.Ordering.Infrastructure.Notifications;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
 using NetCommerce.Ordering.Infrastructure.Services;
-using NetCommerce.SharedKernel.Application.Notifications;
+using NetCommerce.Kernel.Application.Notifications;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.Application;
 

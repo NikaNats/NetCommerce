@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Payments.Infrastructure.Gateways;
-using NetCommerce.SharedKernel.Application.Notifications;
+using NetCommerce.Kernel.Application.Notifications;
 using NSubstitute;
 using Shouldly;
 using Wolverine;

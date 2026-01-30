@@ -2,7 +2,7 @@
 
 using Microsoft.Extensions.Logging;
 using NetCommerce.Ordering.Infrastructure.Notifications;
-using NetCommerce.SharedKernel.Application.Notifications;
+using NetCommerce.Kernel.Application.Notifications;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NSubstitute.ExceptionExtensions;

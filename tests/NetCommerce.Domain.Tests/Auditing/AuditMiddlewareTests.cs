@@ -23,6 +23,8 @@ public class AuditMiddlewareTests
 
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns("user_123");
+        userContext.Roles.Returns(new[] { "Customer" });
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
@@ -42,6 +44,8 @@ public class AuditMiddlewareTests
             .Returns(Task.FromException(new InvalidOperationException("DB Down")));
 
         var userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns("user_456");
+        userContext.Roles.Returns(new[] { "Admin" });
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act & Assert - Compliance Rule: Audit failure must block execution
@@ -57,6 +61,8 @@ public class AuditMiddlewareTests
         var envelope = new Envelope { CorrelationId = null }; // Missing
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns("user_789");
+        userContext.Roles.Returns(new[] { "Customer" });
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
@@ -75,6 +81,8 @@ public class AuditMiddlewareTests
         var envelope = new Envelope();
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns("user_fraud_check");
+        userContext.Roles.Returns(new[] { "FraudAnalyst" });
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
@@ -98,6 +106,8 @@ public class AuditMiddlewareTests
 
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns("user_multiple");
+        userContext.Roles.Returns(new[] { "Admin" });
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act

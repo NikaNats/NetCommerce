@@ -2,7 +2,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using NetCommerce.SharedKernel.Domain;
+using NetCommerce.Kernel.Compliance.Audit;
 
 #endregion
 

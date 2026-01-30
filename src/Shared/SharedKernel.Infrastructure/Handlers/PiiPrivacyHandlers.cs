@@ -1,9 +1,12 @@
 #region
 
+using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using NetCommerce.SharedKernel.Events;
 using Wolverine;
+using PiiVaultEntry = NetCommerce.Kernel.Compliance.Pii.PiiVaultEntry;
+using AuditEntry = NetCommerce.Kernel.Compliance.Audit.AuditEntry;
 
 #endregion
 
@@ -36,7 +39,7 @@ public static class ForgetCustomerHandler
     public static async Task<CustomerForgottenIntegrationEvent> Handle(
         ForgetCustomerCommand command,
         IPiiVaultRepository piiVaultRepository,
-        IAuditRepository auditRepository,
+        NetCommerce.SharedKernel.Application.IAuditRepository auditRepository,
         IUserContext userContext,
         Envelope envelope,
         CancellationToken cancellationToken)
@@ -104,7 +107,7 @@ public static class PurgeForgottenCustomersHandler
     public static async Task<PiiPurgedIntegrationEvent> Handle(
         PurgeForgottenCustomersCommand command,
         IPiiVaultRepository piiVaultRepository,
-        IAuditRepository auditRepository,
+        NetCommerce.SharedKernel.Application.IAuditRepository auditRepository,
         Envelope envelope,
         CancellationToken cancellationToken)
     {
@@ -156,7 +159,7 @@ public static class RotatePiiEncryptionKeysHandler
         RotatePiiEncryptionKeysCommand command,
         IPiiVaultRepository piiVaultRepository,
         IEncryptionService encryptionService,
-        IAuditRepository auditRepository,
+        NetCommerce.SharedKernel.Application.IAuditRepository auditRepository,
         Envelope envelope,
         CancellationToken cancellationToken)
     {
