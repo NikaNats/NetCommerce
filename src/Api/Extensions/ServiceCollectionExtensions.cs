@@ -123,7 +123,7 @@ public static class ServiceCollectionExtensions
         services.AddInventoryModule(configuration);
         services.AddPaymentsModule(configuration);
         services.AddMediaModule(configuration);
-        services.AddFinanceModule();
+        services.AddFinanceModule(configuration);
         services.AddShippingModule(configuration);
 
         return services;

@@ -9,6 +9,7 @@ using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Payments.Infrastructure;
 
@@ -20,11 +21,11 @@ public static class PaymentsModule
     public static IServiceCollection AddPaymentsModule(this IServiceCollection services, IConfiguration configuration)
     {
         // Database - uses Aspire-provided connection string "PaymentsDb"
-        // Using DbContext pooling for improved performance in high-scale scenarios
+        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
         var connectionString = configuration.GetConnectionString("PaymentsDb")
                                ?? configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContextPool<PaymentsDbContext>(options =>
+        services.AddKernelEfCore<PaymentsDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
                 b =>
@@ -32,9 +33,6 @@ public static class PaymentsModule
                     b.MigrationsHistoryTable("__EFMigrationsHistory", PaymentsDbContext.Schema);
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 }));
-
-        // Register UnitOfWork
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<PaymentsDbContext>());
 
         // Repositories
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();

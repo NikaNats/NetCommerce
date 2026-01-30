@@ -9,6 +9,7 @@ using NetCommerce.Shipping.Infrastructure.Adapters;
 using NetCommerce.Shipping.Infrastructure.Persistence;
 using NetCommerce.Shipping.Infrastructure.Persistence.Repositories;
 using NetCommerce.Shipping.Infrastructure.Services;
+using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Shipping.Infrastructure;
 
@@ -26,7 +27,7 @@ public static class ShippingModule
         var connectionString = configuration.GetConnectionString("ShippingDb")
                                ?? configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContextPool<ShippingDbContext>(options =>
+        services.AddKernelEfCore<ShippingDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
                 b =>
@@ -34,9 +35,6 @@ public static class ShippingModule
                     b.MigrationsHistoryTable("__EFMigrationsHistory", ShippingDbContext.Schema);
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 }));
-
-        // Register UnitOfWork
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<ShippingDbContext>());
 
         // Repository
         services.AddScoped<IShipmentRepository, ShipmentRepository>();

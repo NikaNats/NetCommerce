@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
@@ -7,6 +9,7 @@ using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Finance.Infrastructure.Persistence.Repositories;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Finance.Infrastructure;
 
@@ -16,7 +19,7 @@ namespace NetCommerce.Finance.Infrastructure;
 /// </summary>
 public static class FinanceModule
 {
-    public static IServiceCollection AddFinanceModule(this IServiceCollection services)
+    public static IServiceCollection AddFinanceModule(this IServiceCollection services, IConfiguration configuration)
     {
         // Domain Services
         services.AddScoped<ReconciliationEngine>();
@@ -27,11 +30,18 @@ public static class FinanceModule
         // Gateways
         services.AddHttpClient<IPaymentGateway, StripePaymentGateway>();
 
-        // Infrastructure
-        services.AddDbContext<FinanceDbContext>();
+        // Database - uses AddKernelEfCore for interceptor-based audit & tenant isolation
+        var connectionString = configuration.GetConnectionString("FinanceDb")
+                               ?? configuration.GetConnectionString("DefaultConnection");
 
-        // Register DbContext as IUnitOfWork for transaction management
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<FinanceDbContext>());
+        services.AddKernelEfCore<FinanceDbContext>(options =>
+            options.UseNpgsql(
+                connectionString,
+                b =>
+                {
+                    b.MigrationsHistoryTable("__EFMigrationsHistory", FinanceDbContext.Schema);
+                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
+                }));
 
         return services;
     }

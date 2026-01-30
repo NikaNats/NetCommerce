@@ -12,6 +12,7 @@ using NetCommerce.Ordering.Infrastructure.Services;
 using NetCommerce.Kernel.Application.Notifications;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Ordering.Infrastructure;
 
@@ -23,11 +24,11 @@ public static class OrderingModule
     public static IServiceCollection AddOrderingModule(this IServiceCollection services, IConfiguration configuration)
     {
         // Database - uses Aspire-provided connection string "OrderingDb"
-        // Using DbContext pooling for improved performance in high-scale scenarios
+        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
         var connectionString = configuration.GetConnectionString("OrderingDb")
                                ?? configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContextPool<OrderingDbContext>(options =>
+        services.AddKernelEfCore<OrderingDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
                 b =>
@@ -35,9 +36,6 @@ public static class OrderingModule
                     b.MigrationsHistoryTable("__EFMigrationsHistory", OrderingDbContext.Schema);
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 }));
-
-        // Register UnitOfWork
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<OrderingDbContext>());
 
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();

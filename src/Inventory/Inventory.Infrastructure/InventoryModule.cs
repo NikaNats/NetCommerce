@@ -8,6 +8,7 @@ using NetCommerce.Inventory.Infrastructure.Persistence;
 using NetCommerce.Inventory.Infrastructure.Persistence.Repositories;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
+using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Inventory.Infrastructure;
 
@@ -16,11 +17,11 @@ public static class InventoryModule
     public static IServiceCollection AddInventoryModule(this IServiceCollection services, IConfiguration configuration)
     {
         // Database - uses Aspire-provided connection string "InventoryDb"
-        // Using DbContext pooling for improved performance in high-scale scenarios
+        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
         var connectionString = configuration.GetConnectionString("InventoryDb")
                                ?? configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContextPool<InventoryDbContext>(options =>
+        services.AddKernelEfCore<InventoryDbContext>(options =>
             options.UseNpgsql(
                 connectionString,
                 b =>
@@ -28,9 +29,6 @@ public static class InventoryModule
                     b.MigrationsHistoryTable("__EFMigrationsHistory", InventoryDbContext.Schema);
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 }));
-
-        // Register UnitOfWork
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<InventoryDbContext>());
 
         // Repositories
         services.AddScoped<IStockRepository, StockRepository>();

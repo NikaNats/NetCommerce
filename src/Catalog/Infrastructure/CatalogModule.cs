@@ -13,6 +13,7 @@ using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Catalog.Infrastructure;
 
@@ -26,12 +27,11 @@ public static class CatalogModule
         IConfiguration configuration)
     {
         // Database - uses Aspire-provided connection string "CatalogDb"
-        // Using DbContext pooling for improved performance in high-scale scenarios
+        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
         var connectionString = configuration.GetConnectionString("CatalogDb")
                                ?? configuration.GetConnectionString("DefaultConnection");
 
-        services.AddDbContextPool<CatalogDbContext>(options =>
-        {
+        services.AddKernelEfCore<CatalogDbContext>(options =>
             options.UseNpgsql(connectionString,
                 npgsqlOptions =>
                 {
@@ -42,11 +42,7 @@ public static class CatalogModule
                         5,
                         TimeSpan.FromSeconds(30),
                         null);
-                });
-        });
-
-        // Register UnitOfWork
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CatalogDbContext>());
+                }));
 
         // Repositories
         // Product repository with caching decorator for enterprise-scale read performance
