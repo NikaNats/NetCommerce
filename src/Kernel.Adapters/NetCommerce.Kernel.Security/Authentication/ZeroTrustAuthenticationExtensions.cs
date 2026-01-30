@@ -116,6 +116,9 @@ public static class ZeroTrustAuthenticationExtensions
         // 8. Register HttpUserContext as IUserContext (Kernel.Application interface)
         services.AddScoped<IUserContext, HttpUserContext>();
 
+        // 9. Register HttpTenantContext as ITenantContext (required by BaseDbContext multi-tenancy filters)
+        services.AddScoped<ITenantContext, HttpTenantContext>();
+
         return builder;
     }
 

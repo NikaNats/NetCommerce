@@ -21,6 +21,12 @@ namespace NetCommerce.Ordering.Application.Sagas;
 ///     - Timeout → Cancel order, release resources
 ///
 ///     Architecture: Saga as Process Manager in the Ordering module (bounded context owner).
+///
+///     ⚠️ SERIALIZATION NOTE: This saga state is persisted to PostgreSQL by Wolverine.
+///     The fully qualified type names are stored in the JSON. After Phase 5 migration,
+///     saga state uses NetCommerce.Domain.Shared.Money (canonical) instead of the legacy
+///     NetCommerce.SharedKernel.Domain.Money. For production deployments, see:
+///     docs/PHASE_5_SERIALIZATION_MIGRATION.md
 /// </summary>
 public sealed class OrderFulfillmentSaga : Saga
 {

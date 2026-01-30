@@ -1,3 +1,10 @@
+// =============================================================================
+// DEPRECATED: Use NetCommerce.Domain.Shared.Events instead.
+// This file exists for backward compatibility during migration.
+// All saga messages should use the canonical types from Domain.Shared.
+// =============================================================================
+#pragma warning disable CS0618 // Suppress obsolete warnings - this file uses deprecated Money type
+
 using NetCommerce.SharedKernel.Application;
 using NetCommerce.SharedKernel.Domain;
 using Wolverine;
@@ -11,6 +18,10 @@ namespace NetCommerce.SharedKernel.Events;
 ///     Command sent by the OrderSaga to request payment processing.
 ///     Targets the Payments module.
 /// </summary>
+/// <remarks>
+///     DEPRECATED: Use <see cref="NetCommerce.Domain.Shared.Events.RequestPaymentCommand"/> instead.
+/// </remarks>
+[Obsolete("Use NetCommerce.Domain.Shared.Events.RequestPaymentCommand instead.")]
 public sealed record RequestPaymentCommand(
     Guid OrderId,
     Guid CustomerId,

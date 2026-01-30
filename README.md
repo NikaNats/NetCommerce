@@ -20,7 +20,7 @@ The system is composed of loosely coupled modules communicating via in-process *
 ```mermaid
 graph TD
     User(User / Client) --> API[NetCommerce.Api]
-    
+
     subgraph "Orchestration (.NET Aspire)"
         API
         Dashboard[Aspire Dashboard]
@@ -40,15 +40,15 @@ graph TD
         Ordering --> DB_Ord[(Postgres: Ordering)]
         Inventory --> DB_Inv[(Postgres: Inventory)]
         Payments --> DB_Pay[(Postgres: Payments)]
-        
+
         Basket --> Redis[(Redis)]
         Inventory --> Redis
-        
+
         Ordering --> Keycloak[Keycloak IAM]
         API --> Keycloak
-        
+
         Media --> Blob[Azure Blob / S3]
-        
+
         API --> Seq[Seq Logging]
     end
 ```
@@ -198,6 +198,26 @@ The current architecture is a **Modular Monolith**. It is designed to be easily 
 1.  **Phase 1 (Current):** Single deployment unit, modules separated by namespaces/assemblies, communicating via in-memory MediatR.
 2.  **Phase 2 (Async Messaging):** Replace in-memory event bus with **RabbitMQ** or **Azure Service Bus** (Outbox processor supports this switch easily).
 3.  **Phase 3 (Extraction):** Isolate a "hot" module (e.g., Inventory) into a separate container/service without rewriting domain logic.
+
+---
+
+## ⚠️ Important Migration Notes
+
+### Phase 5: Domain.Shared Consolidation
+
+As of Phase 5, the codebase has migrated core value objects (`Money`, `PriceBreakdown`) and integration events from `SharedKernel` to the canonical `Domain.Shared` namespace. This change affects **Wolverine saga persistence**.
+
+**For Development:**
+- Database wipe is acceptable - clear Wolverine tables before deploying Phase 5 changes
+
+**For Production:**
+- See [Phase 5 Serialization Migration Guide](docs/PHASE_5_SERIALIZATION_MIGRATION.md)
+- Implement type resolver for backward compatibility
+- Allow existing sagas to complete before removing legacy types
+
+**Key Files:**
+- `docs/PHASE_5_SERIALIZATION_MIGRATION.md` - Complete migration strategy
+- `src/Ordering/Ordering.Application/Sagas/OrderFulfillmentSaga.cs` - Saga state with Money
 
 ---
 

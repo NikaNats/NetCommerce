@@ -9,6 +9,11 @@ namespace NetCommerce.SharedKernel.Domain;
 /// <summary>
 ///     Represents a monetary value with currency.
 /// </summary>
+/// <remarks>
+///     DEPRECATED: Use <see cref="NetCommerce.Domain.Shared.Money"/> instead.
+///     This type exists for backward compatibility during migration.
+/// </remarks>
+[Obsolete("Use NetCommerce.Domain.Shared.Money instead. This type will be removed in a future version.")]
 public sealed class Money : ValueObject
 {
     /// <summary>

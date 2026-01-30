@@ -12,6 +12,11 @@ namespace NetCommerce.SharedKernel.Domain;
 ///     Ensures complete transparency on how a final price was calculated at a specific point in time.
 ///     2025 Elite Refinement: Stores LINE-ITEM TOTALS to avoid penny variance from division.
 /// </summary>
+/// <remarks>
+///     DEPRECATED: Use <see cref="NetCommerce.Domain.Shared.PriceBreakdown"/> instead.
+///     This type exists for backward compatibility during migration.
+/// </remarks>
+[Obsolete("Use NetCommerce.Domain.Shared.PriceBreakdown instead. This type will be removed in a future version.")]
 public sealed class PriceBreakdown : ValueObject
 {
     /// <summary>
