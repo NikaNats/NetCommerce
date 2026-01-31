@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Payments.Application.Gateways;
-using SharedKernel.Domain;
-using SharedKernel.Results;
+using NetCommerce.Payments.Application.Gateways;
+using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Core.Results;
 using Stripe;
 
-namespace Payments.Infrastructure.Gateways;
+namespace NetCommerce.Payments.Infrastructure.Gateways;
 
 public class StripePaymentGateway : IPaymentGateway
 {
@@ -191,7 +191,7 @@ public class StripePaymentGateway : IPaymentGateway
 public class StripeOptions
 {
     public const string SectionName = "Stripe";
-    
+
     public string SecretKey { get; set; } = string.Empty;
     public string PublishableKey { get; set; } = string.Empty;
     public string WebhookSecret { get; set; } = string.Empty;

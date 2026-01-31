@@ -156,50 +156,6 @@ public class ReconciliationIntegrationTests : IntegrationTestBase
         Math.Abs(discrepancy.Difference - 0.50m).ShouldBeLessThan(0.01m);
     }
 
-    // NOTE: This test is commented out due to Wolverine DI issues with ReconciliationEngine
-    // The handler requires IPaymentGateway which is not registered in test fixture
-    // TODO: Investigate proper service registration for Wolverine handlers with external dependencies
-    // [Fact]
-    // public async Task ReconciliationSchedulerHandler_ShouldTriggerReconciliation()
-    // {
-    //     // Arrange
-    //     var date = DateTime.UtcNow.AddDays(-1).Date;
-    //     await SeedPaymentTransactions(date, new[]
-    //     {
-    //         ("ch_scheduled", 75.00m)
-    //     });
-    //
-    //     var mockPspGateway = CreateMockPspGateway(new[]
-    //     {
-    //         new ExternalTransaction("ch_scheduled", 75.00m, 72.93m, 2.07m, "USD", date, "Scheduled payment")
-    //     });
-    //
-    //     // Register mock gateway
-    //     using var scope = Fixture.Host.Services.CreateScope();
-    //     var services = scope.ServiceProvider;
-    //
-    //     // Need to manually inject the gateway since it's not in the container
-    //     var paymentsRepo = services.GetRequiredService<IPaymentTransactionRepository>();
-    //     var sessionRepo = services.GetRequiredService<IReconciliationSessionRepository>();
-    //     var unitOfWork = services.GetRequiredService<NetCommerce.SharedKernel.Domain.IUnitOfWork>();
-    //     var bus = services.GetRequiredService<IMessageBus>();
-    //     var logger = services.GetRequiredService<ILogger<ReconciliationEngine>>();
-    //
-    //     var engine = new ReconciliationEngine(paymentsRepo, mockPspGateway, sessionRepo, unitOfWork, bus, logger);
-    //
-    //     // Act
-    //     var command = new CheckDailyReconciliation(date);
-    //     await Fixture.Host.InvokeAsync(command);
-    //
-    //     // Assert
-    //     var financeContext = services.GetRequiredService<FinanceDbContext>();
-    //     var session = await financeContext.ReconciliationSessions
-    //         .FirstOrDefaultAsync(s => s.CalculatedForDate == date.Date);
-    //
-    //     session.ShouldNotBeNull();
-    //     session.Status.ShouldBe(ReconciliationStatus.Matched);
-    // }
-
     [Fact]
     public async Task ReconciliationSession_ShouldPersistDiscrepanciesCorrectly()
     {

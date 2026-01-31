@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Ordering.Domain.Orders;
-using SharedKernel.Infrastructure.Persistence;
+using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Kernel.EfCore.Persistence;
 
-namespace Ordering.Infrastructure.Persistence.Repositories;
+namespace NetCommerce.Ordering.Infrastructure.Persistence.Repositories;
 
 public class OrderRepository : BaseRepository<Order, Guid>, IOrderRepository
 {
@@ -47,7 +47,7 @@ public class OrderRepository : BaseRepository<Order, Guid>, IOrderRepository
         // Format: ORD-YYYYMMDD-XXXXX
         var today = DateTime.UtcNow.ToString("yyyyMMdd");
         var prefix = $"ORD-{today}-";
-        
+
         var lastOrder = await DbSet
             .Where(o => o.OrderNumber.StartsWith(prefix))
             .OrderByDescending(o => o.OrderNumber)
