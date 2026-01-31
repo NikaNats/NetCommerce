@@ -56,7 +56,6 @@ public static class WolverineKernelExtensions
     /// <summary>
     ///     Configures kernel middlewares for audit logging and request logging.
     /// </summary>
-    [Obsolete("Use ConfigureKernelDefaults instead for production-ready configuration.")]
     public static WolverineOptions ConfigureKernelMiddlewares(this WolverineOptions opts)
     {
         opts.Policies.AddMiddleware(typeof(AuditMiddleware));
@@ -68,7 +67,6 @@ public static class WolverineKernelExtensions
     /// <summary>
     ///     Configures only the audit middleware.
     /// </summary>
-    [Obsolete("Use ConfigureKernelDefaults instead for production-ready configuration.")]
     public static WolverineOptions ConfigureAuditMiddleware(this WolverineOptions opts)
     {
         opts.Policies.AddMiddleware(typeof(AuditMiddleware));
@@ -78,7 +76,6 @@ public static class WolverineKernelExtensions
     /// <summary>
     ///     Configures only the logging middleware.
     /// </summary>
-    [Obsolete("Use ConfigureLoggingMiddleware instead for production-ready configuration.")]
     public static WolverineOptions ConfigureLoggingMiddleware(this WolverineOptions opts)
     {
         opts.Policies.AddMiddleware(typeof(LoggingMiddleware));
@@ -90,7 +87,6 @@ public static class WolverineKernelExtensions
     ///     Ensures messages are persisted atomically with database changes.
     /// </summary>
     /// <typeparam name="TDbContext">The DbContext type.</typeparam>
-    [Obsolete("Use ConfigureKernelDefaults instead for production-ready configuration.")]
     public static WolverineOptions ConfigureTransactionalOutbox<TDbContext>(
         this WolverineOptions opts)
         where TDbContext : DbContext

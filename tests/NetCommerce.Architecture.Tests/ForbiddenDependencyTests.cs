@@ -257,6 +257,26 @@ public class ForbiddenDependencyTests
 
     #endregion
 
+    #region SharedKernel Namespace Ban
+
+    [Fact]
+    public void SharedKernel_Namespace_Should_Be_Forbidden_Globally()
+    {
+        var result = Types.InCurrentDomain()
+            .That()
+            .ResideInNamespace("NetCommerce")
+            .Should()
+            .NotHaveDependencyOnAny("NetCommerce.SharedKernel")
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue(
+            $"Architecture Violation: The legacy SharedKernel is deprecated. " +
+            $"Please use NetCommerce.Kernel.* or NetCommerce.Domain.Shared. " +
+            $"Failing types: {string.Join(", ", result.FailingTypeNames ?? [])}");
+    }
+
+    #endregion
+
     #region No MediatR Dependencies (Migration to Wolverine)
 
     /// <summary>
