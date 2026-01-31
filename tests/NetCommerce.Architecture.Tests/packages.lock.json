@@ -1369,6 +1369,7 @@
           "Finance.Application": "[1.0.0, )",
           "Finance.Domain": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Payments.Domain": "[1.0.0, )",
           "Payments.Infrastructure": "[1.0.0, )",
@@ -1596,6 +1597,7 @@
       "payments.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Payments.Application": "[1.0.0, )",
           "Stripe.net": "[50.1.0, )"

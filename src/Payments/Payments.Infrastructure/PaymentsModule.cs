@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.BackgroundJobs;
@@ -10,6 +11,7 @@ using NetCommerce.Payments.Infrastructure.Persistence.Repositories;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.EfCore;
+using Polly;
 
 namespace NetCommerce.Payments.Infrastructure;
 
@@ -37,9 +39,32 @@ public static class PaymentsModule
         // Repositories
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 
-        // Payment Gateway - Stripe by default
+        // ============================================================================
+        // Payment Gateway with Production-Ready Circuit Breaker
+        // ============================================================================
+        // Critical for Go-Live: App stays up even if Stripe is temporarily down
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
-        services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+        services.AddHttpClient<IPaymentGateway, StripePaymentGateway>()
+            .AddStandardResilienceHandler(options =>
+            {
+                // Retry: 3 attempts with exponential backoff + jitter
+                options.Retry.MaxRetryAttempts = 3;
+                options.Retry.Delay = TimeSpan.FromMilliseconds(500);
+                options.Retry.UseJitter = true;
+                options.Retry.BackoffType = DelayBackoffType.Exponential;
+
+                // Circuit Breaker: Trip after 50% failure rate in 10s window
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(10);
+                options.CircuitBreaker.FailureRatio = 0.5;
+                options.CircuitBreaker.MinimumThroughput = 5;
+                options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
+
+                // Timeout: Individual request timeout (Stripe recommends 30s)
+                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(30);
+
+                // Total request timeout (including retries)
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(120);
+            });
 
         // Background Jobs
         services.AddHostedService<PaymentReconciliationJob>();
