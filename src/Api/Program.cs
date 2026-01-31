@@ -63,6 +63,9 @@ builder.Host.UseWolverineMessaging(
 // Configure Wolverine options
 builder.Services.Configure<WolverineOptions>(opts => opts.ConfigureKernelDefaults<BaseDbContext>());
 
+// Add Wolverine.Http services for HTTP endpoints (required for MapWolverineEndpoints)
+builder.Services.AddWolverineHttp();
+
 // ============================================================================
 // Problem Details for consistent error responses (RFC 9457)
 // Configurable URIs for dev/prod environments
