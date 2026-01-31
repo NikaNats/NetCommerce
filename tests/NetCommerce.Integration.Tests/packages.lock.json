@@ -2480,6 +2480,7 @@
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )",
           "WolverineFx.FluentValidation": "[5.9.2, )",
+          "WolverineFx.Http": "[5.9.2, )",
           "WolverineFx.Postgresql": "[5.9.2, )",
           "WolverineFx.SignalR": "[5.9.2, )"
         }
@@ -3147,6 +3148,15 @@
         "contentHash": "vpbcrur4SB2qJy+kN9l3Hio3wla7BQJXkfNcrU/9KAGLuwiBOLGq1g1p6lxvlIdtHYriNJ0MMUbCWkX+58QPGw==",
         "dependencies": {
           "FluentValidation": "12.0.0",
+          "WolverineFx": "5.9.2"
+        }
+      },
+      "WolverineFx.Http": {
+        "type": "CentralTransitive",
+        "requested": "[5.9.2, )",
+        "resolved": "5.9.2",
+        "contentHash": "eN/4XqBqyMcUp38WeE59bArDKDx0iZeJwJnh3/qCDl47xoY1qYCMtGcUE8fOLgpiBZLcXB+zXbvYzl8WkRJ6jA==",
+        "dependencies": {
           "WolverineFx": "5.9.2"
         }
       },

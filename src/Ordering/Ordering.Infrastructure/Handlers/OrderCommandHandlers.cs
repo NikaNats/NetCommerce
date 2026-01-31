@@ -15,34 +15,48 @@ using Wolverine.Attributes;
 namespace NetCommerce.Ordering.Infrastructure.Handlers;
 
 /// <summary>
-///     Wolverine handler for CreateOrderCommand implementing Triple-Pass Pricing Pattern.
-///     Pass 1: Fetch RAW price from Catalog (Source of Truth)
-///     Pass 2: Apply Promotions & Discounts
-///     Pass 3: Calculate Taxes based on Shipping Address
-///     Uses static method pattern with method injection for testability.
-///     Transactional outbox ensures domain events are atomically persisted.
+///     Context data loaded during the LoadAsync phase of the compound handler.
+///     Contains all pre-fetched data needed for order creation business logic.
+/// </summary>
+public sealed record CreateOrderContext(
+    Dictionary<Guid, PriceSnapshot> PriceMap,
+    Dictionary<Guid, PromotionResult> PromotionResults,
+    Dictionary<Guid, TaxCalculationResult> TaxResults,
+    Guid? ExistingOrderId);
+
+/// <summary>
+///     Wolverine Compound Handler for CreateOrderCommand implementing Triple-Pass Pricing Pattern.
+///
+///     This handler is split into two phases per Wolverine best practices:
+///     1. LoadAsync - Infrastructure concerns: DB queries, external service calls
+///     2. Handle - Pure business logic: Validation, domain object creation, event publishing
+///
+///     Benefits:
+///     - LoadAsync is mockable for unit tests (just return test data)
+///     - Handle is a pure function - deterministic, easy to test
+///     - Clear separation of I/O from business logic (A-Frame Architecture)
 /// </summary>
 [WolverineHandler]
 public static class CreateOrderHandler
 {
     /// <summary>
-    ///     Handles order creation with Triple-Pass Pricing and returns the order ID.
-    ///     Wolverine auto-wraps this in a transaction via EF Core middleware.
-    ///     Publishes OrderPlacedIntegrationEvent via Outbox for email notifications.
+    ///     PHASE 1: Load all required data from infrastructure.
+    ///     This method handles all async I/O operations:
+    ///     - Idempotency check
+    ///     - Price lookup from Catalog
+    ///     - Promotion calculations
+    ///     - Tax calculations
     /// </summary>
-    public static async Task<Result<Guid>> HandleAsync(
+    public static async Task<CreateOrderContext> LoadAsync(
         CreateOrderCommand command,
         OrderingDbContext db,
-        IMessageBus messageBus,
         IPriceLookupService priceLookup,
         IPromotionEngine promotionEngine,
         ITaxProvider taxProvider,
         ILogger<CreateOrderCommand> logger,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(command.IdempotencyKey))
-            return Result.Failure<Guid>(Error.Validation("IdempotencyKey is required."));
-
+        // Idempotency check
         var existingOrder = await db.Orders
             .AsNoTracking()
             .Select(o => new { o.Id, o.IdempotencyKey })
@@ -51,12 +65,72 @@ public static class CreateOrderHandler
         if (existingOrder is not null)
         {
             logger.LogWarning(
-                "Duplicate order request detected for key {Key}. Returning existing OrderId {OrderId}.",
+                "Duplicate order request detected for key {Key}. Will return existing OrderId {OrderId}.",
                 command.IdempotencyKey,
                 existingOrder.Id);
 
-            return Result.Success(existingOrder.Id);
+            return new CreateOrderContext([], [], [], existingOrder.Id);
         }
+
+        // PASS 1: Fetch RAW prices from Catalog (Source of Truth)
+        var productIds = command.Items.Select(x => x.ProductId).Distinct();
+        var priceMap = await priceLookup.GetPricesAsync(productIds, cancellationToken);
+
+        // PASS 2 & 3: Pre-calculate promotions and taxes for each item
+        var promotionResults = new Dictionary<Guid, PromotionResult>();
+        var taxResults = new Dictionary<Guid, TaxCalculationResult>();
+
+        foreach (var item in command.Items)
+        {
+            if (!priceMap.TryGetValue(item.ProductId, out var catalogMeta))
+                continue; // Will be caught in Handle phase
+
+            var basePrice = catalogMeta.Price.Amount;
+
+            // PASS 2: Apply Promotions & Discounts
+            var promotionResult = await promotionEngine.CalculateDiscountAsync(
+                item.ProductId,
+                basePrice,
+                item.Quantity,
+                command.CustomerId,
+                command.CouponCode,
+                cancellationToken);
+            promotionResults[item.ProductId] = promotionResult;
+
+            var subTotal = (basePrice * item.Quantity) - promotionResult.DiscountAmount;
+
+            // PASS 3: Calculate Taxes based on Shipping Address
+            var taxResult = await taxProvider.GetTaxAsync(
+                subTotal,
+                command.ShippingAddress.Country,
+                catalogMeta.Category,
+                cancellationToken);
+            taxResults[item.ProductId] = taxResult;
+        }
+
+        return new CreateOrderContext(priceMap, promotionResults, taxResults, null);
+    }
+
+    /// <summary>
+    ///     PHASE 2: Pure business logic - no async, no I/O.
+    ///     This method is deterministic and easily unit testable.
+    ///     Returns a tuple of (Result, CascadingMessage) per Wolverine conventions.
+    /// </summary>
+    public static async Task<Result<Guid>> Handle(
+        CreateOrderCommand command,
+        CreateOrderContext context,
+        OrderingDbContext db,
+        IMessageBus messageBus,
+        ILogger<CreateOrderCommand> logger,
+        CancellationToken cancellationToken)
+    {
+        // Handle idempotency - return existing order if already created
+        if (context.ExistingOrderId.HasValue)
+            return Result.Success(context.ExistingOrderId.Value);
+
+        // Validate idempotency key
+        if (string.IsNullOrWhiteSpace(command.IdempotencyKey))
+            return Result.Failure<Guid>(Error.Validation("IdempotencyKey is required."));
 
         var shippingAddress = ShippingAddress.Create(
             command.ShippingAddress.RecipientName,
@@ -66,10 +140,6 @@ public static class CreateOrderHandler
             command.ShippingAddress.Country,
             command.ShippingAddress.PostalCode,
             command.ShippingAddress.PhoneNumber);
-
-        // PASS 1: Fetch RAW prices from Catalog (Source of Truth)
-        var productIds = command.Items.Select(x => x.ProductId).Distinct();
-        var priceMap = await priceLookup.GetPricesAsync(productIds, cancellationToken);
 
         var order = Order.Create(
             command.CustomerId,
@@ -87,7 +157,7 @@ public static class CreateOrderHandler
 
         foreach (var item in command.Items)
         {
-            if (!priceMap.TryGetValue(item.ProductId, out var catalogMeta))
+            if (!context.PriceMap.TryGetValue(item.ProductId, out var catalogMeta))
                 return Result.Failure<Guid>(Error.NotFound("Product", item.ProductId));
 
             var basePrice = catalogMeta.Price.Amount;
@@ -105,36 +175,19 @@ public static class CreateOrderHandler
                     $"Price for {catalogMeta.Name} has changed. Expected {item.ExpectedPrice.Value:C}, but current price is {basePrice:C}. Please review your cart."));
             }
 
-            // PASS 2: Apply Promotions & Discounts
-            var promotionResult = await promotionEngine.CalculateDiscountAsync(
-                item.ProductId,
-                basePrice,
-                item.Quantity,
-                command.CustomerId,
-                command.CouponCode,
-                cancellationToken);
-
-            var subTotal = (basePrice * item.Quantity) - promotionResult.DiscountAmount;
-
-            // PASS 3: Calculate Taxes based on Shipping Address
-            var taxResult = await taxProvider.GetTaxAsync(
-                subTotal,
-                command.ShippingAddress.Country,
-                catalogMeta.Category,
-                cancellationToken);
+            var promotionResult = context.PromotionResults[item.ProductId];
+            var taxResult = context.TaxResults[item.ProductId];
 
             // 2025 Elite Refinement: Store LINE TOTALS to avoid penny variance from division
-            // promotionResult.DiscountAmount and taxResult.Amount are ALREADY line totals
             var priceBreakdown = PriceBreakdown.CreateFromLineTotals(
                 basePrice,
                 item.Quantity,
-                lineDiscountTotal: promotionResult.DiscountAmount,  // Store line total directly
-                lineTaxTotal: taxResult.Amount,                      // Store line total directly
+                lineDiscountTotal: promotionResult.DiscountAmount,
+                lineTaxTotal: taxResult.Amount,
                 taxResult.Rate,
                 taxResult.Type,
                 catalogMeta.Price.Currency);
 
-            // Calculate final unit price
             var finalUnitPrice = Money.Create(priceBreakdown.FinalPrice, catalogMeta.Price.Currency);
 
             logger.LogInformation(
@@ -145,7 +198,6 @@ public static class CreateOrderHandler
                 priceBreakdown.TaxAmount,
                 priceBreakdown.FinalPrice);
 
-            // Add item with complete pricing breakdown
             order.AddItem(
                 item.ProductId,
                 catalogMeta.Name,
@@ -159,16 +211,14 @@ public static class CreateOrderHandler
         try
         {
             db.Orders.Add(order);
+
             // Publish OrderPlacedIntegrationEvent via Wolverine Outbox
-            // This ensures the email is only sent if the order transaction commits successfully
             await messageBus.PublishAsync(new OrderPlacedIntegrationEvent(
                 order.Id,
                 order.OrderNumber,
                 command.CustomerEmail,
                 command.CustomerName,
                 order.TotalAmount));
-
-            // Wolverine's transactional middleware handles SaveChangesAsync
 
             logger.LogInformation(
                 "Order {OrderId} created for customer {CustomerId} with total {Total}. Idempotency key: {Key}",

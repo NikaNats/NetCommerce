@@ -21,6 +21,7 @@ using NetCommerce.Kernel.Security.Authentication;
 using NetCommerce.Kernel.AspNetCore;
 using Wolverine;
 using NetCommerce.Kernel.EfCore.Persistence;
+using Wolverine.Http;
 using Wolverine.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -246,6 +247,14 @@ app.UseAntiforgery();
 var versionSet = app.GetDefaultApiVersionSet();
 app.MapEndpointGroups(versionSet); // <--- Pass the versionSet here!
 app.MapAllEndpoints(versionSet); // REPR Pattern: Vertical Slice Endpoints
+
+// ============================================================================
+// Wolverine.Http Endpoints (Zero-Ceremony, Attribute-Based)
+// ============================================================================
+// Maps endpoints decorated with [WolverineGet], [WolverinePost], etc.
+// These endpoints benefit from Wolverine's compound handler pattern,
+// automatic cascading messages, and transactional outbox integration.
+app.MapWolverineEndpoints();
 
 // ============================================================================
 // Map MVC Controllers

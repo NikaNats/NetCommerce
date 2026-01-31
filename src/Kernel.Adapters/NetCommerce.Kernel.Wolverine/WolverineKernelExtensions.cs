@@ -36,7 +36,13 @@ public static class WolverineKernelExtensions
         opts.Policies.UseDurableInboxOnAllListeners();
         opts.Policies.UseDurableLocalQueues();
 
-        // 3. Middleware Application
+        // 3. Dead Letter Management (The "Final Mile")
+        // Prevents PostgreSQL database from bloating over years of transient failures.
+        // Financial audit trail requirement: 30 days retention.
+        opts.Durability.DeadLetterQueueExpirationEnabled = true;
+        opts.Durability.DeadLetterQueueExpiration = TimeSpan.FromDays(30);
+
+        // 4. Middleware Application
         // Wolverine is smart enough to only apply AuditMiddleware
         // to messages implementing IAuditableCommand.
         opts.Policies.AddMiddleware(typeof(AuditMiddleware));

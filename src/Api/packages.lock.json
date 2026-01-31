@@ -201,6 +201,15 @@
           "WolverineFx": "5.9.2"
         }
       },
+      "WolverineFx.Http": {
+        "type": "Direct",
+        "requested": "[5.9.2, )",
+        "resolved": "5.9.2",
+        "contentHash": "eN/4XqBqyMcUp38WeE59bArDKDx0iZeJwJnh3/qCDl47xoY1qYCMtGcUE8fOLgpiBZLcXB+zXbvYzl8WkRJ6jA==",
+        "dependencies": {
+          "WolverineFx": "5.9.2"
+        }
+      },
       "WolverineFx.Postgresql": {
         "type": "Direct",
         "requested": "[5.9.2, )",
