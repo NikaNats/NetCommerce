@@ -498,6 +498,11 @@
           "Microsoft.Extensions.Options": "10.0.1"
         }
       },
+      "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.1",
+        "contentHash": "cebN2lQD6S7XCQ7DFKnXcBHxSfqWr38H9YliEluJIDRTJ99Q9V6gBMXBYx03kh6YJAzfN3JoEcsikpEWnC6VwA=="
+      },
       "Microsoft.Extensions.Features": {
         "type": "Transitive",
         "resolved": "9.0.8",
@@ -679,14 +684,6 @@
         "type": "Transitive",
         "resolved": "13.0.3",
         "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
-      },
-      "Npgsql": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "xZAYhPOU2rUIFpV48xsqhCx9vXs6Y+0jX2LCoSEfDFYMw9jtAOUk3iQsCnDLrFIv9NT3JGMihn7nnuZsPKqJmA==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
-        }
       },
       "Polly.Core": {
         "type": "Transitive",
@@ -889,10 +886,12 @@
       "netcommerce.kernel.wolverine": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
           "NetCommerce.Domain.Shared": "[1.0.0, )",
           "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Compliance": "[1.0.0, )",
+          "Npgsql": "[10.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
         }
@@ -946,6 +945,18 @@
         "resolved": "10.0.1",
         "contentHash": "oIy8fQxxbUsSrrOvgBqlVgOeCtDmrcynnTG+FQufcUWBrwyPfwlUkCDB2vaiBeYPyT+20u9/HeuHeBf+H4F/8g=="
       },
+      "Microsoft.Extensions.Diagnostics.HealthChecks": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "LMQ1mW8YvfupNwoWXk+IOtjYTUllUIrETrWslKOsV66RvD96WaePcCcuF7SmB6fcTOuJFsSu/zILIUJGM+fM/Q==",
+        "dependencies": {
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Options": "10.0.1"
+        }
+      },
       "Microsoft.Extensions.Hosting.Abstractions": {
         "type": "CentralTransitive",
         "requested": "[10.0.1, )",
@@ -966,6 +977,15 @@
         "contentHash": "YkmyiPIWAXVb+lPIrM0LE5bbtLOJkCiRTFiHpkVOvhI7uTvCfoOHLEN0LcsY56GpSD7NqX3gJNpsaDe87/B3zg==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.1"
+        }
+      },
+      "Npgsql": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "xZAYhPOU2rUIFpV48xsqhCx9vXs6Y+0jX2LCoSEfDFYMw9jtAOUk3iQsCnDLrFIv9NT3JGMihn7nnuZsPKqJmA==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
         }
       },
       "WolverineFx": {

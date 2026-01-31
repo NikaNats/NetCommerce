@@ -1376,17 +1376,6 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.1"
         }
       },
-      "Microsoft.Extensions.Diagnostics.HealthChecks": {
-        "type": "Transitive",
-        "resolved": "10.0.1",
-        "contentHash": "LMQ1mW8YvfupNwoWXk+IOtjYTUllUIrETrWslKOsV66RvD96WaePcCcuF7SmB6fcTOuJFsSu/zILIUJGM+fM/Q==",
-        "dependencies": {
-          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.1",
-          "Microsoft.Extensions.Hosting.Abstractions": "10.0.1",
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.1",
-          "Microsoft.Extensions.Options": "10.0.1"
-        }
-      },
       "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": {
         "type": "Transitive",
         "resolved": "10.0.1",
@@ -1771,14 +1760,6 @@
         "dependencies": {
           "NJsonSchema": "10.6.10",
           "Newtonsoft.Json": "13.0.1"
-        }
-      },
-      "Npgsql": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "xZAYhPOU2rUIFpV48xsqhCx9vXs6Y+0jX2LCoSEfDFYMw9jtAOUk3iQsCnDLrFIv9NT3JGMihn7nnuZsPKqJmA==",
-        "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
         }
       },
       "Npgsql.DependencyInjection": {
@@ -2541,10 +2522,12 @@
       "netcommerce.kernel.wolverine": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
           "NetCommerce.Domain.Shared": "[1.0.0, )",
           "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Compliance": "[1.0.0, )",
+          "Npgsql": "[10.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
         }
@@ -2915,6 +2898,18 @@
         "resolved": "10.0.1",
         "contentHash": "oIy8fQxxbUsSrrOvgBqlVgOeCtDmrcynnTG+FQufcUWBrwyPfwlUkCDB2vaiBeYPyT+20u9/HeuHeBf+H4F/8g=="
       },
+      "Microsoft.Extensions.Diagnostics.HealthChecks": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.1, )",
+        "resolved": "10.0.1",
+        "contentHash": "LMQ1mW8YvfupNwoWXk+IOtjYTUllUIrETrWslKOsV66RvD96WaePcCcuF7SmB6fcTOuJFsSu/zILIUJGM+fM/Q==",
+        "dependencies": {
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Hosting.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.1",
+          "Microsoft.Extensions.Options": "10.0.1"
+        }
+      },
       "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.1, )",
@@ -2974,6 +2969,15 @@
         "requested": "[2.0.0, )",
         "resolved": "2.0.0",
         "contentHash": "GGYLfzV/G/ct80OZ45JxnWP7NvMX1BCugn/lX7TH5o0lcVaviavsLMTxmFV2AybXWjbi3h6FF1vgZiTK6PXndw=="
+      },
+      "Npgsql": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "xZAYhPOU2rUIFpV48xsqhCx9vXs6Y+0jX2LCoSEfDFYMw9jtAOUk3iQsCnDLrFIv9NT3JGMihn7nnuZsPKqJmA==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
+        }
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "CentralTransitive",

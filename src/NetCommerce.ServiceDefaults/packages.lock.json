@@ -244,11 +244,6 @@
           "Microsoft.Extensions.Compliance.Abstractions": "10.1.0"
         }
       },
-      "Npgsql": {
-        "type": "Transitive",
-        "resolved": "8.0.3",
-        "contentHash": "6WEmzsQJCZAlUG1pThKg/RmeF6V+I0DmBBBE/8YzpRtEzhyZzKcK7ulMANDm5CkxrALBEC8H+5plxHWtIL7xnA=="
-      },
       "OpenTelemetry": {
         "type": "Transitive",
         "resolved": "1.14.0",
@@ -311,6 +306,12 @@
         "dependencies": {
           "Microsoft.EntityFrameworkCore": "10.0.1"
         }
+      },
+      "Npgsql": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "xZAYhPOU2rUIFpV48xsqhCx9vXs6Y+0jX2LCoSEfDFYMw9jtAOUk3iQsCnDLrFIv9NT3JGMihn7nnuZsPKqJmA=="
       },
       "StackExchange.Redis": {
         "type": "CentralTransitive",

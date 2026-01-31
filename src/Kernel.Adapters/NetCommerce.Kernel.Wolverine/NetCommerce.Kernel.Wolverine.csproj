@@ -18,6 +18,8 @@
     <PackageReference Include="WolverineFx"/>
     <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    <PackageReference Include="Npgsql"/>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks"/>
   </ItemGroup>
 
 </Project>

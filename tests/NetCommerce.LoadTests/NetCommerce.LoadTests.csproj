@@ -18,6 +18,7 @@
     </PackageReference>
     <!-- Replaced InMemory with real PostgreSQL for accurate concurrency testing -->
     <PackageReference Include="Testcontainers.PostgreSql"/>
+    <PackageReference Include="Testcontainers.Redis"/>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
     <PackageReference Include="NBomber"/>
     <PackageReference Include="NBomber.Http"/>
