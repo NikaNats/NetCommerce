@@ -226,14 +226,6 @@
         "resolved": "8.1.0",
         "contentHash": "mpeNZyMdvrHztJwR1sXIUQ+3iioEU97YMBnFA9WLbsPOYhGwDJnqJMmEd8ny7kcmS9OjTHoEuX/bSXXY3brIFA=="
       },
-      "Asp.Versioning.Http": {
-        "type": "Transitive",
-        "resolved": "8.1.0",
-        "contentHash": "Xu4xF62Cu9JqYi/CTa2TiK5kyHoa4EluPynj/bPFWDmlTIPzuJQbBI5RgFYVRFHjFVvWMoA77acRaFu7i7Wzqg==",
-        "dependencies": {
-          "Asp.Versioning.Abstractions": "8.1.0"
-        }
-      },
       "AspNetCore.HealthChecks.Azure.Storage.Blobs": {
         "type": "Transitive",
         "resolved": "9.0.0",
@@ -1105,6 +1097,8 @@
       "netcommerce.kernel.aspnetcore": {
         "type": "Project",
         "dependencies": {
+          "Asp.Versioning.Http": "[8.1.0, )",
+          "Asp.Versioning.Mvc.ApiExplorer": "[8.1.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
@@ -1188,8 +1182,7 @@
         "type": "Project",
         "dependencies": {
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
-          "Ordering.Application": "[1.0.0, )",
-          "SharedKernel": "[1.0.0, )"
+          "Ordering.Application": "[1.0.0, )"
         }
       },
       "payments.application": {
@@ -1215,50 +1208,6 @@
           "Stripe.net": "[50.1.0, )"
         }
       },
-      "sharedkernel": {
-        "type": "Project",
-        "dependencies": {
-          "FluentValidation": "[12.1.1, )",
-          "Microsoft.EntityFrameworkCore": "[10.0.1, )",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
-          "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
-          "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
-          "NetCommerce.Kernel.Security": "[1.0.0, )",
-          "WolverineFx": "[5.9.2, )",
-          "WolverineFx.SignalR": "[5.9.2, )"
-        }
-      },
-      "sharedkernel.infrastructure": {
-        "type": "Project",
-        "dependencies": {
-          "Asp.Versioning.Mvc": "[8.1.0, )",
-          "Asp.Versioning.Mvc.ApiExplorer": "[8.1.0, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
-          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.1, )",
-          "Microsoft.EntityFrameworkCore": "[10.0.1, )",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.1, )",
-          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
-          "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
-          "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "NetCommerce.Kernel.Security": "[1.0.0, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
-          "Polly": "[8.6.5, )",
-          "Polly.Extensions": "[8.6.5, )",
-          "RedLock.net": "[2.3.2, )",
-          "Serilog": "[4.3.0, )",
-          "Serilog.Extensions.Logging": "[10.0.0, )",
-          "SharedKernel": "[1.0.0, )",
-          "StackExchange.Redis": "[2.10.1, )",
-          "WolverineFx": "[5.9.2, )",
-          "WolverineFx.EntityFrameworkCore": "[5.9.2, )",
-          "WolverineFx.FluentValidation": "[5.9.2, )",
-          "WolverineFx.Postgresql": "[5.9.2, )",
-          "WolverineFx.SignalR": "[5.9.2, )"
-        }
-      },
       "shipping.application": {
         "type": "Project",
         "dependencies": {
@@ -1279,6 +1228,15 @@
         "dependencies": {
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Shipping.Application": "[1.0.0, )"
+        }
+      },
+      "Asp.Versioning.Http": {
+        "type": "CentralTransitive",
+        "requested": "[8.1.0, )",
+        "resolved": "8.1.0",
+        "contentHash": "Xu4xF62Cu9JqYi/CTa2TiK5kyHoa4EluPynj/bPFWDmlTIPzuJQbBI5RgFYVRFHjFVvWMoA77acRaFu7i7Wzqg==",
+        "dependencies": {
+          "Asp.Versioning.Abstractions": "8.1.0"
         }
       },
       "AspNetCore.HealthChecks.NpgSql": {
@@ -1511,31 +1469,6 @@
         "contentHash": "Ui+qN9zCgcy0/YEthA0wVm1mrDQe7+ud82Vz5wedbk22t17t6G+6nm/Q3GYxyCyTl5UFVoO2MbfmDv7a0K6Zww==",
         "dependencies": {
           "Polly.Core": "8.6.5"
-        }
-      },
-      "RedLock.net": {
-        "type": "CentralTransitive",
-        "requested": "[2.3.2, )",
-        "resolved": "2.3.2",
-        "contentHash": "jlrALAArm4dCE292U3EtRoMnVKJ9M6sunbZn/oG5OuzlGtTpusXBfvDrnGWbgGDlWV027f5E9H5CiVnPxiq8+g==",
-        "dependencies": {
-          "Microsoft.Bcl.AsyncInterfaces": "1.1.0",
-          "StackExchange.Redis": "2.0.513"
-        }
-      },
-      "Serilog": {
-        "type": "CentralTransitive",
-        "requested": "[4.3.0, )",
-        "resolved": "4.3.0",
-        "contentHash": "+cDryFR0GRhsGOnZSKwaDzRRl4MupvJ42FhCE4zhQRVanX0Jpg6WuCBk59OVhVDPmab1bB+nRykAnykYELA9qQ=="
-      },
-      "Serilog.Extensions.Logging": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "vx0kABKl2dWbBhhqAfTOk53/i8aV/5VaT3a6il9gn72Wqs2pM7EK2OB6No6xdqK2IaY6Zf9gdjLuK9BVa2rT+Q==",
-        "dependencies": {
-          "Serilog": "4.2.0"
         }
       },
       "StackExchange.Redis": {

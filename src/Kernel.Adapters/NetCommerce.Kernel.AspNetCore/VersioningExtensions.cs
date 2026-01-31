@@ -2,14 +2,19 @@
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
 using Asp.Versioning.Builder; // Required for ApiVersionSet
-using Asp.Versioning.Conventions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace NetCommerce.SharedKernel.Versioning;
+namespace NetCommerce.Kernel.AspNetCore;
 
+/// <summary>
+///     API versioning extensions for NetCommerce APIs.
+/// </summary>
 public static class VersioningExtensions
 {
+    /// <summary>
+    ///     Adds API versioning to the service collection with URL segment, header, and query string readers.
+    /// </summary>
     public static IServiceCollection AddVersioning(this IServiceCollection services)
     {
         services.AddApiVersioning(options =>
@@ -42,8 +47,10 @@ public static class VersioningExtensions
         return services;
     }
 
-    // Helper to create the version set used in MapEndpointGroups
-    public static Asp.Versioning.Builder.ApiVersionSet GetDefaultApiVersionSet(this WebApplication app)
+    /// <summary>
+    ///     Gets the default API version set for NetCommerce APIs (v1.0).
+    /// </summary>
+    public static ApiVersionSet GetDefaultApiVersionSet(this WebApplication app)
     {
         return app.NewApiVersionSet()
             .HasApiVersion(new ApiVersion(1, 0))

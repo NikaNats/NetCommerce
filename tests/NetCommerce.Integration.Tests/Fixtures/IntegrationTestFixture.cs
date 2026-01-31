@@ -23,7 +23,7 @@ using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Handlers;
 using NetCommerce.Payments.Infrastructure.Persistence;
-using NetCommerce.SharedKernel.Infrastructure.Messaging;
+using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Kernel.Core.Results;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore;

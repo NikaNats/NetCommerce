@@ -2,7 +2,7 @@
 
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
+using NetCommerce.Kernel.Security.Authentication;
 
 #endregion
 
@@ -19,7 +19,7 @@ public class KeycloakRolesClaimsTransformationTests
 
     public KeycloakRolesClaimsTransformationTests()
     {
-        _transformer = new KeycloakRolesClaimsTransformation("netcommerce-api");
+        _transformer = new OidcRoleClaimsTransformation("netcommerce-api");
     }
 
     [Fact]

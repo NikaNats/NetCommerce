@@ -22,6 +22,29 @@ public interface IKeyManagementService
 }
 
 /// <summary>
+///     Blind index salt provider for searchable encrypted fields.
+///     Manages the secret salt used in HMAC-SHA256 blind index computation.
+/// </summary>
+public interface IBlindIndexSaltProvider
+{
+    /// <summary>
+    ///     Gets the current salt for computing new blind indexes.
+    /// </summary>
+    Task<byte[]> GetCurrentSaltAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Gets a historical salt by version for searching old blind indexes.
+    ///     Returns null if salt version is no longer available.
+    /// </summary>
+    Task<byte[]?> GetSaltByVersionAsync(int version, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Gets the current salt version for tracking which salt was used.
+    /// </summary>
+    Task<int> GetCurrentSaltVersionAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// The "How" - Business logic for performing encryption.
 /// Implementation will reside in Infrastructure/Adapters.
 /// </summary>

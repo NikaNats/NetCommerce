@@ -4,7 +4,6 @@ using Microsoft.Extensions.Caching.Hybrid;
 using NetCommerce.Api.Endpoints;
 using NetCommerce.Api.Extensions;
 using NetCommerce.Api.Middleware;
-using NetCommerce.SharedKernel.Versioning;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Finance.Application.Commands;
@@ -20,10 +19,8 @@ using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Kernel.Security;
 using NetCommerce.Kernel.Security.Authentication;
 using NetCommerce.Kernel.AspNetCore;
-using NetCommerce.SharedKernel.Infrastructure.Kestrel;
 using Wolverine;
 using NetCommerce.Kernel.EfCore.Persistence;
-using NetCommerce.SharedKernel.Infrastructure.Messaging;
 using Wolverine.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +39,11 @@ builder.AddEnterpriseWebHost();
 // Defense in Depth: Antiforgery Protection
 // ============================================================================
 builder.Services.AddAntiforgery();
+
+// ============================================================================
+// SignalR (Required by Wolverine.SignalR)
+// ============================================================================
+builder.Services.AddSignalR();
 
 // ============================================================================
 // Wolverine Message Bus with Transactional Outbox

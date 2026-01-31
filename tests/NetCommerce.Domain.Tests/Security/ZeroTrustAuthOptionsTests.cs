@@ -1,6 +1,6 @@
 #region
 
-using NetCommerce.SharedKernel.Infrastructure.Security.Authentication;
+using NetCommerce.Kernel.Security.Authentication;
 
 #endregion
 

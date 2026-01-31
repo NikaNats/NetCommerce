@@ -5,10 +5,16 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace NetCommerce.SharedKernel.Infrastructure.Kestrel;
+namespace NetCommerce.Kernel.AspNetCore;
 
+/// <summary>
+///     Kestrel configuration extensions for enterprise-hardened web hosting.
+/// </summary>
 public static class KestrelExtensions
 {
+    /// <summary>
+    ///     Configures Kestrel with enterprise-hardened security and performance settings.
+    /// </summary>
     public static void AddEnterpriseWebHost(this WebApplicationBuilder builder)
     {
         // 1. Hardening Kestrel via Services Configuration
@@ -48,6 +54,9 @@ public static class KestrelExtensions
         // Note: Response Compression is already in your Program.cs
     }
 
+    /// <summary>
+    ///     Configures enterprise-hardened middleware pipeline.
+    /// </summary>
     public static WebApplication UseEnterpriseWebHost(this WebApplication app)
     {
         app.UseRequestTimeouts();

@@ -11,11 +11,6 @@
         <Project Path="src/NetCommerce.AppHost/NetCommerce.AppHost.csproj"/>
         <Project Path="src/NetCommerce.ServiceDefaults/NetCommerce.ServiceDefaults.csproj"/>
     </Folder>
-    <!-- Legacy Shared Kernel (to be deprecated) -->
-    <Folder Name="/src/Shared/">
-        <Project Path="src/Shared/SharedKernel/SharedKernel.csproj"/>
-        <Project Path="src/Shared/SharedKernel.Infrastructure/SharedKernel.Infrastructure.csproj"/>
-    </Folder>
     <!-- New Enterprise Kernel Packages -->
     <Folder Name="/src/Kernel/">
         <Project Path="src/Kernel/NetCommerce.Kernel.Core/NetCommerce.Kernel.Core.csproj"/>
