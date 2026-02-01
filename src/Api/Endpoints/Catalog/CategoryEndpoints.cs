@@ -170,4 +170,3 @@ public class CategoryEndpoints : IEndpointGroup
         return result.ToApiResult();
     }
 }
-public record CategoryResponse;
