@@ -1,77 +1,73 @@
 <Solution>
-    <Configurations>
-        <Platform Name="Any CPU"/>
-        <BuildType Name="Debug"/>
-        <BuildType Name="Release"/>
-    </Configurations>
 
     <!-- Solution Folders -->
-    <Folder Name="/src/"/>
+    <Folder Name="/src/" />
     <Folder Name="/src/Aspire/">
-        <Project Path="src/NetCommerce.AppHost/NetCommerce.AppHost.csproj"/>
-        <Project Path="src/NetCommerce.ServiceDefaults/NetCommerce.ServiceDefaults.csproj"/>
+        <Project Path="src/NetCommerce.AppHost/NetCommerce.AppHost.csproj" />
+        <Project Path="src/NetCommerce.ServiceDefaults/NetCommerce.ServiceDefaults.csproj" />
     </Folder>
     <!-- New Enterprise Kernel Packages -->
     <Folder Name="/src/Kernel/">
-        <Project Path="src/Kernel/NetCommerce.Kernel.Core/NetCommerce.Kernel.Core.csproj"/>
-        <Project Path="src/Kernel/NetCommerce.Kernel.Application/NetCommerce.Kernel.Application.csproj"/>
-        <Project Path="src/Kernel/NetCommerce.Kernel.Compliance/NetCommerce.Kernel.Compliance.csproj"/>
+        <Project Path="src/Kernel/NetCommerce.Kernel.Core/NetCommerce.Kernel.Core.csproj" />
+        <Project Path="src/Kernel/NetCommerce.Kernel.Application/NetCommerce.Kernel.Application.csproj" />
+        <Project Path="src/Kernel/NetCommerce.Kernel.Compliance/NetCommerce.Kernel.Compliance.csproj" />
     </Folder>
     <Folder Name="/src/Kernel.Adapters/">
-        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.AspNetCore/NetCommerce.Kernel.AspNetCore.csproj"/>
-        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.EfCore/NetCommerce.Kernel.EfCore.csproj"/>
-        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Wolverine/NetCommerce.Kernel.Wolverine.csproj"/>
-        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Security/NetCommerce.Kernel.Security.csproj"/>
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.AspNetCore/NetCommerce.Kernel.AspNetCore.csproj" />
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.EfCore/NetCommerce.Kernel.EfCore.csproj" />
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Stripe/NetCommerce.Kernel.Stripe.csproj" />
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Wolverine/NetCommerce.Kernel.Wolverine.csproj" />
+        <Project Path="src/Kernel.Adapters/NetCommerce.Kernel.Security/NetCommerce.Kernel.Security.csproj" />
     </Folder>
     <Folder Name="/src/Domain.Shared/">
-        <Project Path="src/Domain.Shared/NetCommerce.Domain.Shared/NetCommerce.Domain.Shared.csproj"/>
+        <Project Path="src/Domain.Shared/NetCommerce.Domain.Shared/NetCommerce.Domain.Shared.csproj" />
     </Folder>
     <Folder Name="/src/Catalog/">
-        <Project Path="src/Catalog/Domain/Catalog.Domain.csproj"/>
-        <Project Path="src/Catalog/Application/Catalog.Application.csproj"/>
-        <Project Path="src/Catalog/Infrastructure/Catalog.Infrastructure.csproj"/>
+        <Project Path="src/Catalog/Domain/Catalog.Domain.csproj" />
+        <Project Path="src/Catalog/Application/Catalog.Application.csproj" />
+        <Project Path="src/Catalog/Infrastructure/Catalog.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Basket/">
-        <Project Path="src/Basket/Basket.Application/Basket.Application.csproj"/>
-        <Project Path="src/Basket/Basket.Infrastructure/Basket.Infrastructure.csproj"/>
+        <Project Path="src/Basket/Basket.Application/Basket.Application.csproj" />
+        <Project Path="src/Basket/Basket.Infrastructure/Basket.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Ordering/">
-        <Project Path="src/Ordering/Ordering.Domain/Ordering.Domain.csproj"/>
-        <Project Path="src/Ordering/Ordering.Application/Ordering.Application.csproj"/>
-        <Project Path="src/Ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj"/>
+        <Project Path="src/Ordering/Ordering.Domain/Ordering.Domain.csproj" />
+        <Project Path="src/Ordering/Ordering.Application/Ordering.Application.csproj" />
+        <Project Path="src/Ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Inventory/">
-        <Project Path="src/Inventory/Inventory.Domain/Inventory.Domain.csproj"/>
-        <Project Path="src/Inventory/Inventory.Application/Inventory.Application.csproj"/>
-        <Project Path="src/Inventory/Inventory.Infrastructure/Inventory.Infrastructure.csproj"/>
+        <Project Path="src/Inventory/Inventory.Domain/Inventory.Domain.csproj" />
+        <Project Path="src/Inventory/Inventory.Application/Inventory.Application.csproj" />
+        <Project Path="src/Inventory/Inventory.Infrastructure/Inventory.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Payments/">
-        <Project Path="src/Payments/Payments.Domain/Payments.Domain.csproj"/>
-        <Project Path="src/Payments/Payments.Application/Payments.Application.csproj"/>
-        <Project Path="src/Payments/Payments.Infrastructure/Payments.Infrastructure.csproj"/>
+        <Project Path="src/Payments/Payments.Domain/Payments.Domain.csproj" />
+        <Project Path="src/Payments/Payments.Application/Payments.Application.csproj" />
+        <Project Path="src/Payments/Payments.Infrastructure/Payments.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Media/">
-        <Project Path="src/Media/Media.Application/Media.Application.csproj"/>
-        <Project Path="src/Media/Media.Infrastructure/Media.Infrastructure.csproj"/>
+        <Project Path="src/Media/Media.Application/Media.Application.csproj" />
+        <Project Path="src/Media/Media.Infrastructure/Media.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Api/">
-        <Project Path="src/Api/NetCommerce.Api.csproj"/>
+        <Project Path="src/Api/NetCommerce.Api.csproj" />
     </Folder>
     <Folder Name="/src/Finance/">
-        <Project Path="src/Finance/Finance.Domain/Finance.Domain.csproj"/>
-        <Project Path="src/Finance/Finance.Application/Finance.Application.csproj"/>
-        <Project Path="src/Finance/Finance.Infrastructure/Finance.Infrastructure.csproj"/>
+        <Project Path="src/Finance/Finance.Domain/Finance.Domain.csproj" />
+        <Project Path="src/Finance/Finance.Application/Finance.Application.csproj" />
+        <Project Path="src/Finance/Finance.Infrastructure/Finance.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/src/Shipping/">
-        <Project Path="src/Shipping/Shipping.Domain/Shipping.Domain.csproj"/>
-        <Project Path="src/Shipping/Shipping.Application/Shipping.Application.csproj"/>
-        <Project Path="src/Shipping/Shipping.Infrastructure/Shipping.Infrastructure.csproj"/>
+        <Project Path="src/Shipping/Shipping.Domain/Shipping.Domain.csproj" />
+        <Project Path="src/Shipping/Shipping.Application/Shipping.Application.csproj" />
+        <Project Path="src/Shipping/Shipping.Infrastructure/Shipping.Infrastructure.csproj" />
     </Folder>
     <Folder Name="/tests/">
-        <Project Path="tests/NetCommerce.Architecture.Tests/NetCommerce.Architecture.Tests.csproj"/>
-        <Project Path="tests/NetCommerce.AppHost.Tests/NetCommerce.AppHost.Tests.csproj"/>
-        <Project Path="tests/NetCommerce.Domain.Tests/NetCommerce.Domain.Tests.csproj"/>
-        <Project Path="tests/NetCommerce.Integration.Tests/NetCommerce.Integration.Tests.csproj"/>
-        <Project Path="tests/NetCommerce.LoadTests/NetCommerce.LoadTests.csproj"/>
+        <Project Path="tests/NetCommerce.Architecture.Tests/NetCommerce.Architecture.Tests.csproj" />
+        <Project Path="tests/NetCommerce.AppHost.Tests/NetCommerce.AppHost.Tests.csproj" />
+        <Project Path="tests/NetCommerce.Domain.Tests/NetCommerce.Domain.Tests.csproj" />
+        <Project Path="tests/NetCommerce.Integration.Tests/NetCommerce.Integration.Tests.csproj" />
+        <Project Path="tests/NetCommerce.LoadTests/NetCommerce.LoadTests.csproj" />
     </Folder>
 </Solution>

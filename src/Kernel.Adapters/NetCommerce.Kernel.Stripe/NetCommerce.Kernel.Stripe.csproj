@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>NetCommerce.Kernel.Stripe</RootNamespace>
+    <Description>Shared Stripe infrastructure for NetCommerce modules (Payments, Finance)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    <PackageReference Include="Stripe.net"/>
+  </ItemGroup>
+
+</Project>

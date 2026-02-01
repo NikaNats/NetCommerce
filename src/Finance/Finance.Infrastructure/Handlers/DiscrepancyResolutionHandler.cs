@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
+using NetCommerce.Ordering.Application.Orders.Commands;
+using Wolverine;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Finance.Infrastructure.Handlers;
@@ -22,6 +24,7 @@ public static class DiscrepancyResolutionHandler
         ResolveDiscrepancyCommand command,
         IReconciliationSessionRepository sessionRepo,
         IPaymentGateway paymentGateway,
+        IMessageBus messageBus,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -52,7 +55,7 @@ public static class DiscrepancyResolutionHandler
                     break;
 
                 case DiscrepancyResolutionAction.CreateShadowOrder:
-                    await HandleShadowOrderCreationAsync(discrepancy, command, logger, cancellationToken);
+                    await HandleShadowOrderCreationAsync(discrepancy, command, messageBus, logger, cancellationToken);
                     break;
 
                 case DiscrepancyResolutionAction.AcceptDiscrepancy:
@@ -108,18 +111,47 @@ public static class DiscrepancyResolutionHandler
     private static async Task HandleShadowOrderCreationAsync(
         Discrepancy discrepancy,
         ResolveDiscrepancyCommand command,
+        IMessageBus messageBus,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        // Implementation would:
-        // 1. Create a "Shadow Order" in the ordering system
-        // 2. Mark it as paid with the external transaction
-        // 3. Add audit notes about the discrepancy resolution
+        if (discrepancy.Type != DiscrepancyType.MissingInternal)
+        {
+            throw new InvalidOperationException("Shadow order creation only allowed for ghost charges (MissingInternal)");
+        }
 
-        logger.LogInformation("Creating shadow order for discrepancy {TxnId}", discrepancy.ExternalTxnId);
+        logger.LogInformation(
+            "Creating shadow order for ghost charge: TxnId={TxnId}, Amount={Amount}",
+            discrepancy.ExternalTxnId,
+            discrepancy.Difference);
 
-        // TODO: Integrate with Ordering module to create shadow order
-        // await _orderingService.CreateShadowOrderAsync(discrepancy, command);
+        // Dispatch command to Ordering module via Wolverine
+        // The Difference is the amount charged in PSP but missing internally
+        var shadowOrderCommand = new CreateShadowOrderCommand(
+            ExternalTransactionId: discrepancy.ExternalTxnId,
+            Amount: Math.Abs(discrepancy.Difference), // Ensure positive amount
+            Currency: "GEL", // Default currency - could be extracted from PSP data
+            ResolvedBy: command.ResolvedBy,
+            Reason: $"Ghost charge resolution: {command.Reason}");
+
+        var result = await messageBus.InvokeAsync<NetCommerce.Kernel.Core.Results.Result<Guid>>(
+            shadowOrderCommand,
+            cancellationToken);
+
+        if (result.IsFailure)
+        {
+            logger.LogError(
+                "Failed to create shadow order for {TxnId}: {Error}",
+                discrepancy.ExternalTxnId,
+                result.Error);
+
+            throw new InvalidOperationException($"Shadow order creation failed: {result.Error}");
+        }
+
+        logger.LogCritical(
+            "SHADOW ORDER CREATED: OrderId={OrderId} for ghost charge {TxnId}",
+            result.Value,
+            discrepancy.ExternalTxnId);
     }
 
     private static void HandleDiscrepancyAcceptance(

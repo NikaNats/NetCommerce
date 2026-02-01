@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using NetCommerce.Integration.Tests.Fixtures;
-using NetCommerce.Payments.Infrastructure.Gateways;
+using NetCommerce.Kernel.Stripe;
 using NetCommerce.Kernel.Application.Notifications;
 using NSubstitute;
 using Shouldly;

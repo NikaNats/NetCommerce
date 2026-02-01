@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
+using NetCommerce.Kernel.Stripe;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.BackgroundJobs;
@@ -40,10 +41,14 @@ public static class PaymentsModule
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 
         // ============================================================================
+        // Shared Stripe Infrastructure (from NetCommerce.Kernel.Stripe)
+        // ============================================================================
+        services.AddStripeKernel(configuration);
+
+        // ============================================================================
         // Payment Gateway with Production-Ready Circuit Breaker
         // ============================================================================
         // Critical for Go-Live: App stays up even if Stripe is temporarily down
-        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddHttpClient<IPaymentGateway, StripePaymentGateway>()
             .AddStandardResilienceHandler(options =>
             {

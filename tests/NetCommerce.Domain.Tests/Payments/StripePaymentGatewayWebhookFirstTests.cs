@@ -1,6 +1,7 @@
 #region
 
 using Microsoft.Extensions.Logging;
+using NetCommerce.Kernel.Stripe;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Infrastructure.Gateways;
 

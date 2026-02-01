@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
+    <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.Stripe\NetCommerce.Kernel.Stripe.csproj"/>
     <ProjectReference Include="..\Payments.Application\Payments.Application.csproj"/>
   </ItemGroup>
 

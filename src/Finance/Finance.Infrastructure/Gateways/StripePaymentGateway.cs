@@ -1,25 +1,24 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Finance.Domain.Gateways;
+using NetCommerce.Kernel.Stripe;
+using Stripe;
 
 namespace NetCommerce.Finance.Infrastructure.Gateways;
 
 /// <summary>
 ///     Stripe Payment Gateway implementation for reconciliation.
 ///     Fetches payout data and transaction details from Stripe API.
+///     Uses shared StripeClientFactory from NetCommerce.Kernel.Stripe.
 /// </summary>
-public class StripePaymentGateway : IPaymentGateway
+public class StripeReconciliationGateway : IPaymentGateway
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<StripePaymentGateway> _logger;
+    private readonly StripeClientFactory _stripeFactory;
+    private readonly ILogger<StripeReconciliationGateway> _logger;
 
-    public StripePaymentGateway(HttpClient httpClient, ILogger<StripePaymentGateway> logger)
+    public StripeReconciliationGateway(StripeClientFactory stripeFactory, ILogger<StripeReconciliationGateway> logger)
     {
-        _httpClient = httpClient;
+        _stripeFactory = stripeFactory;
         _logger = logger;
-
-        // Configure HTTP client for Stripe API
-        _httpClient.BaseAddress = new Uri("https://api.stripe.com/v1/");
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {GetApiKey()}");
     }
 
     public async Task<IReadOnlyList<ExternalTransaction>> GetExternalLedgerAsync(
@@ -30,17 +29,43 @@ public class StripePaymentGateway : IPaymentGateway
         {
             _logger.LogInformation("Fetching Stripe transactions for {Date}", date.ToShortDateString());
 
-            // In a real implementation, this would call Stripe's Balance Transactions API
-            // or Payouts API to get settled transactions for the date
-            // For demo purposes, returning mock data
+            var startOfDay = new DateTimeOffset(date.Date, TimeSpan.Zero);
+            var endOfDay = new DateTimeOffset(date.Date.AddDays(1), TimeSpan.Zero);
 
-            var startOfDay = new DateTimeOffset(date.Date).ToUnixTimeSeconds();
-            var endOfDay = new DateTimeOffset(date.Date.AddDays(1)).ToUnixTimeSeconds();
+            var balanceTransactionService = _stripeFactory.CreateBalanceTransactionService();
+            var options = new BalanceTransactionListOptions
+            {
+                Created = new DateRangeOptions
+                {
+                    GreaterThanOrEqual = startOfDay.UtcDateTime,
+                    LessThan = endOfDay.UtcDateTime
+                },
+                Type = "charge", // Only successful charges
+                Limit = 100
+            };
 
-            // Mock implementation - replace with actual Stripe API calls
-            var transactions = await GetStripeBalanceTransactionsAsync(startOfDay, endOfDay, cancellationToken);
+            var transactions = new List<ExternalTransaction>();
+            var stripeTransactions = await balanceTransactionService.ListAsync(options, cancellationToken: cancellationToken);
 
+            foreach (var tx in stripeTransactions)
+            {
+                transactions.Add(new ExternalTransaction(
+                    tx.Id,
+                    tx.Amount / 100m, // Convert from cents
+                    tx.Net / 100m,    // Net after fees
+                    tx.Fee / 100m,
+                    tx.Currency.ToUpper(),
+                    tx.Created,
+                    tx.Description));
+            }
+
+            _logger.LogInformation("Fetched {Count} transactions from Stripe for {Date}", transactions.Count, date.ToShortDateString());
             return transactions;
+        }
+        catch (StripeException ex) when (ex.IsTransient())
+        {
+            _logger.LogWarning(ex, "Transient Stripe error fetching ledger for {Date}, retrying...", date);
+            throw;
         }
         catch (Exception ex)
         {
@@ -57,19 +82,28 @@ public class StripePaymentGateway : IPaymentGateway
         {
             _logger.LogInformation("Fetching Stripe transaction details for {TransactionId}", externalTransactionId);
 
-            // Call Stripe Balance Transaction API
-            var response = await _httpClient.GetAsync($"balance_transactions/{externalTransactionId}", cancellationToken);
+            var balanceTransactionService = _stripeFactory.CreateBalanceTransactionService();
+            var tx = await balanceTransactionService.GetAsync(externalTransactionId, cancellationToken: cancellationToken);
 
-            if (!response.IsSuccessStatusCode)
+            if (tx == null)
             {
-                _logger.LogWarning("Failed to fetch transaction {Id}: {Status}", externalTransactionId, response.StatusCode);
+                _logger.LogWarning("Transaction {Id} not found in Stripe", externalTransactionId);
                 return null;
             }
 
-            // Parse response and return ExternalTransaction
-            // Implementation would parse the JSON response
-
-            return null; // Placeholder
+            return new ExternalTransaction(
+                tx.Id,
+                tx.Amount / 100m,
+                tx.Net / 100m,
+                tx.Fee / 100m,
+                tx.Currency.ToUpper(),
+                tx.Created,
+                tx.Description);
+        }
+        catch (StripeException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("Transaction {Id} not found in Stripe", externalTransactionId);
+            return null;
         }
         catch (Exception ex)
         {
@@ -86,58 +120,37 @@ public class StripePaymentGateway : IPaymentGateway
     {
         try
         {
-            _logger.LogWarning("Processing refund for ghost charge {TransactionId}, Amount: {Amount}, Reason: {Reason}",
+            _logger.LogCritical(
+                "RECONCILIATION REFUND: Processing refund for ghost charge {TransactionId}, Amount: {Amount}, Reason: {Reason}",
                 externalTransactionId, amount, reason);
 
-            // Call Stripe Refund API
-            var refundData = new
+            var refundService = _stripeFactory.CreateRefundService();
+            var options = new RefundCreateOptions
             {
-                charge = externalTransactionId,
-                amount = (long)(amount * 100), // Convert to cents
-                reason = "duplicate", // or "fraudulent" based on context
-                metadata = new { reconciliation_reason = reason }
+                Charge = externalTransactionId,
+                Amount = (long)(amount * 100), // Convert to cents
+                Reason = RefundReasons.Duplicate, // Ghost charges are duplicates
+                Metadata = new Dictionary<string, string>
+                {
+                    ["reconciliation_reason"] = reason,
+                    ["source"] = "netcommerce_reconciliation"
+                }
             };
 
-            // Implementation would POST to /refunds endpoint
+            var refund = await refundService.CreateAsync(options, cancellationToken: cancellationToken);
 
-            return "mock_refund_id"; // Placeholder
+            _logger.LogInformation(
+                "Refund {RefundId} created for ghost charge {TransactionId}",
+                refund.Id, externalTransactionId);
+
+            return refund.Id;
         }
-        catch (Exception ex)
+        catch (StripeException ex)
         {
-            _logger.LogError(ex, "Failed to refund transaction {TransactionId}", externalTransactionId);
+            _logger.LogError(ex,
+                "Failed to refund transaction {TransactionId}: {Message}",
+                externalTransactionId, ex.GetUserMessage());
             throw;
         }
-    }
-
-    private async Task<IReadOnlyList<ExternalTransaction>> GetStripeBalanceTransactionsAsync(
-        long startTimestamp,
-        long endTimestamp,
-        CancellationToken cancellationToken)
-    {
-        // Mock implementation - in reality, this would:
-        // 1. Call Stripe Balance Transactions API with date filter
-        // 2. Filter for successful charges (type: 'charge')
-        // 3. Calculate net amounts (gross - fees)
-        // 4. Return ExternalTransaction records
-
-        var mockTransactions = new List<ExternalTransaction>
-        {
-            new ExternalTransaction(
-                "ch_mock_123",
-                99.99m,
-                97.49m, // Net after 2.5% + 30¢ fee
-                2.50m,
-                "USD",
-                DateTime.UtcNow.AddHours(-2),
-                "Mock transaction for reconciliation testing")
-        };
-
-        return mockTransactions;
-    }
-
-    private string GetApiKey()
-    {
-        // In production, get from configuration/secrets
-        return Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY") ?? "sk_test_mock_key";
     }
 }

@@ -1,6 +1,7 @@
 #nullable enable
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NetCommerce.Kernel.Stripe;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Kernel.Core.Results;
 using Stripe;
@@ -222,13 +223,4 @@ public class StripePaymentGateway : IPaymentGateway
             _ => "requested_by_customer"
         };
     }
-}
-
-public class StripeOptions
-{
-    public const string SectionName = "Stripe";
-
-    public string SecretKey { get; set; } = string.Empty;
-    public string PublishableKey { get; set; } = string.Empty;
-    public string WebhookSecret { get; set; } = string.Empty;
 }

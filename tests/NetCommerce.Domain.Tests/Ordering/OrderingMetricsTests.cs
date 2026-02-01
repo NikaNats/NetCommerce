@@ -88,33 +88,47 @@ public class OrderingMetricsTests : IDisposable
     [Fact]
     public void ObservableGauge_ShouldEmitMeasurementsWithCorrectTags()
     {
-        // Arrange
+        // Arrange - Set up some non-zero counts for verification
         _metrics.ReservingInventoryCount = 5;
+        _metrics.InGracePeriodCount = 2;
+        _metrics.LockingInventoryCount = 1;
         _metrics.ProcessingPaymentCount = 10;
         _metrics.ConfirmingInventoryCount = 3;
+        _metrics.CompensatingCount = 1;
+        _metrics.CompletedCount = 50;
+        _metrics.FailedCount = 2;
+        _metrics.ManualInterventionCount = 0;
 
         // Act - Trigger observation
         _meterListener.RecordObservableInstruments();
 
-        // Assert - Should have 3 measurements with different tags
+        // Assert - Should have 9 measurements (one for each saga state)
         var sagaMeasurements = _observedMeasurements
             .Where(m => m.Name == "ordering.fulfillment.sagas.active")
             .ToList();
 
-        sagaMeasurements.Count.ShouldBe(3);
+        sagaMeasurements.Count.ShouldBe(9);
 
-        // Verify each state has correct value and tag
+        // Verify each state has correct value and tag (using full state names now)
         var reservingMeasurement = sagaMeasurements
-            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Reserving"));
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "ReservingInventory"));
         reservingMeasurement.Value.ShouldBe(5L);
 
+        var gracePeriodMeasurement = sagaMeasurements
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "InGracePeriod"));
+        gracePeriodMeasurement.Value.ShouldBe(2L);
+
         var payingMeasurement = sagaMeasurements
-            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Paying"));
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "ProcessingPayment"));
         payingMeasurement.Value.ShouldBe(10L);
 
         var confirmingMeasurement = sagaMeasurements
-            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Confirming"));
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "ConfirmingInventory"));
         confirmingMeasurement.Value.ShouldBe(3L);
+
+        var completedMeasurement = sagaMeasurements
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Completed"));
+        completedMeasurement.Value.ShouldBe(50L);
     }
 
     [Fact]
@@ -135,41 +149,47 @@ public class OrderingMetricsTests : IDisposable
 
         _meterListener.RecordObservableInstruments();
 
-        // Assert - New observation should reflect updated values
+        // Assert - New observation should reflect updated values (using full state names)
         var sagaMeasurements = _observedMeasurements
             .Where(m => m.Name == "ordering.fulfillment.sagas.active")
             .ToList();
 
         var reservingMeasurement = sagaMeasurements
-            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Reserving"));
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "ReservingInventory"));
         reservingMeasurement.Value.ShouldBe(100L);
 
         var payingMeasurement = sagaMeasurements
-            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Paying"));
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "ProcessingPayment"));
         payingMeasurement.Value.ShouldBe(200L);
 
         var confirmingMeasurement = sagaMeasurements
-            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "Confirming"));
+            .FirstOrDefault(m => m.Tags.Any(t => t.Key == "state" && t.Value?.ToString() == "ConfirmingInventory"));
         confirmingMeasurement.Value.ShouldBe(300L);
     }
 
     [Fact]
     public void Counters_ShouldHandleZeroValues()
     {
-        // Arrange
+        // Arrange - All saga state counters should default to zero
         _metrics.ReservingInventoryCount = 0;
+        _metrics.InGracePeriodCount = 0;
+        _metrics.LockingInventoryCount = 0;
         _metrics.ProcessingPaymentCount = 0;
         _metrics.ConfirmingInventoryCount = 0;
+        _metrics.CompensatingCount = 0;
+        _metrics.CompletedCount = 0;
+        _metrics.FailedCount = 0;
+        _metrics.ManualInterventionCount = 0;
 
         // Act
         _meterListener.RecordObservableInstruments();
 
-        // Assert
+        // Assert - Should have 9 measurements (one for each saga state)
         var sagaMeasurements = _observedMeasurements
             .Where(m => m.Name == "ordering.fulfillment.sagas.active")
             .ToList();
 
-        sagaMeasurements.Count.ShouldBe(3);
+        sagaMeasurements.Count.ShouldBe(9);
         sagaMeasurements.All(m => (long)m.Value! == 0).ShouldBeTrue();
     }
 }

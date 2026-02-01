@@ -353,6 +353,75 @@ public static class ShipOrderHandler
 }
 
 /// <summary>
+///     Wolverine handler for CreateShadowOrderCommand.
+///     Creates a shadow order during financial reconciliation to account for "ghost charges".
+/// </summary>
+[WolverineHandler]
+public static class CreateShadowOrderHandler
+{
+    /// <summary>
+    ///     Handle shadow order creation for ghost charge reconciliation.
+    ///     Shadow orders are created directly in Paid status with the external transaction ID.
+    /// </summary>
+    [Transactional]
+    public static async Task<Result<Guid>> HandleAsync(
+        CreateShadowOrderCommand command,
+        OrderingDbContext db,
+        ILogger<CreateShadowOrderCommand> logger,
+        CancellationToken cancellationToken)
+    {
+        // Idempotency check - ensure we don't create duplicate shadow orders
+        var existingOrder = await db.Orders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                o => o.IdempotencyKey == $"shadow-{command.ExternalTransactionId}",
+                cancellationToken);
+
+        if (existingOrder is not null)
+        {
+            logger.LogWarning(
+                "Shadow order already exists for transaction {TxnId}. Returning existing order {OrderId}",
+                command.ExternalTransactionId,
+                existingOrder.Id);
+
+            return Result.Success(existingOrder.Id);
+        }
+
+        // Create minimal shipping address for reconciliation record
+        var shippingAddress = ShippingAddress.Create(
+            recipientName: "Reconciliation Record",
+            street: "N/A - Ghost Charge Resolution",
+            city: "N/A",
+            state: "N/A",
+            country: "N/A",
+            postalCode: "00000",
+            phone: "N/A");
+
+        var amount = Money.Create(command.Amount, command.Currency);
+
+        var order = Order.CreateShadowOrder(
+            command.ExternalTransactionId,
+            amount,
+            shippingAddress,
+            command.ResolvedBy,
+            command.Reason);
+
+        db.Orders.Add(order);
+
+        logger.LogCritical(
+            "SHADOW ORDER CREATED: OrderId={OrderId}, OrderNumber={OrderNumber}, TxnId={TxnId}, Amount={Amount} {Currency}, ResolvedBy={ResolvedBy}",
+            order.Id,
+            order.OrderNumber,
+            command.ExternalTransactionId,
+            command.Amount,
+            command.Currency,
+            command.ResolvedBy);
+
+        return Result.Success(order.Id);
+    }
+}
+
+/// <summary>
 ///     Wolverine handler for DeliverOrderCommand.
 /// </summary>
 [WolverineHandler]

@@ -7,14 +7,17 @@
   <ItemGroup>
     <ProjectReference Include="..\Finance.Application\Finance.Application.csproj"/>
     <ProjectReference Include="..\Finance.Domain\Finance.Domain.csproj"/>
+    <ProjectReference Include="..\..\Ordering\Ordering.Application\Ordering.Application.csproj"/>
     <ProjectReference Include="..\..\Payments\Payments.Domain\Payments.Domain.csproj"/>
     <ProjectReference Include="..\..\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
+    <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.Stripe\NetCommerce.Kernel.Stripe.csproj"/>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore"/>
     <PackageReference Include="Microsoft.Extensions.Http.Resilience"/>
+    <PackageReference Include="Stripe.net"/>
     <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
   </ItemGroup>
 

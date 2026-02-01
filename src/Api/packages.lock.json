@@ -1036,8 +1036,11 @@
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
+          "Ordering.Application": "[1.0.0, )",
           "Payments.Domain": "[1.0.0, )",
           "Payments.Infrastructure": "[1.0.0, )",
+          "Stripe.net": "[50.1.0, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
         }
       },
@@ -1137,6 +1140,14 @@
           "NetCommerce.Kernel.Application": "[1.0.0, )"
         }
       },
+      "netcommerce.kernel.stripe": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
+          "Stripe.net": "[50.1.0, )"
+        }
+      },
       "netcommerce.kernel.wolverine": {
         "type": "Project",
         "dependencies": {
@@ -1212,6 +1223,7 @@
         "dependencies": {
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
           "Payments.Application": "[1.0.0, )",
           "Stripe.net": "[50.1.0, )"
         }

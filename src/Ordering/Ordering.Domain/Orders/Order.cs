@@ -35,6 +35,19 @@ public sealed class Order : AggregateRoot<Guid>
     /// </summary>
     public string IdempotencyKey { get; private set; } = string.Empty;
 
+    /// <summary>
+    ///     Indicates this order was created as a shadow order during reconciliation.
+    ///     Shadow orders are created to account for "ghost charges" - payments that exist
+    ///     in the PSP but have no corresponding internal order record.
+    /// </summary>
+    public bool IsShadowOrder { get; private set; }
+
+    /// <summary>
+    ///     The external transaction ID from the payment provider that triggered
+    ///     the shadow order creation during reconciliation.
+    /// </summary>
+    public string? SourceDiscrepancyTxnId { get; private set; }
+
     public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
 
     /// <summary>
@@ -63,6 +76,53 @@ public sealed class Order : AggregateRoot<Guid>
 
         // Triggers "Soft Reservation" in Inventory module via integration event
         order.RaiseDomainEvent(new OrderSubmittedDomainEvent(order.Id, order.OrderNumber, customerId));
+
+        return order;
+    }
+
+    /// <summary>
+    ///     Creates a "Shadow Order" during financial reconciliation.
+    ///     This is used when a "ghost charge" is detected in the PSP (payment exists,
+    ///     but no corresponding order record exists in the system).
+    ///     Shadow orders are created directly in Paid status with the external transaction ID.
+    /// </summary>
+    /// <param name="externalTxnId">The PSP transaction ID from the discrepancy.</param>
+    /// <param name="amount">The charged amount from the PSP.</param>
+    /// <param name="currency">The currency of the charge.</param>
+    /// <param name="shippingAddress">Minimal shipping address (may be partial for reconciliation).</param>
+    /// <param name="resolvedBy">The admin who resolved the discrepancy.</param>
+    /// <param name="notes">Audit notes explaining why this shadow order was created.</param>
+    public static Order CreateShadowOrder(
+        string externalTxnId,
+        Money amount,
+        ShippingAddress shippingAddress,
+        string resolvedBy,
+        string notes)
+    {
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            OrderNumber = GenerateOrderNumber("SHADOW"),
+            CustomerId = Guid.Empty, // No customer - this is a reconciliation record
+            Status = OrderStatus.Paid, // Already paid in PSP
+            ShippingAddress = shippingAddress,
+            CreatedAt = DateTime.UtcNow,
+            IdempotencyKey = $"shadow-{externalTxnId}",
+            Notes = $"[SHADOW ORDER] Created during reconciliation by {resolvedBy}. {notes}",
+            TotalAmount = amount,
+            IsShadowOrder = true,
+            SourceDiscrepancyTxnId = externalTxnId,
+            PaymentTransactionId = externalTxnId,
+            PaidAt = DateTime.UtcNow
+        };
+
+        // Raise domain event for audit trail - no inventory or payment processing needed
+        order.RaiseDomainEvent(new ShadowOrderCreatedDomainEvent(
+            order.Id,
+            order.OrderNumber,
+            externalTxnId,
+            amount,
+            resolvedBy));
 
         return order;
     }
@@ -228,9 +288,10 @@ public sealed class Order : AggregateRoot<Guid>
         TotalAmount = total;
     }
 
-    private static string GenerateOrderNumber()
+    private static string GenerateOrderNumber(string? prefix = null)
     {
-        return $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+        var prefixPart = string.IsNullOrEmpty(prefix) ? "ORD" : prefix;
+        return $"{prefixPart}-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
     }
 }
 

@@ -8,6 +8,13 @@ namespace NetCommerce.Ordering.Infrastructure.Metrics;
 ///
 ///     Key Principle: "Technical metrics (CPU/RAM) don't tell you if the business is healthy."
 ///     CEO-level metrics: "How many orders are stuck?" "How much revenue is at risk?"
+///
+///     Grafana Dashboard Integration:
+///     - Panel "Saga State Distribution": Use ordering.fulfillment.sagas.active grouped by state
+///     - Panel "Revenue at Risk": Use ordering.fulfillment.stuck.value
+///     - Panel "Order Throughput": Use ordering.fulfillment.completed.total
+///     - Alert "Stuck Orders": ordering.fulfillment.stuck > 10
+///     - Alert "High Error Rate": ordering.fulfillment.failed.total rate > 5%
 /// </summary>
 /// <remarks>
 ///     Uses <see cref="ObservableGauge{T}" /> which is the most efficient way to track
@@ -22,12 +29,18 @@ public sealed class OrderingMetrics
     public const string MeterName = "NetCommerce.Ordering";
 
     // ═══════════════════════════════════════════════════════════════
-    // Saga State Counters (Technical Health)
+    // Saga State Counters (Technical Health) - ALL STATES
     // ═══════════════════════════════════════════════════════════════
     // Internal counters updated by the SagaMonitorService
     private long _reservingInventoryCount;
+    private long _inGracePeriodCount;
+    private long _lockingInventoryCount;
     private long _processingPaymentCount;
     private long _confirmingInventoryCount;
+    private long _compensatingCount;
+    private long _completedCount;
+    private long _failedCount;
+    private long _manualInterventionCount;
 
     // ═══════════════════════════════════════════════════════════════
     // Business Value Counters (CEO Metrics)
@@ -39,22 +52,43 @@ public sealed class OrderingMetrics
     private decimal _delayedOrdersValue; // Total $ value of delayed orders
     private long _paymentFailuresLast5Min; // Payment failures (time-windowed)
     private long _inventoryReservationFailuresLast5Min; // Inventory failures (time-windowed)
+    private decimal _totalActiveValue; // Total $ value of all active sagas
+
+    // ═══════════════════════════════════════════════════════════════
+    // Throughput Counters (Operations Metrics)
+    // ═══════════════════════════════════════════════════════════════
+    private long _completedTotal; // Cumulative completed orders (since restart)
+    private long _failedTotal; // Cumulative failed orders (since restart)
 
     public OrderingMetrics(IMeterFactory meterFactory)
     {
         var meter = meterFactory.Create(MeterName);
 
         // ═══════════════════════════════════════════════════════════════
-        // Gauge #1: Active Saga States (Technical Health)
+        // Gauge #0: Total Active Sagas (Single Number for Dashboards)
+        // ═══════════════════════════════════════════════════════════════
+        // Used by: Executive dashboards, capacity planning
+        // Purpose: "How many orders are currently being processed?"
+
+        meter.CreateObservableGauge(
+            name: "ordering.fulfillment.sagas.total",
+            observeValue: () => ReservingInventoryCount + InGracePeriodCount + LockingInventoryCount +
+                               ProcessingPaymentCount + ConfirmingInventoryCount + CompensatingCount,
+            unit: "{sagas}",
+            description: "Total count of active order fulfillment sagas (excludes Completed/Failed)");
+
+        // ═══════════════════════════════════════════════════════════════
+        // Gauge #1: Active Saga States (Technical Health - ALL STATES)
         // ═══════════════════════════════════════════════════════════════
         // Used by: DevOps dashboards, on-call alerts
         // Purpose: "Is the system processing orders normally?"
+        // Grafana: Use this for pie charts showing saga state distribution
 
         meter.CreateObservableGauge(
             name: "ordering.fulfillment.sagas.active",
             observeValues: ObserveSagaCounts,
             unit: "{sagas}",
-            description: "Current count of active order fulfillment processes grouped by state");
+            description: "Current count of order fulfillment sagas grouped by state");
 
         // ═══════════════════════════════════════════════════════════════
         // Gauge #2: Stuck Orders (CEO Metric #1)
@@ -126,6 +160,45 @@ public sealed class OrderingMetrics
             observeValue: () => _inventoryReservationFailuresLast5Min,
             unit: "failures",
             description: "Inventory reservation failures in last 5 minutes");
+
+        // ═══════════════════════════════════════════════════════════════
+        // Gauge #7: Total Active Value (Revenue at Risk)
+        // ═══════════════════════════════════════════════════════════════
+        // Used by: Finance dashboards, capacity planning
+        // Purpose: "How much revenue is currently being processed?"
+        // Alert: Sudden drop indicates processing issues
+
+        meter.CreateObservableGauge(
+            name: "ordering.fulfillment.active.value",
+            observeValue: () => (double)_totalActiveValue,
+            unit: "USD",
+            description: "Total dollar value of all active (in-progress) sagas");
+
+        // ═══════════════════════════════════════════════════════════════
+        // Counter #8: Completed Orders Total (Throughput)
+        // ═══════════════════════════════════════════════════════════════
+        // Used by: Operations dashboards, SLA reporting
+        // Purpose: "How many orders have we successfully fulfilled?"
+        // Grafana: Use rate() for orders/minute
+
+        meter.CreateObservableCounter(
+            name: "ordering.fulfillment.completed.total",
+            observeValue: () => _completedTotal,
+            unit: "{orders}",
+            description: "Cumulative count of successfully completed orders");
+
+        // ═══════════════════════════════════════════════════════════════
+        // Counter #9: Failed Orders Total (Error Tracking)
+        // ═══════════════════════════════════════════════════════════════
+        // Used by: On-call dashboards, incident management
+        // Purpose: "How many orders have failed?"
+        // Alert: High rate indicates systemic issues
+
+        meter.CreateObservableCounter(
+            name: "ordering.fulfillment.failed.total",
+            observeValue: () => _failedTotal,
+            unit: "{orders}",
+            description: "Cumulative count of failed orders (after all retries exhausted)");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -139,6 +212,24 @@ public sealed class OrderingMetrics
     {
         get => Interlocked.Read(ref _reservingInventoryCount);
         set => Interlocked.Exchange(ref _reservingInventoryCount, value);
+    }
+
+    /// <summary>
+    ///     Count of sagas currently in the InGracePeriod state (cooling-off period).
+    /// </summary>
+    public long InGracePeriodCount
+    {
+        get => Interlocked.Read(ref _inGracePeriodCount);
+        set => Interlocked.Exchange(ref _inGracePeriodCount, value);
+    }
+
+    /// <summary>
+    ///     Count of sagas currently in the LockingInventory state.
+    /// </summary>
+    public long LockingInventoryCount
+    {
+        get => Interlocked.Read(ref _lockingInventoryCount);
+        set => Interlocked.Exchange(ref _lockingInventoryCount, value);
     }
 
     /// <summary>
@@ -157,6 +248,43 @@ public sealed class OrderingMetrics
     {
         get => Interlocked.Read(ref _confirmingInventoryCount);
         set => Interlocked.Exchange(ref _confirmingInventoryCount, value);
+    }
+
+    /// <summary>
+    ///     Count of sagas currently in the Compensating state (refund in progress).
+    /// </summary>
+    public long CompensatingCount
+    {
+        get => Interlocked.Read(ref _compensatingCount);
+        set => Interlocked.Exchange(ref _compensatingCount, value);
+    }
+
+    /// <summary>
+    ///     Count of sagas that completed successfully (terminal state).
+    /// </summary>
+    public long CompletedCount
+    {
+        get => Interlocked.Read(ref _completedCount);
+        set => Interlocked.Exchange(ref _completedCount, value);
+    }
+
+    /// <summary>
+    ///     Count of sagas that failed (terminal state after successful refund).
+    /// </summary>
+    public long FailedCount
+    {
+        get => Interlocked.Read(ref _failedCount);
+        set => Interlocked.Exchange(ref _failedCount, value);
+    }
+
+    /// <summary>
+    ///     Count of sagas in ManualInterventionRequired state (the "nightmare" state).
+    ///     These require human intervention to resolve.
+    /// </summary>
+    public long ManualInterventionCount
+    {
+        get => Interlocked.Read(ref _manualInterventionCount);
+        set => Interlocked.Exchange(ref _manualInterventionCount, value);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -200,6 +328,52 @@ public sealed class OrderingMetrics
     {
         get => _delayedOrdersValue;
         set => _delayedOrdersValue = value;
+    }
+
+    /// <summary>
+    ///     Total dollar value of all active sagas (revenue currently in-flight).
+    ///     Used for capacity planning and revenue tracking.
+    /// </summary>
+    public decimal TotalActiveValue
+    {
+        get => _totalActiveValue;
+        set => _totalActiveValue = value;
+    }
+
+    /// <summary>
+    ///     Cumulative count of successfully completed orders.
+    ///     Used for throughput tracking and Grafana rate() calculations.
+    /// </summary>
+    public long CompletedTotal
+    {
+        get => Interlocked.Read(ref _completedTotal);
+        set => Interlocked.Exchange(ref _completedTotal, value);
+    }
+
+    /// <summary>
+    ///     Cumulative count of failed orders.
+    ///     Used for error rate calculations.
+    /// </summary>
+    public long FailedTotal
+    {
+        get => Interlocked.Read(ref _failedTotal);
+        set => Interlocked.Exchange(ref _failedTotal, value);
+    }
+
+    /// <summary>
+    ///     Increment completed counter when a saga completes successfully.
+    /// </summary>
+    public void RecordOrderCompleted()
+    {
+        Interlocked.Increment(ref _completedTotal);
+    }
+
+    /// <summary>
+    ///     Increment failed counter when a saga fails.
+    /// </summary>
+    public void RecordOrderFailed()
+    {
+        Interlocked.Increment(ref _failedTotal);
     }
 
     /// <summary>
@@ -250,19 +424,47 @@ public sealed class OrderingMetrics
 
     /// <summary>
     ///     Callback invoked by the OpenTelemetry scraper to collect current gauge values.
+    ///     Returns measurements for ALL saga states for comprehensive Grafana dashboards.
     /// </summary>
     private IEnumerable<Measurement<long>> ObserveSagaCounts()
     {
+        // Active states (in-progress)
         yield return new Measurement<long>(
             ReservingInventoryCount,
-            new KeyValuePair<string, object?>("state", "Reserving"));
+            new KeyValuePair<string, object?>("state", "ReservingInventory"));
+
+        yield return new Measurement<long>(
+            InGracePeriodCount,
+            new KeyValuePair<string, object?>("state", "InGracePeriod"));
+
+        yield return new Measurement<long>(
+            LockingInventoryCount,
+            new KeyValuePair<string, object?>("state", "LockingInventory"));
 
         yield return new Measurement<long>(
             ProcessingPaymentCount,
-            new KeyValuePair<string, object?>("state", "Paying"));
+            new KeyValuePair<string, object?>("state", "ProcessingPayment"));
 
         yield return new Measurement<long>(
             ConfirmingInventoryCount,
-            new KeyValuePair<string, object?>("state", "Confirming"));
+            new KeyValuePair<string, object?>("state", "ConfirmingInventory"));
+
+        yield return new Measurement<long>(
+            CompensatingCount,
+            new KeyValuePair<string, object?>("state", "Compensating"));
+
+        // Terminal states
+        yield return new Measurement<long>(
+            CompletedCount,
+            new KeyValuePair<string, object?>("state", "Completed"));
+
+        yield return new Measurement<long>(
+            FailedCount,
+            new KeyValuePair<string, object?>("state", "Failed"));
+
+        // The "nightmare" state - requires manual intervention
+        yield return new Measurement<long>(
+            ManualInterventionCount,
+            new KeyValuePair<string, object?>("state", "ManualInterventionRequired"));
     }
 }

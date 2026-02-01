@@ -84,8 +84,15 @@ public sealed class SagaMonitorService(
             .ToListAsync(ct);
 
         // Update the metrics singleton (thread-safe via Interlocked)
+        // Active states
         metrics.ReservingInventoryCount = stats
             .FirstOrDefault(x => x.State == OrderFulfillmentState.ReservingInventory)?.Count ?? 0;
+
+        metrics.InGracePeriodCount = stats
+            .FirstOrDefault(x => x.State == OrderFulfillmentState.InGracePeriod)?.Count ?? 0;
+
+        metrics.LockingInventoryCount = stats
+            .FirstOrDefault(x => x.State == OrderFulfillmentState.LockingInventory)?.Count ?? 0;
 
         metrics.ProcessingPaymentCount = stats
             .FirstOrDefault(x => x.State == OrderFulfillmentState.ProcessingPayment)?.Count ?? 0;
@@ -93,10 +100,35 @@ public sealed class SagaMonitorService(
         metrics.ConfirmingInventoryCount = stats
             .FirstOrDefault(x => x.State == OrderFulfillmentState.ConfirmingInventory)?.Count ?? 0;
 
+        metrics.CompensatingCount = stats
+            .FirstOrDefault(x => x.State == OrderFulfillmentState.Compensating)?.Count ?? 0;
+
+        // Terminal states
+        metrics.CompletedCount = stats
+            .FirstOrDefault(x => x.State == OrderFulfillmentState.Completed)?.Count ?? 0;
+
+        metrics.FailedCount = stats
+            .FirstOrDefault(x => x.State == OrderFulfillmentState.Failed)?.Count ?? 0;
+
+        // The "nightmare" state
+        metrics.ManualInterventionCount = stats
+            .FirstOrDefault(x => x.State == OrderFulfillmentState.ManualInterventionRequired)?.Count ?? 0;
+
+        // Also update StuckOrdersCount to match ManualInterventionRequired for backwards compatibility
+        metrics.StuckOrdersCount = metrics.ManualInterventionCount;
+
         logger.LogDebug(
-            "Saga metrics updated: Reserving={Reserving}, Paying={Paying}, Confirming={Confirming}",
+            "Saga metrics updated: Reserving={Reserving}, GracePeriod={Grace}, Locking={Locking}, " +
+            "Paying={Paying}, Confirming={Confirming}, Compensating={Compensating}, " +
+            "Completed={Completed}, Failed={Failed}, ManualIntervention={Manual}",
             metrics.ReservingInventoryCount,
+            metrics.InGracePeriodCount,
+            metrics.LockingInventoryCount,
             metrics.ProcessingPaymentCount,
-            metrics.ConfirmingInventoryCount);
+            metrics.ConfirmingInventoryCount,
+            metrics.CompensatingCount,
+            metrics.CompletedCount,
+            metrics.FailedCount,
+            metrics.ManualInterventionCount);
     }
 }

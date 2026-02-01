@@ -47,3 +47,16 @@ public sealed record OrderCancelledDomainEvent(
     Guid OrderId,
     string Reason,
     OrderStatus PreviousStatus) : DomainEvent;
+
+/// <summary>
+///     Raised when a shadow order is created during financial reconciliation.
+///     Shadow orders are created to account for "ghost charges" - payments that exist
+///     in the PSP but have no corresponding internal order record.
+///     This event is for audit purposes only - no inventory or payment processing needed.
+/// </summary>
+public sealed record ShadowOrderCreatedDomainEvent(
+    Guid OrderId,
+    string OrderNumber,
+    string ExternalTxnId,
+    Money Amount,
+    string ResolvedBy) : DomainEvent;

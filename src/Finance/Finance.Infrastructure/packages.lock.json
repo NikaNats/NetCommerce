@@ -49,6 +49,16 @@
         "resolved": "17.14.15",
         "contentHash": "mXQPJsbuUD2ydq4/ffd8h8tSOFCXec+2xJOVNCvXjuMOq/+5EKHq3D2m2MC2+nUaXeFMSt66VS/J4HdKBixgcw=="
       },
+      "Stripe.net": {
+        "type": "Direct",
+        "requested": "[50.1.0, )",
+        "resolved": "50.1.0",
+        "contentHash": "q6mc5CngdCLEWNHpFaa2NEOml/3cZ5jTDp1R7iHNbYHkGX5h0TmDa3theILyVTd2yOH9HqLmeeJMCpCwUeDy0A==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3",
+          "System.Configuration.ConfigurationManager": "9.0.0"
+        }
+      },
       "WolverineFx.EntityFrameworkCore": {
         "type": "Direct",
         "requested": "[5.9.2, )",
@@ -1002,6 +1012,17 @@
           "WolverineFx": "[5.9.2, )"
         }
       },
+      "netcommerce.kernel.stripe": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.1, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.1, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
+          "Stripe.net": "[50.1.0, )"
+        }
+      },
       "netcommerce.kernel.wolverine": {
         "type": "Project",
         "dependencies": {
@@ -1013,6 +1034,22 @@
           "Npgsql": "[10.0.0, )",
           "WolverineFx": "[5.9.2, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
+        }
+      },
+      "ordering.application": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
+          "Ordering.Domain": "[1.0.0, )"
+        }
+      },
+      "ordering.domain": {
+        "type": "Project",
+        "dependencies": {
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )"
         }
       },
       "payments.application": {
@@ -1035,6 +1072,7 @@
         "dependencies": {
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
           "Payments.Application": "[1.0.0, )",
           "Stripe.net": "[50.1.0, )"
         }
@@ -1145,16 +1183,6 @@
           "Microsoft.Extensions.Logging.Abstractions": "8.0.0",
           "Microsoft.Extensions.Options": "8.0.0",
           "Polly.Core": "8.6.5"
-        }
-      },
-      "Stripe.net": {
-        "type": "CentralTransitive",
-        "requested": "[50.1.0, )",
-        "resolved": "50.1.0",
-        "contentHash": "q6mc5CngdCLEWNHpFaa2NEOml/3cZ5jTDp1R7iHNbYHkGX5h0TmDa3theILyVTd2yOH9HqLmeeJMCpCwUeDy0A==",
-        "dependencies": {
-          "Newtonsoft.Json": "13.0.3",
-          "System.Configuration.ConfigurationManager": "9.0.0"
         }
       },
       "WolverineFx": {

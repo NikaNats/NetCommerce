@@ -1371,8 +1371,11 @@
           "Microsoft.EntityFrameworkCore": "[10.0.1, )",
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
+          "Ordering.Application": "[1.0.0, )",
           "Payments.Domain": "[1.0.0, )",
           "Payments.Infrastructure": "[1.0.0, )",
+          "Stripe.net": "[50.1.0, )",
           "WolverineFx.EntityFrameworkCore": "[5.9.2, )"
         }
       },
@@ -1451,6 +1454,7 @@
           "NetCommerce.Kernel.AspNetCore": "[1.0.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "NetCommerce.Kernel.Security": "[1.0.0, )",
+          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
           "NetCommerce.Kernel.Wolverine": "[1.0.0, )",
           "NetCommerce.ServiceDefaults": "[1.0.0, )",
           "Ordering.Application": "[1.0.0, )",
@@ -1520,6 +1524,17 @@
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.1, )",
           "NetCommerce.Kernel.Application": "[1.0.0, )"
+        }
+      },
+      "netcommerce.kernel.stripe": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.Configuration.Abstractions": "[10.0.1, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.1, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
+          "NetCommerce.Kernel.Core": "[1.0.0, )",
+          "Stripe.net": "[50.1.0, )"
         }
       },
       "netcommerce.kernel.wolverine": {
@@ -1599,6 +1614,7 @@
         "dependencies": {
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
+          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
           "Payments.Application": "[1.0.0, )",
           "Stripe.net": "[50.1.0, )"
         }

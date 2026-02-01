@@ -3,7 +3,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using NetCommerce.Payments.Infrastructure.Gateways;
+using NetCommerce.Kernel.Stripe;
 using NetCommerce.Domain.Shared.Events;
 using Stripe;
 using Wolverine;
