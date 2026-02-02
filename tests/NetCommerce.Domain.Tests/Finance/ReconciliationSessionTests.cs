@@ -128,7 +128,7 @@ public class ReconciliationSessionTests
         // Assert
         session.Status.ShouldBe(ReconciliationStatus.Failed);
         session.CompletedAt.ShouldNotBeNull();
-        session.Notes.ShouldContain(errorMessage);
+        session.Notes!.ShouldContain(errorMessage);
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public class ReconciliationSessionTests
         session.AddNote("Second note");
 
         // Assert
-        session.Notes.ShouldContain("First note");
-        session.Notes.ShouldContain("Second note");
+        session.Notes!.ShouldContain("First note");
+        session.Notes!.ShouldContain("Second note");
     }
 
     [Theory]

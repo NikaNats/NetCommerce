@@ -396,7 +396,7 @@ public class OrderFulfillmentSagaTests
         // Assert
         result.ShouldNotBeNull();
         saga.State.ShouldBe(OrderFulfillmentState.Failed);
-        saga.FailureReason.ShouldContain("timed out");
+        saga.FailureReason!.ShouldContain("timed out");
         saga.CompletedAt.ShouldNotBeNull();
 
         var (failCommand, notification) = result.Value;

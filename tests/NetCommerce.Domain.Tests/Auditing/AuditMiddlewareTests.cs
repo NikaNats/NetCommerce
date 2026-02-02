@@ -15,6 +15,7 @@ namespace NetCommerce.Domain.Tests.Auditing;
 
 public class AuditMiddlewareTests
 {
+    [Fact]
     public async Task AuditMiddleware_ShouldAuditCommand()
     {
         // Arrange

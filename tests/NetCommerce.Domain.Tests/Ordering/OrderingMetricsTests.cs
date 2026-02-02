@@ -65,7 +65,7 @@ public class OrderingMetricsTests : IDisposable
     }
 
     [Fact]
-    public void Counters_ShouldBeThreadSafe()
+    public async Task Counters_ShouldBeThreadSafe()
     {
         // Arrange
         const long expectedValue = 12345L;
@@ -77,7 +77,7 @@ public class OrderingMetricsTests : IDisposable
             _metrics.ProcessingPaymentCount = expectedValue;
             _metrics.ConfirmingInventoryCount = expectedValue;
         }));
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Assert
         _metrics.ReservingInventoryCount.ShouldBe(expectedValue);
