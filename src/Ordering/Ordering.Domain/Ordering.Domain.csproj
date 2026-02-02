@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Analyzer Include="..\..\..\artifacts\bin\NetCommerce.Kernel.SourceGenerators\$(Configuration)\NetCommerce.Kernel.SourceGenerators.dll" />
+    <Analyzer Include="..\..\..\artifacts\bin\NetCommerce.Kernel.SourceGenerators\$(Configuration)\NetCommerce.Kernel.SourceGenerators.dll"/>
   </ItemGroup>
 
 </Project>
