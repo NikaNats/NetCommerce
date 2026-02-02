@@ -93,17 +93,13 @@ public sealed class LegacyTypeResolver : DefaultJsonTypeInfoResolver
     {
         var typeInfo = base.GetTypeInfo(type, options);
 
-        // Add polymorphic handling for types that might have legacy names
-        if (typeInfo.Kind == JsonTypeInfoKind.Object &&
-            typeInfo.PolymorphismOptions == null &&
-            IsPolymorphicCandidate(type))
-        {
-            // Configure to handle unknown type discriminators gracefully
-            typeInfo.PolymorphismOptions = new JsonPolymorphismOptions
-            {
-                UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToNearestAncestor
-            };
-        }
+        // NOTE: Do NOT add polymorphism options here. Sealed record types like OrderItemReservation
+        // and ReservedItem cannot support polymorphism, and adding PolymorphismOptions causes:
+        // "Specified type does not support polymorphism. Polymorphic types cannot be structs,
+        //  sealed types, generic types or System.Object."
+        //
+        // The LegacyTypeConverter handles $type discriminators for Money and PriceBreakdown,
+        // and other types don't need polymorphic handling.
 
         return typeInfo;
     }
@@ -150,17 +146,14 @@ public sealed class LegacyTypeResolver : DefaultJsonTypeInfoResolver
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false,
             TypeInfoResolver = new LegacyTypeResolver(),
-            Converters = { new LegacyTypeConverter() }
+            Converters =
+            {
+                new JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
+                new LegacyTypeConverter()
+            }
         };
     }
 
-    private static bool IsPolymorphicCandidate(Type type)
-    {
-        // Check if this type or its properties might need polymorphic handling
-        return type == typeof(Money) ||
-               type == typeof(PriceBreakdown) ||
-               type.Namespace?.StartsWith("NetCommerce.Domain.Shared") == true;
-    }
 }
 
 /// <summary>

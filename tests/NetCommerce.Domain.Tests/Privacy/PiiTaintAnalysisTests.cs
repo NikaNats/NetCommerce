@@ -420,7 +420,10 @@ public class PiiTaintAnalysisTests
         // ═══════════════════════════════════════════════════════════════════════
 
         safeString.ShouldNotContain("@"); // Should not contain full email
-        Regex.IsMatch(safeString, @"\d{3}[-.]?\d{4}").ShouldBeFalse("Should not contain phone number pattern");
+        // Use word boundary pattern to avoid matching GUIDs
+        // This matches phone patterns like "555-1234" or "555.1234" but not hex in GUIDs
+        Regex.IsMatch(safeString, @"(?<![a-fA-F\d-])\d{3}[-.]?\d{4}(?![a-fA-F\d-])")
+            .ShouldBeFalse("Should not contain phone number pattern");
 
         Console.WriteLine($"[PiiTaint] Unsafe ToString: {unsafeString}");
         Console.WriteLine($"[PiiTaint] Safe ToString: {safeString}");
