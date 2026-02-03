@@ -53,7 +53,7 @@ public class ProductEndpoints : IEndpointGroup
             .WithSummary("Search and list products with pagination")
             .WithDescription(
                 "Returns a paginated list of products. Supports filtering by category, price range, and full-text search.")
-            .Produces<PaginatedResponse<object>>()
+            .Produces<PaginatedResponse<ProductListItemDto>>()
             .AllowAnonymous();
 
         // POST /api/v{version:apiVersion}/products - Create a new product
@@ -161,8 +161,8 @@ public class ProductEndpoints : IEndpointGroup
         if (!result.IsSuccess) return result.ToApiResult();
 
         var paginatedResult = result.Value;
-        var response = PaginatedResponse<object>.Create(
-            paginatedResult!.Items.Cast<object>().ToList(),
+        var response = PaginatedResponse<ProductDto>.Create(
+            paginatedResult!.Items.ToList(),
             page,
             pageSize,
             paginatedResult.TotalCount);

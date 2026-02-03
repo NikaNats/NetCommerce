@@ -219,7 +219,9 @@ public class LegacyStateRegressionTests : IntegrationTestBase
                 deliver_by timestamptz,
                 body bytea NOT NULL,
                 attempts integer DEFAULT 0,
-                message_type text NOT NULL
+                message_type text NOT NULL,
+                scheduled_at timestamptz,
+                sent_at timestamptz  -- CRITICAL: Wolverine 5.x requires this for outbox maintenance
             );";
         await createSchemaCmd.ExecuteNonQueryAsync();
 

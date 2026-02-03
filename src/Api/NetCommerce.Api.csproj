@@ -3,88 +3,122 @@
   <PropertyGroup>
     <RootNamespace>NetCommerce.Api</RootNamespace>
     <UserSecretsId>netcommerce-api</UserSecretsId>
+
+    <!-- ======================================================================
+         NATIVE AOT CONFIGURATION (Phase 1)
+         Enables Ahead-Of-Time compilation to machine code before deployment.
+         This eliminates JIT overhead, reduces memory usage, and improves cold start.
+         ====================================================================== -->
+    <PublishAot>true</PublishAot>
+
+    <!--
+      Optimization: Removes the ability to generate dynamic code at runtime.
+      This forces us to be honest about our dependencies.
+      If a library needs to generate code at runtime, the build will fail or warn us now.
+    -->
+    <IlcDisableReflection>true</IlcDisableReflection>
+
+    <!--
+      Optimization: Disables stack trace strings in release builds.
+      Benefit: Reduces binary size.
+      Trade-off: Exception stack traces will have token IDs instead of method names.
+      Keep 'false' for Staging, 'true' for Production if you have symbol mapping infrastructure.
+    -->
+    <StackTraceSupport>false</StackTraceSupport>
+
+    <!--
+      Localization:
+      Set to 'false' because NetCommerce supports GEL (Georgian Lari).
+      If set to 'true', .NET strips out all culture-specific sorting/formatting data
+      except English, saving ~20MB. Since we need Georgian currency formatting, we keep it false.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!--
+      Optimization: Trimming Mode. 'partial' is default for AOT, but 'full' is smaller.
+      Stick to default (implied) for now to reduce breakage risk.
+    -->
+    <!-- <TrimMode>partial</TrimMode> -->
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Authentication -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect"/>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
 
     <!-- OpenAPI -->
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
-    <PackageReference Include="Scalar.AspNetCore"/>
-    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid"/>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Oakton" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" />
 
     <!-- Aspire Components -->
-    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL"/>
-    <PackageReference Include="Aspire.StackExchange.Redis"/>
-    <PackageReference Include="Aspire.Azure.Storage.Blobs"/>
-    <PackageReference Include="Aspire.Seq"/>
-    <PackageReference Include="CommunityToolkit.Aspire.Meilisearch"/>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Aspire.StackExchange.Redis" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+    <PackageReference Include="Aspire.Seq" />
+    <PackageReference Include="CommunityToolkit.Aspire.Meilisearch" />
 
     <!-- FluentValidation -->
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
 
     <!-- Wolverine Message Bus -->
-    <PackageReference Include="WolverineFx"/>
-    <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
-    <PackageReference Include="WolverineFx.Postgresql"/>
-    <PackageReference Include="WolverineFx.FluentValidation"/>
-    <PackageReference Include="WolverineFx.Http"/>
-
-    <!-- Scrutor for decorator pattern -->
-    <PackageReference Include="Scrutor"/>
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="WolverineFx.EntityFrameworkCore" />
+    <PackageReference Include="WolverineFx.Postgresql" />
+    <PackageReference Include="WolverineFx.FluentValidation" />
+    <PackageReference Include="WolverineFx.Http" />
 
     <!-- Problem Details -->
-    <PackageReference Include="Hellang.Middleware.ProblemDetails"/>
-    <PackageReference Include="Asp.Versioning.Mvc"/>
-    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer"/>
-    <PackageReference Include="WolverineFx.SignalR"/>
+    <PackageReference Include="Hellang.Middleware.ProblemDetails" />
+    <PackageReference Include="Asp.Versioning.Mvc" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
+    <PackageReference Include="WolverineFx.SignalR" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Service Defaults (Aspire) -->
-    <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj"/>
+    <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj" />
 
     <!-- Kernel Packages -->
-    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.AspNetCore\NetCommerce.Kernel.AspNetCore.csproj"/>
-    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
-    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Wolverine\NetCommerce.Kernel.Wolverine.csproj"/>
-    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Security\NetCommerce.Kernel.Security.csproj"/>
-    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Stripe\NetCommerce.Kernel.Stripe.csproj"/>
-    <ProjectReference Include="..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.AspNetCore\NetCommerce.Kernel.AspNetCore.csproj" />
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj" />
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Wolverine\NetCommerce.Kernel.Wolverine.csproj" />
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Security\NetCommerce.Kernel.Security.csproj" />
+    <ProjectReference Include="..\Kernel.Adapters\NetCommerce.Kernel.Stripe\NetCommerce.Kernel.Stripe.csproj" />
+    <ProjectReference Include="..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj" />
 
     <!-- Catalog Module -->
-    <ProjectReference Include="..\Catalog\Application\Catalog.Application.csproj"/>
-    <ProjectReference Include="..\Catalog\Infrastructure\Catalog.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Catalog\Application\Catalog.Application.csproj" />
+    <ProjectReference Include="..\Catalog\Infrastructure\Catalog.Infrastructure.csproj" />
 
     <!-- Basket Module -->
-    <ProjectReference Include="..\Basket\Basket.Application\Basket.Application.csproj"/>
-    <ProjectReference Include="..\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Basket\Basket.Application\Basket.Application.csproj" />
+    <ProjectReference Include="..\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj" />
 
     <!-- Ordering Module -->
-    <ProjectReference Include="..\Ordering\Ordering.Application\Ordering.Application.csproj"/>
-    <ProjectReference Include="..\Ordering\Ordering.Infrastructure\Ordering.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Ordering\Ordering.Application\Ordering.Application.csproj" />
+    <ProjectReference Include="..\Ordering\Ordering.Infrastructure\Ordering.Infrastructure.csproj" />
 
     <!-- Inventory Module -->
-    <ProjectReference Include="..\Inventory\Inventory.Application\Inventory.Application.csproj"/>
-    <ProjectReference Include="..\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Inventory\Inventory.Application\Inventory.Application.csproj" />
+    <ProjectReference Include="..\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
 
     <!-- Payments Module -->
-    <ProjectReference Include="..\Payments\Payments.Application\Payments.Application.csproj"/>
-    <ProjectReference Include="..\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Payments\Payments.Application\Payments.Application.csproj" />
+    <ProjectReference Include="..\Payments\Payments.Infrastructure\Payments.Infrastructure.csproj" />
 
     <!-- Media Module -->
-    <ProjectReference Include="..\Media\Media.Application\Media.Application.csproj"/>
-    <ProjectReference Include="..\Media\Media.Infrastructure\Media.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Media\Media.Application\Media.Application.csproj" />
+    <ProjectReference Include="..\Media\Media.Infrastructure\Media.Infrastructure.csproj" />
 
     <!-- Finance Module -->
-    <ProjectReference Include="..\Finance\Finance.Application\Finance.Application.csproj"/>
-    <ProjectReference Include="..\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Finance\Finance.Application\Finance.Application.csproj" />
+    <ProjectReference Include="..\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj" />
 
     <!-- Shipping Module -->
-    <ProjectReference Include="..\Shipping\Shipping.Application\Shipping.Application.csproj"/>
-    <ProjectReference Include="..\Shipping\Shipping.Infrastructure\Shipping.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Shipping\Shipping.Application\Shipping.Application.csproj" />
+    <ProjectReference Include="..\Shipping\Shipping.Infrastructure\Shipping.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

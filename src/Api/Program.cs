@@ -20,9 +20,20 @@ using NetCommerce.Kernel.Security;
 using NetCommerce.Kernel.Security.Authentication;
 using NetCommerce.Kernel.AspNetCore;
 using Wolverine;
+using Wolverine.Runtime;
 using NetCommerce.Kernel.EfCore.Persistence;
 using Wolverine.Http;
 using Wolverine.SignalR;
+using JasperFx.CodeGeneration;
+using Oakton;
+
+// ============================================================================
+// CRITICAL: Npgsql 6.0+ Strict UTC Enforcement
+// ============================================================================
+// Disable legacy timestamp behavior to enforce DateTimeKind.Utc for all PostgreSQL timestamp with time zone columns.
+// Without this, Npgsql will throw exceptions if DateTime.Kind is Local or Unspecified.
+// This ensures all DateTime values in the application are UTC-compliant.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,7 +69,27 @@ builder.Host.UseWolverineMessaging(
     typeof(CreateOrderCommand),            // Ordering
     typeof(RefundPaymentTransactionCommand), // Payments
     typeof(CheckDailyReconciliation)       // Finance
-);
+)
+.UseWolverine(opts =>
+{
+    // ============================================================================
+    // NATIVE AOT CONFIGURATION (Phase 4)
+    // ============================================================================
+
+    // 1. Tell Wolverine: "Use ONLY pre-generated types - fail if missing"
+    // "Static" means: Strictly require source-generated code. No runtime fallback.
+    // This ensures AOT compliance and prevents silent runtime failures.
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+
+    // 2. Tell Wolverine where to write the generated code
+    // This allows us to inspect it and commit it to source control if needed.
+    opts.CodeGeneration.GeneratedCodeOutputPath =
+        Path.Combine(Directory.GetCurrentDirectory(), "Internal", "Generated");
+
+    // 3. Ensure DbContext integration is configured
+    // (This matches the configuration below but is applied to Wolverine's internal pipeline)
+    opts.ConfigureKernelDefaults<BaseDbContext>();
+});
 
 // Configure Wolverine options
 builder.Services.Configure<WolverineOptions>(opts => opts.ConfigureKernelDefaults<BaseDbContext>());
@@ -149,23 +180,21 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 builder.Services.AddApiServicesMinimal(builder.Configuration);
 
 // ============================================================================
-// MVC Controllers (for webhook endpoints)
-// ============================================================================
-builder.Services.AddControllers();
-
-// ============================================================================
 // JSON Source Generation for Native AOT
 // ============================================================================
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    options.SerializerOptions.TypeInfoResolverChain.Insert(0, NetCommerce.Api.Serialization.ApiJsonContext.Default);
-    options.SerializerOptions.Converters.Add(new NetCommerce.Kernel.Core.Serialization.StronglyTypedIdJsonConverterFactory());
-});
+    // CRITICAL: Clear the default reflection-based resolver.
+    // This forces the app to use ONLY our generated context.
+    // If a type is missing from ApiJsonContext, it will fail fast in Dev (good!).
+    options.SerializerOptions.TypeInfoResolverChain.Clear();
 
-// If using MVC controllers:
-builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
-{
-    options.JsonSerializerOptions.Converters.Add(new NetCommerce.Kernel.Core.Serialization.StronglyTypedIdJsonConverterFactory());
+    // Add our generated context
+    options.SerializerOptions.TypeInfoResolverChain.Add(NetCommerce.Api.Serialization.ApiJsonContext.Default);
+
+    // Add custom converters (Strongly Typed IDs)
+    // Note: Ensure StronglyTypedIdJsonConverterFactory is AOT friendly
+    options.SerializerOptions.Converters.Add(new NetCommerce.Kernel.Core.Serialization.StronglyTypedIdJsonConverterFactory());
 });
 
 // ============================================================================
@@ -248,8 +277,11 @@ app.UseAntiforgery();
 // Map Minimal API Endpoints
 // ============================================================================
 var versionSet = app.GetDefaultApiVersionSet();
-app.MapEndpointGroups(versionSet); // <--- Pass the versionSet here!
-app.MapAllEndpoints(versionSet); // REPR Pattern: Vertical Slice Endpoints
+
+// PHASE 6: Explicit endpoint registration for Native AOT compatibility.
+// Eliminates reflection-based assembly scanning (Assembly.GetTypes() / Activator.CreateInstance).
+app.MapNetCommerceEndpoints(versionSet);
+
 
 // ============================================================================
 // Wolverine.Http Endpoints (Zero-Ceremony, Attribute-Based)
@@ -260,8 +292,8 @@ app.MapAllEndpoints(versionSet); // REPR Pattern: Vertical Slice Endpoints
 app.MapWolverineEndpoints();
 
 // ============================================================================
-// Map MVC Controllers
+// NATIVE AOT: Use Oakton Commands for CLI Support
+// Enables: dotnet run -- codegen write
+// This generates static handler code that the AOT compiler can see.
 // ============================================================================
-app.MapControllers();
-
-app.Run();
+return await JasperFx.CommandLineHostingExtensions.RunJasperFxCommands(app, args);

@@ -30,6 +30,15 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.HasIndex(o => o.CustomerId);
 
+        // Multi-tenancy support (IMultiTenant)
+        builder.Property(o => o.TenantId)
+            .HasColumnName("tenant_id")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.HasIndex(o => o.TenantId)
+            .HasDatabaseName("IX_Orders_TenantId");
+
         // Composite Index for the GracePeriodManagerService background worker query
         // Critical for performance: prevents full table scans when querying orders by status and time
         builder.HasIndex(o => new { o.Status, o.CreatedAt })

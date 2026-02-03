@@ -47,26 +47,37 @@
     <!-- Suppress Noise:
          CS1591 (Missing XML Docs),
          CA1014 (CLSCompliant is legacy),
-         NETSDK1210 (Artifacts API notice) -->
-    <NoWarn>$(NoWarn);CS1591;CA1014;NETSDK1210</NoWarn>
+         NETSDK1210 (Artifacts API notice),
+         NU1608 (Transitive dependency version mismatch - EF Core 10 + WolverineFx transitively bring different CodeAnalysis versions) -->
+    <NoWarn>$(NoWarn);CS1591;CA1014;NETSDK1210;NU1608</NoWarn>
   </PropertyGroup>
 
   <!--
-    SECTION 5: OPTIONAL CLOUD-NATIVE & NATIVE AOT HARDENING
-    Strict validation is only triggered if a project opts into AOT.
+    SECTION 5: NATIVE AOT HARDENING (Phase 1 - GLOBALLY ENABLED)
+    These analyzers now run for ALL projects to catch AOT violations early.
+    Even libraries that don't compile to native code benefit from these checks
+    because they ensure the code is AOT-compatible when consumed by the API.
   -->
   <PropertyGroup>
+    <!-- Enable AOT compatibility markers for all projects -->
+    <IsAotCompatible>true</IsAotCompatible>
+
     <!-- Single-file safety is beneficial for all modern cloud apps -->
     <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+
+    <!--
+      Enables AOT compatibility analyzers for all libraries.
+      This warns you if you use features like BinaryFormatter or
+      Reflection-heavy serializers in your Domain/Application layers.
+    -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(PublishAot)' == 'true' Or '$(IsAotCompatible)' == 'true'">
-    <IsAotCompatible>true</IsAotCompatible>
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
     <IsTrimmable Condition="'$(OutputType)' != 'Library'">true</IsTrimmable>
 
     <!-- Fail build if AOT-incompatible code (Reflection/Dynamic) is used -->
     <EnableAotAnalyzer>true</EnableAotAnalyzer>
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
 
     <!-- Ensure debug builds don't hide potential AOT issues -->
     <SuppressTrimAnalysisWarnings Condition="'$(Configuration)' == 'Debug'">false</SuppressTrimAnalysisWarnings>

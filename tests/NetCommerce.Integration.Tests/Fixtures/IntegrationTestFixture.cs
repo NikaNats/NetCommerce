@@ -153,6 +153,22 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Error);
                 logging.AddFilter("Npgsql", LogLevel.Warning);
             })
+            .ConfigureServices((hostContext, services) =>
+            {
+                // CRITICAL: ConfigureServices instead of UseWolverine to avoid double registration
+                // The main Program.cs already calls UseWolverine(), this merges settings
+                // Register test-specific services BEFORE Wolverine initializes
+
+                // 1. Mocks for Interceptors (MUST be registered before DbContexts)
+                var mockTenantContext = Substitute.For<ITenantContext>();
+                mockTenantContext.TenantId.Returns("test-tenant");
+                mockTenantContext.HasTenant.Returns(true);
+                services.AddSingleton(mockTenantContext);
+
+                var mockUserContext = Substitute.For<IUserContext>();
+                mockUserContext.UserId.Returns("test-user");
+                services.AddSingleton(mockUserContext);
+            })
             .UseWolverine(opts =>
             {
                 // Configure Wolverine for testing - include Application assemblies for commands/queries
@@ -186,17 +202,8 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             })
             .ConfigureServices(services =>
             {
-                // 1. Mocks for Interceptors
-                var mockTenantContext = Substitute.For<ITenantContext>();
-                mockTenantContext.TenantId.Returns("test-tenant");
-                mockTenantContext.HasTenant.Returns(true);
-                services.AddSingleton(mockTenantContext);
-
-                var mockUserContext = Substitute.For<IUserContext>();
-                mockUserContext.UserId.Returns("test-user");
-                services.AddSingleton(mockUserContext);
-
-                // 2. Register DbContexts using KERNEL EXTENSIONS (Wires up Interceptors)
+                // Register DbContexts using KERNEL EXTENSIONS (Wires up Interceptors)
+                // Note: ITenantContext and IUserContext already registered above
                 services.AddKernelEfCore<CatalogDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
                 services.AddKernelEfCore<InventoryDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
                 services.AddKernelEfCore<OrderingDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));

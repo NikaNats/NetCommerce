@@ -28,7 +28,8 @@ public sealed class ReconciliationSession : AggregateRoot<Guid>
         return new ReconciliationSession
         {
             Id = Guid.NewGuid(),
-            CalculatedForDate = date.Date,
+            // CRITICAL: Npgsql 6.0+ requires DateTimeKind.Utc for timestamp with time zone
+            CalculatedForDate = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc),
             Status = ReconciliationStatus.Started,
             StartedAt = DateTime.UtcNow,
             Discrepancies = new List<Discrepancy>()

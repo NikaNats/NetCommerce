@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+using Asp.Versioning.Builder;
 using Microsoft.AspNetCore.Mvc;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Domain.Reconciliation;
@@ -10,42 +10,63 @@ namespace NetCommerce.Api.Endpoints.Admin;
 ///     Admin endpoints for Financial Reconciliation management.
 ///     Human-in-the-loop corrections for discrepancies.
 /// </summary>
-[ApiController]
-[Route("api/admin/finance")]
-[Authorize(Roles = "Admin,Finance")]
-public class AdminFinanceEndpoints : ControllerBase
+public class AdminFinanceEndpoints : IEndpointGroup
 {
-    private readonly IMessageBus _bus;
-    private readonly IReconciliationSessionRepository _sessionRepo;
-    private readonly ILogger<AdminFinanceEndpoints> _logger;
-
-    public AdminFinanceEndpoints(
-        IMessageBus bus,
-        IReconciliationSessionRepository sessionRepo,
-        ILogger<AdminFinanceEndpoints> logger)
+    public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
-        _bus = bus;
-        _sessionRepo = sessionRepo;
-        _logger = logger;
+        var group = app.MapGroup("/api/admin/finance")
+            .WithApiVersionSet(versionSet)
+            .HasApiVersion(1.0)
+            .WithTags("Admin Finance")
+            .RequireAuthorization(policy => policy.RequireRole("Admin", "Finance"));
+
+        group.MapGet("/reconciliation-sessions", GetReconciliationSessions)
+            .WithName("GetReconciliationSessions")
+            .WithSummary("Get reconciliation sessions with optional filtering")
+            .Produces<IEnumerable<ReconciliationSession>>();
+
+        group.MapGet("/reconciliation-sessions/{sessionId:guid}", GetReconciliationSession)
+            .WithName("GetReconciliationSession")
+            .WithSummary("Get a specific reconciliation session with details")
+            .Produces<ReconciliationSession>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        group.MapPost("/reconciliation-sessions/trigger", TriggerReconciliation)
+            .WithName("TriggerReconciliation")
+            .WithSummary("Manually trigger reconciliation for a specific date")
+            .Produces(StatusCodes.Status202Accepted);
+
+        group.MapPost("/discrepancies/resolve", ResolveDiscrepancy)
+            .WithName("ResolveDiscrepancy")
+            .WithSummary("Resolve a financial discrepancy manually")
+            .Produces(StatusCodes.Status202Accepted)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound);
+
+        group.MapGet("/alerts/mismatched-sessions", GetMismatchedSessions)
+            .WithName("GetMismatchedSessions")
+            .WithSummary("Get mismatched sessions requiring attention")
+            .Produces<IEnumerable<ReconciliationSession>>();
     }
 
-    /// <summary>
-    ///     Get reconciliation sessions with optional filtering.
-    /// </summary>
-    [HttpGet("reconciliation-sessions")]
-    [ProducesResponseType(typeof(IEnumerable<ReconciliationSession>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetReconciliationSessions(
+    private static async Task<IResult> GetReconciliationSessions(
         [FromQuery] DateTime? startDate,
         [FromQuery] DateTime? endDate,
         [FromQuery] ReconciliationStatus? status,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] int page,
+        [FromQuery] int pageSize,
+        IReconciliationSessionRepository sessionRepo,
+        HttpContext httpContext)
     {
-        var sessions = await _sessionRepo.GetSessionsInDateRangeAsync(
+        // Set defaults
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 50 : pageSize;
+
+        var sessions = await sessionRepo.GetSessionsInDateRangeAsync(
             startDate ?? DateTime.UtcNow.AddDays(-30),
             endDate ?? DateTime.UtcNow);
 
-        var filtered = sessions.AsQueryable();
+        var filtered = sessions.AsEnumerable(); // Use IEnumerable instead of IQueryable for AOT
 
         if (status.HasValue)
         {
@@ -58,90 +79,82 @@ public class AdminFinanceEndpoints : ControllerBase
             .Take(pageSize)
             .ToList();
 
-        return Ok(result);
+        return Results.Ok(result);
     }
 
-    /// <summary>
-    ///     Get a specific reconciliation session with details.
-    /// </summary>
-    [HttpGet("reconciliation-sessions/{sessionId:guid}")]
-    [ProducesResponseType(typeof(ReconciliationSession), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetReconciliationSession([FromRoute] Guid sessionId)
+    private static async Task<IResult> GetReconciliationSession(
+        Guid sessionId,
+        IReconciliationSessionRepository sessionRepo)
     {
-        var session = await _sessionRepo.GetByIdAsync(sessionId);
+        var session = await sessionRepo.GetByIdAsync(sessionId);
         if (session == null)
         {
-            return NotFound();
+            return Results.NotFound();
         }
 
-        return Ok(session);
+        return Results.Ok(session);
     }
 
-    /// <summary>
-    ///     Manually trigger reconciliation for a specific date.
-    /// </summary>
-    [HttpPost("reconciliation-sessions/trigger")]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> TriggerReconciliation([FromBody] TriggerReconciliationRequest request)
+    private static async Task<IResult> TriggerReconciliation(
+        TriggerReconciliationRequest request,
+        IMessageBus bus,
+        HttpContext httpContext,
+        ILogger<AdminFinanceEndpoints> logger)
     {
-        _logger.LogInformation("Manual reconciliation trigger for {Date} by {User}",
-            request.Date.ToShortDateString(), User.Identity?.Name);
+        var userName = httpContext.User.Identity?.Name ?? "Unknown";
+
+        logger.LogInformation("Manual reconciliation trigger for {Date} by {User}",
+            request.Date.ToShortDateString(), userName);
 
         var command = new CheckDailyReconciliation(request.Date);
-        await _bus.PublishAsync(command);
+        await bus.PublishAsync(command);
 
-        return Accepted(new
+        return Results.Accepted(null, new
         {
             Message = $"Reconciliation started for {request.Date.ToShortDateString()}",
-            RequestedBy = User.Identity?.Name,
+            RequestedBy = userName,
             RequestId = Guid.NewGuid()
         });
     }
 
-    /// <summary>
-    ///     Resolve a financial discrepancy manually.
-    ///     Critical for handling ghost charges and other mismatches.
-    /// </summary>
-    [HttpPost("discrepancies/resolve")]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ResolveDiscrepancy([FromBody] ResolveDiscrepancyRequest request)
+    private static async Task<IResult> ResolveDiscrepancy(
+        ResolveDiscrepancyRequest request,
+        IMessageBus bus,
+        HttpContext httpContext,
+        ILogger<AdminFinanceEndpoints> logger)
     {
-        _logger.LogWarning(
+        var userName = httpContext.User.Identity?.Name ?? "Unknown";
+
+        logger.LogWarning(
             "MANUAL DISCREPANCY RESOLUTION: Session={SessionId}, Txn={TxnId}, Action={Action}, User={User}",
-            request.SessionId, request.ExternalTxnId, request.Action, User.Identity?.Name);
+            request.SessionId, request.ExternalTxnId, request.Action, userName);
 
         var command = new ResolveDiscrepancyCommand(
             request.SessionId,
             request.ExternalTxnId,
             request.Action,
             request.Reason,
-            User.Identity?.Name ?? "Unknown");
+            userName);
 
-        await _bus.PublishAsync(command);
+        await bus.PublishAsync(command);
 
-        return Accepted(new
+        return Results.Accepted(null, new
         {
             Message = $"Discrepancy resolution initiated: {request.Action}",
             SessionId = request.SessionId,
             ExternalTxnId = request.ExternalTxnId,
-            ProcessedBy = User.Identity?.Name
+            ProcessedBy = userName
         });
     }
 
-    /// <summary>
-    ///     Get mismatched sessions requiring attention.
-    /// </summary>
-    [HttpGet("alerts/mismatched-sessions")]
-    [ProducesResponseType(typeof(IEnumerable<ReconciliationSession>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMismatchedSessions([FromQuery] DateTime? since = null)
+    private static async Task<IResult> GetMismatchedSessions(
+        [FromQuery] DateTime? since,
+        IReconciliationSessionRepository sessionRepo)
     {
-        var sessions = await _sessionRepo.GetMismatchedSessionsAsync(
+        var sessions = await sessionRepo.GetMismatchedSessionsAsync(
             since ?? DateTime.UtcNow.AddDays(-7));
 
-        return Ok(sessions);
+        return Results.Ok(sessions);
     }
 }
 
@@ -158,3 +171,4 @@ public record ResolveDiscrepancyRequest(
     string ExternalTxnId,
     DiscrepancyResolutionAction Action,
     string Reason);
+

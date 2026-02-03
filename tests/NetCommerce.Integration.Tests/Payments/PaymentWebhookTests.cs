@@ -33,11 +33,11 @@ public class PaymentWebhookTests : IntegrationTestBase
 {
     private const string WebhookSecret = "whsec_test_secret";
     private readonly HttpClient _client;
-    private readonly WebApplicationFactory<NetCommerce.Api.Endpoints.Payments.PaymentWebhookController> _factory;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public PaymentWebhookTests(IntegrationTestFixture fixture) : base(fixture)
     {
-        _factory = new WebApplicationFactory<NetCommerce.Api.Endpoints.Payments.PaymentWebhookController>().WithWebHostBuilder(builder =>
+        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             // Set environment to Testing to skip auto-migrations (Program.cs only runs migrations in Development)
             builder.UseEnvironment("Testing");

@@ -1,4 +1,5 @@
 using NetCommerce.Domain.Shared;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
 
 namespace NetCommerce.Ordering.Domain.Orders;
@@ -7,7 +8,7 @@ namespace NetCommerce.Ordering.Domain.Orders;
 ///     Order aggregate root with state machine workflow.
 ///     Implements Price Snapshotting pattern.
 /// </summary>
-public sealed class Order : AggregateRoot<Guid>
+public sealed class Order : AggregateRoot<Guid>, IMultiTenant
 {
     private readonly List<OrderItem> _items = [];
 
@@ -17,6 +18,7 @@ public sealed class Order : AggregateRoot<Guid>
 
     public string OrderNumber { get; private set; } = string.Empty;
     public Guid CustomerId { get; private set; }
+    public string TenantId { get; set; } = string.Empty; // IMultiTenant implementation
     public OrderStatus Status { get; private set; }
     public Money TotalAmount { get; private set; } = default!;
     public ShippingAddress ShippingAddress { get; private set; } = default!;

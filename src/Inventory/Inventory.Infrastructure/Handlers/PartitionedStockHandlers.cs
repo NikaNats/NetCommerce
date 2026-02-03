@@ -55,6 +55,23 @@ public class ReserveInventoryHandler
             .Include(s => s.Reservations)
             .ToListAsync(ct);
 
+        // CRITICAL FAIL-CLOSED: Verify we locked ALL requested items
+        // If we can't lock all, abort to prevent partial reservations during Redis outages
+        if (stocks.Count != sortedProductIds.Length)
+        {
+            var missingIds = sortedProductIds.Except(stocks.Select(s => s.ProductId)).ToList();
+            logger.LogError(
+                "FAIL-CLOSED: Could not lock all requested products for Order {OrderId}. Missing: {MissingIds}. " +
+                "This indicates a critical database consistency issue or missing stock records.",
+                command.OrderId,
+                string.Join(", ", missingIds));
+
+            return new InventoryReservationFailed(
+                command.OrderId,
+                "Locking failed: Not all products could be locked for atomic reservation",
+                UnavailableProductIds: missingIds);
+        }
+
         foreach (var item in command.Items)
         {
             logger.LogDebug(
