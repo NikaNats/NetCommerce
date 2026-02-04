@@ -180,20 +180,17 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 builder.Services.AddApiServicesMinimal(builder.Configuration);
 
 // ============================================================================
-// JSON Source Generation for Native AOT
+// JSON Source Generation for Native AOT (Phase 6 Hardened)
 // ============================================================================
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    // CRITICAL: Clear the default reflection-based resolver.
-    // This forces the app to use ONLY our generated context.
-    // If a type is missing from ApiJsonContext, it will fail fast in Dev (good!).
+    // CRITICAL: Enforce strict Source Generation - no reflection fallback.
+    // This ensures all types are pre-compiled for Native AOT.
+    // If a type is missing from ApiJsonContext, it will fail fast in Dev.
     options.SerializerOptions.TypeInfoResolverChain.Clear();
-
-    // Add our generated context
     options.SerializerOptions.TypeInfoResolverChain.Add(NetCommerce.Api.Serialization.ApiJsonContext.Default);
 
-    // Add custom converters (Strongly Typed IDs)
-    // Note: Ensure StronglyTypedIdJsonConverterFactory is AOT friendly
+    // Custom converters for Value Objects
     options.SerializerOptions.Converters.Add(new NetCommerce.Kernel.Core.Serialization.StronglyTypedIdJsonConverterFactory());
 });
 

@@ -18,7 +18,7 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
 
     public string OrderNumber { get; private set; } = string.Empty;
     public Guid CustomerId { get; private set; }
-    public string TenantId { get; set; } = string.Empty; // IMultiTenant implementation
+    public string TenantId { get; set; } = string.Empty; // IMultiTenant implementation - requires public setter
     public OrderStatus Status { get; private set; }
     public Money TotalAmount { get; private set; } = default!;
     public ShippingAddress ShippingAddress { get; private set; } = default!;

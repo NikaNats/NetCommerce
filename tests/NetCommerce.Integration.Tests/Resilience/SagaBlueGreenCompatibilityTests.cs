@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Integration.Tests.Fixtures;
-using NetCommerce.Kernel.Wolverine.Serialization;
 using NetCommerce.Ordering.Application.Sagas;
 using NSubstitute;
 using Shouldly;

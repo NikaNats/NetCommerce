@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using NetCommerce.Api.Serialization;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Integration.Tests.Fixtures;
@@ -70,7 +71,7 @@ public class StripeWebhookDelayedDeliveryTests : IntegrationTestBase
             "orderNumber": "ORD-TIMEOUT-001",
             "totalAmount": { "amount": 199.99, "currency": "GEL" },
             "items": [],
-            "state": "Failed",
+            "state": 8,
             "isInventoryReserved": true,
             "isPaid": false,
             "isInventoryConfirmed": false,
@@ -80,8 +81,10 @@ public class StripeWebhookDelayedDeliveryTests : IntegrationTestBase
         }
         """;
 
-        var options = NetCommerce.Kernel.Wolverine.Serialization.LegacyTypeResolver.CreateOptions();
-        var cancelledSaga = JsonSerializer.Deserialize<OrderFulfillmentSaga>(cancelledSagaJson, options);
+        // Use the source generated context instead of raw options
+        var cancelledSaga = JsonSerializer.Deserialize(
+            cancelledSagaJson,
+            ApiJsonContext.Default.OrderFulfillmentSaga);
 
         cancelledSaga.ShouldNotBeNull();
         cancelledSaga.State.ShouldBe(OrderFulfillmentState.Failed);

@@ -9,6 +9,7 @@ using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.Basket.Application;
 using NetCommerce.Inventory.Application.Stock.Queries;
 using NetCommerce.Inventory.Application.Stock.Commands;
@@ -96,6 +97,7 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(AddressDto))]
 [JsonSerializable(typeof(StuckSagasResponse))]
 [JsonSerializable(typeof(StuckSagaDto))]
+[JsonSerializable(typeof(OrderFulfillmentSaga))] // For Wolverine saga serialization
 
 // Inventory
 [JsonSerializable(typeof(StockDto))]

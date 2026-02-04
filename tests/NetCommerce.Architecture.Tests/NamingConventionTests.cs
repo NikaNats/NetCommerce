@@ -191,6 +191,7 @@ public class NamingConventionTests
                 var publicSetters = entityType.GetProperties()
                     .Where(p => p.SetMethod?.IsPublic == true &&
                                 p.Name != "Version" && // Allow Version for EF Core
+                                p.Name != "TenantId" && // Allow TenantId for IMultiTenant interface
                                 !p.Name.StartsWith("Search")) // Allow computed properties
                     .Select(p => p.Name)
                     .ToList();

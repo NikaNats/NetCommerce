@@ -121,4 +121,8 @@
     <ProjectReference Include="..\Shipping\Shipping.Infrastructure\Shipping.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="NetCommerce.Integration.Tests" />
+  </ItemGroup>
+
 </Project>
