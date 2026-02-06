@@ -1,13 +1,16 @@
+#region
+
 using Asp.Versioning.Builder;
-using NetCommerce.Api.Endpoints;
-// Import all endpoint namespaces explicitly
-using NetCommerce.Api.Endpoints.Catalog;
-using NetCommerce.Api.Endpoints.Ordering;
-using NetCommerce.Api.Endpoints.Inventory;
-using NetCommerce.Api.Endpoints.Basket;
-using NetCommerce.Api.Endpoints.Payments;
-using NetCommerce.Api.Endpoints.Media;
 using NetCommerce.Api.Endpoints.Admin;
+using NetCommerce.Api.Endpoints.Basket;
+using NetCommerce.Api.Endpoints.Catalog;
+using NetCommerce.Api.Endpoints.Inventory;
+using NetCommerce.Api.Endpoints.Media;
+using NetCommerce.Api.Endpoints.Ordering;
+using NetCommerce.Api.Endpoints.Payments;
+// Import all endpoint namespaces explicitly
+
+#endregion
 
 namespace NetCommerce.Api.Extensions;
 

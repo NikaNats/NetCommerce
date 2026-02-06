@@ -20,7 +20,6 @@ namespace NetCommerce.Api.Endpoints.Payments;
 ///     - Webhook signature verification prevents tampering
 ///     - Idempotent handling prevents duplicate processing
 ///     Prevents "Ghost Charge" vulnerability where customer is charged but order is lost.
-///
 ///     NATIVE AOT MIGRATION (Phase 2):
 ///     - Converted from MVC Controller to Minimal API
 ///     - Static handler method avoids closure allocations
@@ -37,33 +36,29 @@ public class PaymentWebhookEndpoints : IEndpoint
         // Webhooks are authenticated via signature, not JWT tokens
         // Antiforgery is disabled because this is machine-to-machine communication
         app.MapPost("/api/webhooks/stripe", HandleStripeWebhook)
-           .WithName("StripeWebhook")
-           .WithDisplayName("Stripe Payment Webhook")
-           .WithDescription("Receives asynchronous payment confirmation from Stripe")
-           .AllowAnonymous()
-           .DisableAntiforgery()
-           .WithOpenApi(); // Include in Scalar/Swagger for documentation
+            .WithName("StripeWebhook")
+            .WithDisplayName("Stripe Payment Webhook")
+            .WithDescription("Receives asynchronous payment confirmation from Stripe")
+            .AllowAnonymous()
+            .DisableAntiforgery()
+            .WithOpenApi(); // Include in Scalar/Swagger for documentation
     }
 
     /// <summary>
     ///     Handle Stripe webhook events for payment confirmation.
-    ///
     ///     Security:
     ///     - Signature verification (prevents tampering)
     ///     - IP whitelisting (TODO: optional hardening)
     ///     - Rate limiting (TODO: prevent DoS)
-    ///
     ///     Events handled:
     ///     - payment_intent.succeeded → Payment completed successfully
     ///     - payment_intent.payment_failed → Payment declined by bank
     ///     - payment_intent.canceled → Payment canceled by user or system
-    ///
     ///     Flow:
     ///     1. Verify webhook signature (anti-tamper)
     ///     2. Parse event payload
     ///     3. Dispatch ProcessExternalPaymentConfirmation command
     ///     4. Return 200 OK immediately (Stripe retries on 4xx/5xx)
-    ///
     ///     Static handler is AOT-friendly:
     ///     - No closure allocations
     ///     - Dependencies injected by Minimal API binder at compile-time
@@ -75,7 +70,7 @@ public class PaymentWebhookEndpoints : IEndpoint
         IOptions<StripeOptions> options,
         ILogger<PaymentWebhookEndpoints> logger)
     {
-        var stripeOptions = options.Value;
+        StripeOptions stripeOptions = options.Value;
 
         // 1. Read the raw body stream for signature verification
         // CRITICAL: Stripe requires the exact raw JSON for signature validation
