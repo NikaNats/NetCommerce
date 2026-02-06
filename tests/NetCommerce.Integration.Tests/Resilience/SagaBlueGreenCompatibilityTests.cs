@@ -42,6 +42,11 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
     {
     }
 
+    private static JsonSerializerOptions CreateCanonicalOptions()
+    {
+        return new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    }
+
     #region V1 Snapshots: Initial Production Release
 
     /// <summary>
@@ -231,7 +236,7 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
             _ => throw new ArgumentException($"Unknown state: {state}")
         };
 
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
 
         // Act
         Exception? ex = null;
@@ -263,7 +268,7 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
         var orderId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
         var snapshotJson = GetV1SagaSnapshot_InGracePeriod(orderId, customerId);
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
 
         var saga = JsonSerializer.Deserialize<OrderFulfillmentSaga>(snapshotJson, options)!;
         saga.State.ShouldBe(OrderFulfillmentState.InGracePeriod);
@@ -285,13 +290,13 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
     #region Test Cases: V2 (Legacy Namespace) Compatibility
 
     [Fact]
-    public void V2SagaState_WithLegacyNamespace_ShouldDeserializeCorrectly()
+    public void V2SagaState_WithLegacyNamespace_ShouldFailDeserialization()
     {
         // Arrange
         var orderId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
         var snapshotJson = GetV2SagaSnapshot_WithLegacyNamespace(orderId, customerId);
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
 
         // Act
         Exception? ex = null;
@@ -307,16 +312,9 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
         }
 
         // Assert
-        ex.ShouldBeNull(
-            $"CRITICAL: Legacy namespace saga deserialization failed!\n" +
-            $"Exception: {ex?.Message}\n" +
-            $"This will cause in-flight orders to be orphaned after deployment.");
-
-        saga.ShouldNotBeNull();
-        saga.Id.ShouldBe(orderId);
-        saga.TotalAmount.ShouldNotBeNull();
-        saga.TotalAmount.Amount.ShouldBe(350.00m);
-        saga.TotalAmount.Currency.ShouldBe("GEL");
+        ex.ShouldNotBeNull(
+            "Legacy namespace deserialization should fail after Phase 6 purge.");
+        saga.ShouldBeNull();
     }
 
     [Fact]
@@ -343,7 +341,7 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
         }
         """;
 
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
         var saga = JsonSerializer.Deserialize<OrderFulfillmentSaga>(snapshotJson, options)!;
         var logger = Substitute.For<ILogger<OrderFulfillmentSaga>>();
 
@@ -383,7 +381,7 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
         }
         """;
 
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
 
         // Act
         var saga = JsonSerializer.Deserialize<OrderFulfillmentSaga>(minimalJson, options);
@@ -417,11 +415,9 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
         }
         """;
 
-        var options = new JsonSerializerOptions(LegacyTypeResolver.CreateOptions())
-        {
-            // This is typically already set, but being explicit
-            PropertyNameCaseInsensitive = true
-        };
+        var options = CreateCanonicalOptions();
+        // This is typically already set, but being explicit
+        options.PropertyNameCaseInsensitive = true;
 
         // Act
         var saga = JsonSerializer.Deserialize<OrderFulfillmentSaga>(jsonWithExtraFields, options);
@@ -453,7 +449,7 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
             StartedAt = DateTime.UtcNow
         };
 
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
 
         // Act: Serialize and deserialize
         var json = JsonSerializer.Serialize(saga, options);
@@ -488,7 +484,7 @@ public class SagaBlueGreenCompatibilityTests : IntegrationTestBase
             0.30m // 0.1 + 0.1 + 0.1 (floating point trap)
         };
 
-        var options = LegacyTypeResolver.CreateOptions();
+        var options = CreateCanonicalOptions();
 
         foreach (var amount in amounts)
         {

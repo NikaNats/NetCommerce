@@ -465,8 +465,7 @@ NetCommerce.Kernel.Wolverine/
 ├── WolverineKernelExtensions.cs  # Production-ready defaults
 ├── Middleware/
 │   └── AuditMiddleware.cs     # Command auditing
-└── Serialization/
-    └── LegacyTypeResolver.cs  # Migration support
+└── Serialization/              # (Legacy resolver removed in Phase 6)
 ```
 
 ---

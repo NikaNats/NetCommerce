@@ -118,8 +118,14 @@ public static WolverineOptions ConfigureKernelDefaults<TDbContext>(this Wolverin
     // Applied to messages implementing IAuditableCommand
     opts.Policies.AddMiddleware(typeof(AuditMiddleware));
 
-    // 6. SERIALIZATION (Legacy Type Support)
-    ConfigureLegacyTypeSerializationSupport(opts);
+    // 6. SERIALIZATION (Pure Canonical)
+    // Legacy type resolution removed in Phase 6
+    opts.UseSystemTextJsonForSerialization(options =>
+    {
+        options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.WriteIndented = false;
+        // TypeInfoResolver configured at API layer via ConfigureHttpJsonOptions
+    });
 
     return opts;
 }
@@ -916,44 +922,14 @@ opts.UseSystemTextJsonForSerialization(options =>
     options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.WriteIndented = false;
 
-    // Support legacy type names during migration
-    options.TypeInfoResolver = new LegacyTypeResolver();
-    options.Converters.Add(new LegacyTypeConverter());
+    // Pure canonical serialization (legacy resolvers removed in Phase 6)
+    // TypeInfoResolver configured at API layer via ConfigureHttpJsonOptions
 });
 ```
 
-### Legacy Type Support
+### Legacy Type Support (Historical)
 
-During namespace migrations, the `LegacyTypeResolver` handles backward compatibility:
-
-```csharp
-/// <summary>
-/// Resolves legacy SharedKernel type names to Domain.Shared types.
-/// Critical for deserializing in-flight sagas after migration.
-/// </summary>
-public class LegacyTypeResolver : DefaultJsonTypeInfoResolver
-{
-    private static readonly Dictionary<string, Type> TypeMappings = new()
-    {
-        ["NetCommerce.SharedKernel.Domain.Money"] = typeof(Money),
-        ["NetCommerce.SharedKernel.Events.OrderSubmittedIntegrationEvent"] =
-            typeof(OrderSubmittedIntegrationEvent)
-    };
-
-    // Tracks legacy resolutions for monitoring
-    public static int LegacyResolutionCount { get; private set; }
-
-    public static Type? ResolveLegacyType(string typeName)
-    {
-        if (TypeMappings.TryGetValue(typeName, out var type))
-        {
-            Interlocked.Increment(ref LegacyResolutionCount);
-            return type;
-        }
-        return null;
-    }
-}
-```
+Legacy type resolution was removed in Phase 6 after database audits verified no legacy saga state remained. Refer to [PHASE_6_PURGE_COMPLETE.md](./PHASE_6_PURGE_COMPLETE.md) for the purge checklist and rollback guidance.
 
 ---
 
