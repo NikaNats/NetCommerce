@@ -3,6 +3,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -227,7 +228,9 @@ public sealed class DeadLetterQueueMonitor : BackgroundService, IHealthCheck
             ["recent_count"] = _lastState.RecentCount,
             ["oldest_message_age_seconds"] = _lastState.OldestMessageAge.TotalSeconds,
             ["last_check"] = _lastCheckTime.ToString("O"),
-            ["top_message_types"] = JsonSerializer.Serialize(_lastState.MessagesByType.Take(5))
+            ["top_message_types"] = JsonSerializer.Serialize(
+                new Dictionary<string, long>(_lastState.MessagesByType.Take(5)),
+                DlqJsonContext.Default.DictionaryStringInt64)
         };
 
         if (_lastState.TotalCount >= _options.AlertThreshold)
@@ -293,3 +296,9 @@ public sealed class DeadLetterQueueMonitorOptions
     /// </summary>
     public bool EnableHealthCheck { get; set; } = true;
 }
+
+/// <summary>
+///     Source-generated JSON context for AOT-safe DLQ serialization.
+/// </summary>
+[JsonSerializable(typeof(Dictionary<string, long>))]
+internal sealed partial class DlqJsonContext : JsonSerializerContext;

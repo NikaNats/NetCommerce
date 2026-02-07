@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
@@ -8,7 +9,7 @@ namespace NetCommerce.Kernel.EfCore.Persistence;
 /// <summary>
 ///     Base repository implementation using Entity Framework Core.
 /// </summary>
-public abstract class BaseRepository<TAggregate, TId> : IRepository<TAggregate, TId>
+public abstract class BaseRepository<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TAggregate, TId> : IRepository<TAggregate, TId>
     where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {

@@ -1,8 +1,15 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using NetCommerce.Basket.Application;
 using StackExchange.Redis;
 
 namespace NetCommerce.Basket.Infrastructure;
+
+/// <summary>
+///     Source-generated JSON context for AOT-safe serialization.
+/// </summary>
+[JsonSerializable(typeof(ShoppingBasket))]
+internal sealed partial class BasketJsonContext : JsonSerializerContext;
 
 /// <summary>
 ///     Redis-based basket repository implementation.
@@ -27,7 +34,7 @@ public sealed class RedisBasketRepository : IBasketRepository
 
         if (data.IsNullOrEmpty) return null;
 
-        return JsonSerializer.Deserialize<ShoppingBasket>(data.ToString());
+        return JsonSerializer.Deserialize(data.ToString(), BasketJsonContext.Default.ShoppingBasket);
     }
 
     public async Task<ShoppingBasket> UpdateBasketAsync(
@@ -35,7 +42,7 @@ public sealed class RedisBasketRepository : IBasketRepository
         CancellationToken cancellationToken = default)
     {
         var key = GetKey(basket.CustomerId);
-        var json = JsonSerializer.Serialize(basket);
+        var json = JsonSerializer.Serialize(basket, BasketJsonContext.Default.ShoppingBasket);
 
         await _database.StringSetAsync(key, json, DefaultExpiry);
 

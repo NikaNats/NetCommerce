@@ -132,6 +132,12 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(HealthResponse))]
 [JsonSerializable(typeof(HealthEntry[]))]
 
+// Rate limiting
+[JsonSerializable(typeof(RateLimitResponse))]
+
+// Exception handling (ProblemDetails already registered above)
+[JsonSerializable(typeof(Microsoft.AspNetCore.Mvc.ValidationProblemDetails))]
+
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     WriteIndented = false,

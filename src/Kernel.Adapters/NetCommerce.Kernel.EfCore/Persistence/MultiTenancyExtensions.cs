@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,8 @@ public static class MultiTenancyExtensions
     /// <summary>
     ///     Automatically applies Query Filters for ISoftDelete and IMultiTenant.
     /// </summary>
+    [RequiresUnreferencedCode("Multi-tenancy filter uses reflection to apply query filters dynamically.")]
+    [RequiresDynamicCode("Multi-tenancy filter uses MakeGenericMethod and expression trees.")]
     public static void ApplyKernelGlobalFilters(this ModelBuilder modelBuilder, BaseDbContext context)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
@@ -42,7 +45,7 @@ public static class MultiTenancyExtensions
     /// <summary>
     ///     This method is called via Reflection for each IMultiTenant entity.
     /// </summary>
-    private static void ConfigureTenantFilter<TEntity>(ModelBuilder builder)
+    private static void ConfigureTenantFilter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(ModelBuilder builder)
         where TEntity : class, IMultiTenant
     {
         builder.Entity<TEntity>().HasQueryFilter(e =>

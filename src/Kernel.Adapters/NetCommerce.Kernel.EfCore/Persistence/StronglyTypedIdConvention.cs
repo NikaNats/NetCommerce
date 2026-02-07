@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -10,8 +11,10 @@ namespace NetCommerce.Kernel.EfCore.Persistence;
 
 /// <summary>
 ///     Bulk configuration for Strongly Typed IDs.
-///     Automatically detects any IStronglyTypedId<T> and applies the converter.
+///     Automatically detects any IStronglyTypedId&lt;T&gt; and applies the converter.
 /// </summary>
+[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+    Justification = "StronglyTypedId convention uses MakeGenericType at startup only. All ID types are statically referenced by DbContext configurations.")]
 public class StronglyTypedIdConvention : IModelFinalizingConvention
 {
     public void ProcessModelFinalizing(IConventionModelBuilder modelBuilder, IConventionContext<IConventionModelBuilder> context)
@@ -46,6 +49,10 @@ public class StronglyTypedIdConvention : IModelFinalizingConvention
 ///     Generic EF Core Value Converter.
 ///     Builds the Expression Tree manually to bypass CS8927 limitation.
 /// </summary>
+[UnconditionalSuppressMessage("AOT", "IL2060:MakeGenericMethod",
+    Justification = "TId is constrained to IStronglyTypedId<TId> which guarantees the Create method exists.")]
+[UnconditionalSuppressMessage("AOT", "IL2070:DynamicallyAccessedMembers",
+    Justification = "TId types are statically referenced by EF Core entity configurations.")]
 public class StronglyTypedIdValueConverter<TId> : ValueConverter<TId, Guid>
     where TId : struct, IStronglyTypedId<TId>
 {
@@ -88,6 +95,8 @@ public class StronglyTypedIdValueConverter<TId> : ValueConverter<TId, Guid>
 /// <summary>
 ///     Value Generator using Cached Delegate to ensure high performance.
 /// </summary>
+[UnconditionalSuppressMessage("AOT", "IL2070:DynamicallyAccessedMembers",
+    Justification = "TId types are statically referenced by EF Core entity configurations.")]
 public class StronglyTypedIdValueGenerator<TId> : Microsoft.EntityFrameworkCore.ValueGeneration.ValueGenerator<TId>
     where TId : struct, IStronglyTypedId<TId>
 {

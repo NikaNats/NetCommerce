@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,7 @@ namespace NetCommerce.Api.Extensions;
 
 public static class MigrationExtensions
 {
+    [RequiresDynamicCode("EF Core migrations are not supported with NativeAOT. Use migration bundles for production.")]
     public static async Task ApplyMigrationsAsync<TContext>(this IServiceProvider services)
         where TContext : DbContext
     {

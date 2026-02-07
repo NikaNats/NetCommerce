@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -13,6 +14,10 @@ namespace NetCommerce.Ordering.Infrastructure.Notifications;
 ///     Simple template engine using string interpolation.
 ///     Production systems should use RazorTemplateEngine or ScribanTemplateEngine for complex templates.
 /// </summary>
+[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+    Justification = "Template model types are known at compile time. All callers pass concrete types with public properties preserved.")]
+[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+    Justification = "Template rendering uses basic reflection on known model types. No dynamic code generation involved.")]
 public class SimpleTemplateEngine : ITemplateEngine
 {
     public Task<string> RenderAsync(string templateName, object model, CancellationToken cancellationToken = default)

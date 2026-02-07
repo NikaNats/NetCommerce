@@ -1,7 +1,9 @@
 #nullable enable
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -100,8 +102,10 @@ public static class ChaosExtensions
             builder.AddChaosLatency(new ChaosLatencyStrategyOptions
             {
                 InjectionRate = options.Latency.InjectionRate,
+#pragma warning disable CA5394 // Random is intentionally used for chaos engineering - not a security context
                 Latency = TimeSpan.FromMilliseconds(
                     Random.Shared.Next(options.Latency.MinDelayMs, options.Latency.MaxDelayMs)),
+#pragma warning restore CA5394
                 EnabledGenerator = static args => ValueTask.FromResult(true),
                 OnLatencyInjected = args =>
                 {
@@ -157,12 +161,14 @@ public static class ChaosExtensions
             // Inject latency if configured
             if (chaosContext?.LatencyOptions?.Enabled == true)
             {
+#pragma warning disable CA5394 // Random is intentionally used for chaos engineering - not a security context
                 var shouldInject = Random.Shared.NextDouble() < chaosContext.LatencyOptions.InjectionRate;
                 if (shouldInject)
                 {
                     var delay = Random.Shared.Next(
                         chaosContext.LatencyOptions.MinDelayMs,
                         chaosContext.LatencyOptions.MaxDelayMs);
+#pragma warning restore CA5394
 
                     Activity.Current?.AddEvent(new ActivityEvent("ChaosLatencyInjected",
                         tags: new ActivityTagsCollection { ["delay_ms"] = delay }));
@@ -174,18 +180,22 @@ public static class ChaosExtensions
             // Inject fault if configured
             if (chaosContext?.FaultOptions?.Enabled == true)
             {
+#pragma warning disable CA5394 // Random is intentionally used for chaos engineering - not a security context
                 var shouldInject = Random.Shared.NextDouble() < chaosContext.FaultOptions.InjectionRate;
+#pragma warning restore CA5394
                 if (shouldInject)
                 {
                     Activity.Current?.AddEvent(new ActivityEvent("ChaosFaultInjected"));
 
                     httpContext.Response.StatusCode = 500;
                     httpContext.Response.ContentType = "application/json";
-                    await httpContext.Response.WriteAsync(JsonSerializer.Serialize(new
+                    var chaosResponse = new ChaosFaultResponse
                     {
-                        error = "Chaos fault injected",
-                        message = chaosContext.FaultOptions.FaultMessage
-                    }));
+                        Error = "Chaos fault injected",
+                        Message = chaosContext.FaultOptions.FaultMessage
+                    };
+                    await httpContext.Response.WriteAsync(
+                        JsonSerializer.Serialize(chaosResponse, ChaosJsonContext.Default.ChaosFaultResponse));
                     return;
                 }
             }
@@ -268,3 +278,21 @@ public class FaultOptions
     /// </summary>
     public string FaultMessage { get; set; } = "Chaos monkey fault injected";
 }
+
+/// <summary>
+///     Typed model for chaos fault response (replaces anonymous type for AOT safety).
+/// </summary>
+public sealed class ChaosFaultResponse
+{
+    [JsonPropertyName("error")]
+    public string Error { get; init; } = default!;
+
+    [JsonPropertyName("message")]
+    public string Message { get; init; } = default!;
+}
+
+/// <summary>
+///     Source-generated JSON context for AOT-safe chaos serialization.
+/// </summary>
+[JsonSerializable(typeof(ChaosFaultResponse))]
+internal sealed partial class ChaosJsonContext : JsonSerializerContext;

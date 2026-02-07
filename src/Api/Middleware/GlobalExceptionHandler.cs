@@ -4,6 +4,7 @@ using System.Net.Mime;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using NetCommerce.Api.Serialization;
 using NetCommerce.Kernel.AspNetCore;
 
 namespace NetCommerce.Api.Middleware;
@@ -105,7 +106,16 @@ public sealed class GlobalExceptionHandler(
         // if the object is ProblemDetails, but being explicit doesn't hurt.
         httpContext.Response.ContentType = "application/problem+json";
 
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        if (problemDetails is ValidationProblemDetails vpd)
+        {
+            await httpContext.Response.WriteAsJsonAsync(
+                vpd, ApiJsonContext.Default.ValidationProblemDetails, cancellationToken: cancellationToken);
+        }
+        else
+        {
+            await httpContext.Response.WriteAsJsonAsync(
+                problemDetails, ApiJsonContext.Default.ProblemDetails, cancellationToken: cancellationToken);
+        }
 
         return true;
     }

@@ -2,6 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Distributed;
@@ -163,15 +164,16 @@ public sealed class TokenIntrospectionMiddleware
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         context.Response.ContentType = "application/problem+json";
 
-        var problem = new
+        var problem = new TokenRejectionProblem
         {
-            type = "https://tools.ietf.org/html/rfc7662",
-            title = "Token Revoked",
-            status = 401,
-            detail = reason
+            Type = "https://tools.ietf.org/html/rfc7662",
+            Title = "Token Revoked",
+            Status = 401,
+            Detail = reason
         };
 
-        await context.Response.WriteAsJsonAsync(problem);
+        await context.Response.WriteAsJsonAsync(
+            problem, IntrospectionJsonContext.Default.TokenRejectionProblem);
     }
 
     private static string ComputeTokenHash(string token)
@@ -185,3 +187,27 @@ public sealed class TokenIntrospectionMiddleware
 ///     Result of token introspection operation.
 /// </summary>
 internal readonly record struct IntrospectionResult(bool IsActive, string? Reason);
+
+/// <summary>
+///     Typed model for token rejection response (replaces anonymous type for AOT safety).
+/// </summary>
+internal sealed class TokenRejectionProblem
+{
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = default!;
+
+    [JsonPropertyName("title")]
+    public string Title { get; init; } = default!;
+
+    [JsonPropertyName("status")]
+    public int Status { get; init; }
+
+    [JsonPropertyName("detail")]
+    public string Detail { get; init; } = default!;
+}
+
+/// <summary>
+///     Source-generated JSON context for AOT-safe serialization.
+/// </summary>
+[JsonSerializable(typeof(TokenRejectionProblem))]
+internal sealed partial class IntrospectionJsonContext : JsonSerializerContext;

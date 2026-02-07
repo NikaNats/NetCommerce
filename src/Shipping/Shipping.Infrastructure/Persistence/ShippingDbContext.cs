@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore.Persistence;
@@ -11,6 +12,8 @@ namespace NetCommerce.Shipping.Infrastructure.Persistence;
 ///     DbContext for the Shipping module.
 ///     Manages shipment persistence with isolated schema.
 /// </summary>
+[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+    Justification = "EF Core's ApplyConfigurationsFromAssembly uses reflection by design. All entity configurations are in this assembly.")]
 public sealed class ShippingDbContext : BaseDbContext
 {
     public const string Schema = "shipping";

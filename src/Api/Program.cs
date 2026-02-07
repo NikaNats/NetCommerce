@@ -217,12 +217,14 @@ app.MapDefaultEndpoints();
 // ============================================================================
 if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMigrate"))
 {
+#pragma warning disable IL3050 // EF Core migrations require dynamic code - this is dev-only
     await app.Services.ApplyMigrationsAsync<CatalogDbContext>();
     await app.Services.ApplyMigrationsAsync<OrderingDbContext>();
     await app.Services.ApplyMigrationsAsync<InventoryDbContext>();
     await app.Services.ApplyMigrationsAsync<PaymentsDbContext>();
     await app.Services.ApplyMigrationsAsync<FinanceDbContext>();
     await app.Services.ApplyMigrationsAsync<ShippingDbContext>();
+#pragma warning restore IL3050
 }
 
 // ============================================================================

@@ -1,4 +1,5 @@
 using FluentValidation;
+using NetCommerce.Api.Serialization;
 using NetCommerce.Basket.Infrastructure;
 using NetCommerce.Catalog.Application.Products.Validators;
 using NetCommerce.Catalog.Infrastructure;
@@ -11,7 +12,7 @@ using NetCommerce.Shipping.Infrastructure;
 
 namespace NetCommerce.Api.Extensions;
 
-public static class ServiceCollectionExtensions
+public static partial class ServiceCollectionExtensions
 {
     /// <summary>
     ///     Add API services for Minimal API (no controllers).
@@ -95,14 +96,17 @@ public static class ServiceCollectionExtensions
             options.OnRejected = async (context, cancellationToken) =>
             {
                 context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                await context.HttpContext.Response.WriteAsJsonAsync(new
+                var retrySeconds = context.Lease.TryGetMetadata(
+                    System.Threading.RateLimiting.MetadataName.RetryAfter,
+                    out var retryAfter) ? retryAfter.TotalSeconds : 60;
+                var response = new RateLimitResponse
                 {
-                    error = "Too many requests",
-                    message = "Rate limit exceeded. Please try again later.",
-                    retryAfter = context.Lease.TryGetMetadata(
-                        System.Threading.RateLimiting.MetadataName.RetryAfter,
-                        out var retryAfter) ? retryAfter.TotalSeconds : 60
-                }, cancellationToken);
+                    Error = "Too many requests",
+                    Message = "Rate limit exceeded. Please try again later.",
+                    RetryAfter = retrySeconds
+                };
+                await context.HttpContext.Response.WriteAsJsonAsync(
+                    response, ApiJsonContext.Default.RateLimitResponse, cancellationToken: cancellationToken);
             };
         });
 

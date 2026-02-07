@@ -28,7 +28,9 @@ public sealed class DbContextChaosInterceptor : DbCommandInterceptor
 {
     private readonly ILogger<DbContextChaosInterceptor>? _logger;
     private readonly DbChaosOptions _options;
+#pragma warning disable CA5394 // Random is intentionally used for chaos engineering - not a security context
     private readonly Random _random = new();
+#pragma warning restore CA5394
 
     public DbContextChaosInterceptor(DbChaosOptions options, ILogger<DbContextChaosInterceptor>? logger = null)
     {
@@ -77,9 +79,11 @@ public sealed class DbContextChaosInterceptor : DbCommandInterceptor
             return;
 
         // Latency injection
+#pragma warning disable CA5394 // Random is intentionally used for chaos engineering - not a security context
         if (_options.Latency.Enabled && _random.NextDouble() < _options.Latency.InjectionRate)
         {
             var delay = _random.Next(_options.Latency.MinDelayMs, _options.Latency.MaxDelayMs);
+#pragma warning restore CA5394
             _logger?.LogWarning(
                 "[DbChaos] Injecting {DelayMs}ms latency into {OperationType} operation (Schema filter: {SchemaFilter})",
                 delay, operationType, _options.TargetSchemaFilter ?? "any");
@@ -88,7 +92,9 @@ public sealed class DbContextChaosInterceptor : DbCommandInterceptor
         }
 
         // Fault injection
+#pragma warning disable CA5394 // Random is intentionally used for chaos engineering - not a security context
         if (_options.Fault.Enabled && _random.NextDouble() < _options.Fault.InjectionRate)
+#pragma warning restore CA5394
         {
             _logger?.LogWarning(
                 "[DbChaos] Injecting fault into {OperationType} operation",

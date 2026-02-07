@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Kernel.Application;
@@ -14,7 +15,7 @@ public static class EfCoreExtensions
     ///     Registers EF Core with Wolverine transactional outbox integration.
     ///     Domain events are handled via Wolverine's outbox pattern.
     /// </summary>
-    public static IServiceCollection AddKernelEfCore<TContext>(
+    public static IServiceCollection AddKernelEfCore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TContext>(
         this IServiceCollection services,
         Action<DbContextOptionsBuilder> configureOptions)
         where TContext : BaseDbContext
@@ -52,7 +53,7 @@ public static class EfCoreExtensions
     /// <summary>
     ///     Overload for custom Audit Repository.
     /// </summary>
-    public static IServiceCollection AddKernelEfCore<TContext, TAuditRepository>(
+    public static IServiceCollection AddKernelEfCore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] TContext, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TAuditRepository>(
         this IServiceCollection services,
         Action<DbContextOptionsBuilder> configureOptions)
         where TContext : BaseDbContext

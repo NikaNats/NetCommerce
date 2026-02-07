@@ -28,6 +28,13 @@
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!--
+      Configuration Binding Source Generator (.NET 8+)
+      Replaces reflection-based config binding with compile-time source generation.
+      Fixes all Configure<T>, Bind<T>, BindConfiguration<T> AOT/trim warnings globally.
+    -->
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
@@ -10,6 +11,10 @@ namespace NetCommerce.Kernel.EfCore.Persistence;
 ///     Consolidated Base DbContext with Tenant Isolation, Audit, Wolverine Outbox, and Domain Events.
 ///     This replaces the fragmented SharedKernel.Infrastructure.Persistence.BaseDbContext.
 /// </summary>
+[UnconditionalSuppressMessage("AOT", "IL2026:RequiresUnreferencedCode",
+    Justification = "EF Core is not fully AOT compatible. DbContext base constructor requires dynamic code.")]
+[UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+    Justification = "EF Core is not fully AOT compatible. DbContext base constructor requires dynamic code.")]
 public abstract class BaseDbContext : DbContext, IUnitOfWork
 {
     // We inject the TenantContext to use it in Query Filters
