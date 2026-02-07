@@ -58,22 +58,22 @@
     Even libraries that don't compile to native code benefit from these checks
     because they ensure the code is AOT-compatible when consumed by the API.
   -->
-  <PropertyGroup>
-    <!-- Enable AOT compatibility markers for all projects -->
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' And ('$(OutputType)' == 'Exe' Or '$(PublishAot)' == 'true')">
+    <!-- Enable AOT compatibility markers only for executable/AOT projects -->
     <IsAotCompatible>true</IsAotCompatible>
 
-    <!-- Single-file safety is beneficial for all modern cloud apps -->
+    <!-- Single-file safety is beneficial for production apps -->
     <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
 
     <!--
-      Enables AOT compatibility analyzers for all libraries.
-      This warns you if you use features like BinaryFormatter or
-      Reflection-heavy serializers in your Domain/Application layers.
+      Enables AOT compatibility analyzers for executable/AOT projects.
+      This reduces noise in test and library projects while keeping
+      production entry points AOT-safe.
     -->
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true' And '$(PublishAot)' == 'true'">
     <IsTrimmable Condition="'$(OutputType)' != 'Library'">true</IsTrimmable>
 
     <!-- Fail build if AOT-incompatible code (Reflection/Dynamic) is used -->
