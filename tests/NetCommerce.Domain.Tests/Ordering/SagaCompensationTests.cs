@@ -35,7 +35,7 @@ public class SagaCompensationTests
 
         // Act
         (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
-            FailCommand, OrderStatusChanged Notification) result = saga.Handle(@event, _logger);
+            FailCommand, OrderStatusChanged Notification, CompensationStalledTimeoutMessage StallTimeout) result = saga.Handle(@event, _logger);
 
         // Assert - The saga should NOT be completed
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);
@@ -158,7 +158,7 @@ public class SagaCompensationTests
         // Act - Inventory confirmation fails AFTER payment
         var failureEvent = new InventoryConfirmationFailed(orderId, "Stock count mismatch");
         (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
-            FailCommand, OrderStatusChanged Notification) result = saga.Handle(failureEvent, _logger);
+            FailCommand, OrderStatusChanged Notification, CompensationStalledTimeoutMessage StallTimeout) result = saga.Handle(failureEvent, _logger);
 
         // Assert - Must issue refund for the captured payment
         result.RefundCommand.ShouldNotBeNull();
@@ -178,7 +178,7 @@ public class SagaCompensationTests
 
         // Act
         (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
-            FailCommand, OrderStatusChanged Notification) result = saga.Handle(
+            FailCommand, OrderStatusChanged Notification, CompensationStalledTimeoutMessage StallTimeout) result = saga.Handle(
                 new InventoryConfirmationFailed(saga.Id, "Test failure"),
                 _logger);
 
@@ -292,7 +292,7 @@ public class SagaCompensationTests
 
         // Act
         (RefundPaymentCommand RefundCommand, ReleaseInventoryReservationCommand ReleaseCommand, FailOrderCommand
-            FailCommand, OrderStatusChanged Notification) result = saga.Handle(failureEvent, _logger);
+            FailCommand, OrderStatusChanged Notification, CompensationStalledTimeoutMessage StallTimeout) result = saga.Handle(failureEvent, _logger);
 
         // Assert
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);

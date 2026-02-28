@@ -2635,6 +2635,7 @@
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "NetCommerce.Kernel.Stripe": "[1.0.0, )",
           "Payments.Application": "[1.0.0, )",
+          "Polly": "[8.6.5, )",
           "Stripe.net": "[50.4.0-beta.1, )"
         }
       },

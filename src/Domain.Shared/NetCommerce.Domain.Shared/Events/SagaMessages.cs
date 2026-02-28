@@ -198,6 +198,24 @@ public sealed record InventoryConfirmationTimeoutMessage : TimeoutMessage
     public Guid Id { get; init; }
 }
 
+/// <summary>
+///     Fires 4 hours after the saga enters the <see cref="OrderFulfillmentState.Compensating"/> state.
+///     If still compensating by then (refund/release stalled in DLQ), the saga is escalated to
+///     <see cref="OrderFulfillmentState.ManualInterventionRequired"/> so the operations team is notified.
+///
+///     Design rationale: Wolverine's transactional outbox guarantees at-least-once delivery of the
+///     ReleaseInventory / RefundPayment commands.  The pod-crash scenario is handled automatically
+///     because Wolverine re-delivers un-acknowledged outbox messages on restart.
+///     This timeout guards against the pathological case where the downstream service (Inventory or
+///     Stripe) permanently rejects the compensation — exhausting Wolverine's retry budget and parking
+///     the command in the dead-letter table — leaving the saga alive but stuck forever.
+/// </summary>
+public sealed record CompensationStalledTimeoutMessage : TimeoutMessage
+{
+    public CompensationStalledTimeoutMessage() : base(TimeSpan.FromHours(4)) { }
+    public Guid Id { get; init; }
+}
+
 #endregion
 
 #region Saga Initiation Command

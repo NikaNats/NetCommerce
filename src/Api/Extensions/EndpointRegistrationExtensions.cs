@@ -52,9 +52,10 @@ public static class EndpointRegistrationExtensions
         // Authentication - Token management, refresh rotation, session info
         new AuthEndpoints().MapEndpoints(app, versionSet);
 
-        // Admin - Operational Recovery and Finance Management
+        // Admin - Operational Recovery, Finance Management, and DLQ
         new AdminFinanceEndpoints().MapEndpoints(app, versionSet);
         new AdminOrderRecoveryEndpoints().MapEndpoints(app, versionSet);
+        new AdminDlqEndpoints().MapEndpoints(app, versionSet);
 
         return app;
     }

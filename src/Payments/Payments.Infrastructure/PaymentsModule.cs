@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http.Resilience;
 using NetCommerce.Kernel.Stripe;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
@@ -13,6 +12,9 @@ using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.EfCore;
 using Polly;
+using Polly.CircuitBreaker;
+using Polly.Retry;
+using Stripe;
 
 namespace NetCommerce.Payments.Infrastructure;
 
@@ -46,30 +48,35 @@ public static class PaymentsModule
         services.AddStripeKernel(configuration);
 
         // ============================================================================
-        // Payment Gateway with Production-Ready Circuit Breaker
+        // Payment Gateway with Production-Ready Circuit Breaker (AOT-compatible)
         // ============================================================================
-        // Critical for Go-Live: App stays up even if Stripe is temporarily down
-        services.AddHttpClient<IPaymentGateway, StripePaymentGateway>()
-            .AddStandardResilienceHandler(options =>
+        // NOTE: AddHttpClient<IPaymentGateway, StripePaymentGateway> does NOT apply here
+        // because StripePaymentGateway uses the Stripe .NET SDK directly, not HttpClient.
+        // We build a ResiliencePipeline and inject it as a singleton so the circuit-breaker
+        // state is shared across all requests in the process.
+        var stripeResiliencePipeline = new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
             {
-                // Retry: 3 attempts with exponential backoff + jitter
-                options.Retry.MaxRetryAttempts = 3;
-                options.Retry.Delay = TimeSpan.FromMilliseconds(500);
-                options.Retry.UseJitter = true;
-                options.Retry.BackoffType = DelayBackoffType.Exponential;
+                // Only retry transient Stripe errors: rate-limit, 503, 529, 504
+                ShouldHandle = new PredicateBuilder().Handle<StripeException>(ex => ex.IsTransient()),
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromMilliseconds(500),
+                BackoffType = DelayBackoffType.Exponential,
+                UseJitter = true
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+            {
+                // Trip after 50% failure rate across a 30-second sliding window (min 5 calls)
+                ShouldHandle = new PredicateBuilder().Handle<StripeException>(ex => ex.IsTransient()),
+                FailureRatio = 0.5,
+                SamplingDuration = TimeSpan.FromSeconds(30),
+                MinimumThroughput = 5,
+                BreakDuration = TimeSpan.FromSeconds(30)
+            })
+            .Build();
 
-                // Circuit Breaker: Trip after 50% failure rate in 10s window
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(10);
-                options.CircuitBreaker.FailureRatio = 0.5;
-                options.CircuitBreaker.MinimumThroughput = 5;
-                options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(30);
-
-                // Timeout: Individual request timeout (Stripe recommends 30s)
-                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(30);
-
-                // Total request timeout (including retries)
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(120);
-            });
+        services.AddSingleton(stripeResiliencePipeline);
+        services.AddScoped<IPaymentGateway, StripePaymentGateway>();
 
         // Background Jobs
         services.AddHostedService<PaymentReconciliationJob>();

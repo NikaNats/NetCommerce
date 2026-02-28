@@ -1,3 +1,4 @@
+#nullable enable
 #region
 
 using System.Reflection;

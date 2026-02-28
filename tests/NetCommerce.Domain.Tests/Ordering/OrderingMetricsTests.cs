@@ -1,3 +1,4 @@
+#nullable enable
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Ordering.Infrastructure.Metrics;

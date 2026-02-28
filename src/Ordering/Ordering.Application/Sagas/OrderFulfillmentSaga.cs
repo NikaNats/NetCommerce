@@ -433,11 +433,29 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     IMPORTANT: The saga transitions to Compensating state and does NOT complete until the refund is verified.
     ///     This implements the "Guarded Compensation" pattern for financial reliability.
     /// </summary>
+    /// <summary>
+    ///     Handles inventory confirmation failure.
+    ///     This is the CRITICAL failure scenario - payment was taken but inventory can't be confirmed.
+    ///     Compensation: Refund payment AND release inventory.
+    ///
+    ///     IMPORTANT: The saga transitions to Compensating state and does NOT complete until the
+    ///     refund is verified (GuardedCompensation pattern).
+    ///
+    ///     Pod-crash safety: the ReleaseInventoryReservation and RefundPayment commands are persisted
+    ///     atomically by the Wolverine transactional outbox.  If the pod crashes immediately after
+    ///     this handler runs, Wolverine re-delivers the commands on restart — no manual intervention
+    ///     required for the normal crash-recovery path.
+    ///
+    ///     CompensationStalledTimeoutMessage fires after 4 hours to guard against the edge case where
+    ///     a downstream service permanently rejects compensation (all retries exhausted → DLQ), leaving
+    ///     the saga alive but stuck.
+    /// </summary>
     public (
         RefundPaymentCommand RefundCommand,
         ReleaseInventoryReservationCommand ReleaseCommand,
         FailOrderCommand FailCommand,
-        OrderStatusChanged Notification
+        OrderStatusChanged Notification,
+        CompensationStalledTimeoutMessage StallTimeout
         ) Handle(
         InventoryConfirmationFailed @event,
         ILogger<OrderFulfillmentSaga> logger)
@@ -454,7 +472,7 @@ public sealed class OrderFulfillmentSaga : Saga
         State = OrderFulfillmentState.Compensating;
         FailureReason = @event.Reason;
 
-        // Compensating actions
+        // Compensating actions persisted in the same DB transaction as this state transition
         var refundCommand = new RefundPaymentCommand(
             Id,
             PaymentTransactionId!,
@@ -472,7 +490,10 @@ public sealed class OrderFulfillmentSaga : Saga
             "Error",
             "Stock confirmation failed. Your payment will be refunded.");
 
-        return (refundCommand, releaseCommand, new FailOrderCommand(Id, @event.Reason), notification);
+        // Safety net: escalate to ManualInterventionRequired if compensation stalls for > 4 hours
+        var stallTimeout = new CompensationStalledTimeoutMessage { Id = Id };
+
+        return (refundCommand, releaseCommand, new FailOrderCommand(Id, @event.Reason), notification, stallTimeout);
     }
 
     #endregion
@@ -674,6 +695,49 @@ public sealed class OrderFulfillmentSaga : Saga
         return (refundCommand, releaseCommand, new FailOrderCommand(Id, "Inventory confirmation timed out"), notification);
     }
 
+    /// <summary>
+    ///     Fires 4 hours after entering the <see cref="OrderFulfillmentState.Compensating"/> state.
+    ///
+    ///     Normal path: the saga exits Compensating before this fires because
+    ///     RefundCompleted/RefundFailed is received — this handler is a no-op.
+    ///
+    ///     Stalled path: downstream service permanently rejected compensation commands and they are
+    ///     parked in the Wolverine dead-letter table. The saga stays alive indefinitely.
+    ///     This handler escalates to ManualInterventionRequired, surfaces the order on the
+    ///     Admin Recovery Dashboard, and stops silent data rot.
+    ///
+    ///     Recovery: use POST /api/admin/orders/{id}/force-cancel to close the saga,
+    ///               and POST /api/admin/dlq/{id}/replay to re-queue the stalled DLQ message.
+    /// </summary>
+    public OrderStatusChanged? Handle(
+        CompensationStalledTimeoutMessage timeout,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        if (State != OrderFulfillmentState.Compensating)
+        {
+            logger.LogInformation(
+                "Ignoring CompensationStalledTimeout for Order {OrderId}. " +
+                "Current state: {State} — compensation already resolved.",
+                Id, State);
+            return null;
+        }
+
+        logger.LogCritical(
+            "COMPENSATION STALLED: Order {OrderId} has been in Compensating state for > 4 hours. " +
+            "FailureReason: {Reason}. PaymentTransactionId: {TransactionId}. " +
+            "Escalating to ManualInterventionRequired. Check DLQ for stalled ReleaseInventory/Refund commands.",
+            Id, FailureReason, PaymentTransactionId);
+
+        State = OrderFulfillmentState.ManualInterventionRequired;
+
+        // Do NOT call MarkCompleted() — saga must stay in DB for admin recovery
+
+        return new OrderStatusChanged(
+            Id,
+            "ManualInterventionRequired",
+            "Order compensation is stalled. The operations team has been alerted.");
+    }
+
     #endregion
 
     #region NotFound Handlers (Late Messages for Deleted Sagas)
@@ -769,6 +833,15 @@ public sealed class OrderFulfillmentSaga : Saga
     {
         logger.LogInformation(
             "Received late InventoryConfirmationTimeout for Order {OrderId}. Saga already completed, ignoring.",
+            timeout.Id);
+    }
+
+    public static void NotFound(
+        CompensationStalledTimeoutMessage timeout,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogInformation(
+            "Received late CompensationStalledTimeout for Order {OrderId}. Saga already completed, ignoring.",
             timeout.Id);
     }
 

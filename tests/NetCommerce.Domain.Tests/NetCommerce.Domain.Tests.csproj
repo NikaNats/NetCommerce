@@ -21,6 +21,7 @@
     <PackageReference Include="Stripe.net"/>
     <PackageReference Include="FsCheck"/>
     <PackageReference Include="FsCheck.Xunit"/>
+    <PackageReference Include="Polly"/>
   </ItemGroup>
 
   <ItemGroup>

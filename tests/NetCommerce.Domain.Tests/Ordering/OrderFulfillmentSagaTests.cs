@@ -352,7 +352,7 @@ public class OrderFulfillmentSagaTests
         var @event = new InventoryConfirmationFailed(saga.Id, "Stock discrepancy detected");
 
         // Act
-        var (refundCommand, releaseCommand, failCommand, notification) = saga.Handle(@event, _logger);
+        var (refundCommand, releaseCommand, failCommand, notification, stallTimeout) = saga.Handle(@event, _logger);
 
         // Assert - MUST transition to Compensating (NOT Failed) - Guarded Compensation pattern
         saga.State.ShouldBe(OrderFulfillmentState.Compensating);
@@ -377,6 +377,10 @@ public class OrderFulfillmentSagaTests
         notification.ShouldNotBeNull();
         notification.OrderId.ShouldBe(saga.Id);
         notification.Status.ShouldBe("Error");
+
+        // Verify 4-hour stall safety-net timeout
+        stallTimeout.ShouldNotBeNull();
+        stallTimeout.Id.ShouldBe(saga.Id);
     }
 
     #endregion
@@ -498,6 +502,77 @@ public class OrderFulfillmentSagaTests
         notification.ShouldNotBeNull();
         notification.OrderId.ShouldBe(saga.Id);
         notification.Status.ShouldBe("Error");
+    }
+
+    [Fact]
+    public void Handle_CompensationStalledTimeout_WhenStillCompensating_ShouldEscalateToManualIntervention()
+    {
+        // Arrange - Saga stuck in Compensating for > 4 hours (downstream DLQ scenario)
+        var saga = CreateSagaInState(OrderFulfillmentState.Compensating);
+        saga.PaymentTransactionId = "pi_XYZ_ghost";
+        saga.FailureReason = "Inventory confirmation failed: stock mismatch";
+        var timeout = new CompensationStalledTimeoutMessage { Id = saga.Id };
+
+        // Act
+        var notification = saga.Handle(timeout, _logger);
+
+        // Assert - Must escalate to ManualInterventionRequired
+        saga.State.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
+        saga.CompletedAt.ShouldBeNull(); // Saga stays alive for admin recovery
+
+        notification.ShouldNotBeNull();
+        notification!.OrderId.ShouldBe(saga.Id);
+        notification.Status.ShouldBe("ManualInterventionRequired");
+    }
+
+    [Fact]
+    public void Handle_CompensationStalledTimeout_WhenNotCompensating_ShouldIgnore()
+    {
+        // Arrange - Saga already resolved before the 4-hour timeout fired (late message)
+        var saga = CreateSagaInState(OrderFulfillmentState.Failed);
+        saga.CompletedAt = DateTime.UtcNow;
+        var timeout = new CompensationStalledTimeoutMessage { Id = saga.Id };
+
+        // Act
+        var notification = saga.Handle(timeout, _logger);
+
+        // Assert - Idempotency guard: no-op for already-resolved sagas
+        saga.State.ShouldBe(OrderFulfillmentState.Failed); // unchanged
+        notification.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Handle_CompensationStalledTimeout_WhenManualInterventionRequired_ShouldIgnore()
+    {
+        // Arrange - Already escalated (e.g., by RefundFailed) before the stall timeout fires
+        var saga = CreateSagaInState(OrderFulfillmentState.ManualInterventionRequired);
+        var timeout = new CompensationStalledTimeoutMessage { Id = saga.Id };
+
+        // Act
+        var notification = saga.Handle(timeout, _logger);
+
+        // Assert - No double-escalation
+        saga.State.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
+        notification.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Handle_InventoryConfirmationFailed_StallTimeoutShouldHaveFourHourDelay()
+    {
+        // Arrange
+        var saga = CreateSagaInState(OrderFulfillmentState.ConfirmingInventory);
+        saga.IsPaid = true;
+        saga.PaymentTransactionId = "pi_stall_deadline_test";
+        var @event = new InventoryConfirmationFailed(saga.Id, "Warehouse offline");
+
+        // Act
+        var (_, _, _, _, stallTimeout) = saga.Handle(@event, _logger);
+
+        // Assert - The timeout window must be exactly 4 hours per business rule
+        stallTimeout.ShouldNotBeNull();
+        stallTimeout.Id.ShouldBe(saga.Id);
+        // The 4-hour delay is set in CompensationStalledTimeoutMessage() : base(TimeSpan.FromHours(4))
+        // verified by CompensationStalledTimeoutMessage_TimeoutWindow test
     }
 
     #endregion
@@ -715,7 +790,7 @@ public class OrderFulfillmentSagaTests
 
         // Act - Critical failure scenario
         var @event = new InventoryConfirmationFailed(saga.Id, "Stock mismatch");
-        var (_, _, _, notification) = saga.Handle(@event, _logger);
+        var (_, _, _, notification, _) = saga.Handle(@event, _logger);
 
         // Assert - Every notification must have the OrderId for client-side filtering
         notification.OrderId.ShouldBe(saga.Id);

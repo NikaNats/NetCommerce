@@ -4,6 +4,8 @@ using Microsoft.Extensions.Options;
 using NetCommerce.Kernel.Stripe;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Kernel.Core.Results;
+using Polly;
+using Polly.CircuitBreaker;
 using Stripe;
 
 namespace NetCommerce.Payments.Infrastructure.Gateways;
@@ -14,13 +16,16 @@ public class StripePaymentGateway : IPaymentGateway
     private readonly StripeOptions _options;
     private readonly PaymentIntentService _paymentIntentService;
     private readonly RefundService _refundService;
+    private readonly ResiliencePipeline _pipeline;
 
     public StripePaymentGateway(
         IOptions<StripeOptions> options,
-        ILogger<StripePaymentGateway> logger)
+        ILogger<StripePaymentGateway> logger,
+        ResiliencePipeline pipeline)
     {
         _options = options.Value;
         _logger = logger;
+        _pipeline = pipeline;
 
         StripeConfiguration.ApiKey = _options.SecretKey;
         _paymentIntentService = new PaymentIntentService();
@@ -78,8 +83,9 @@ public class StripePaymentGateway : IPaymentGateway
             var requestOptions = new RequestOptions();
             if (!string.IsNullOrEmpty(request.IdempotencyKey)) requestOptions.IdempotencyKey = request.IdempotencyKey;
 
-            var paymentIntent =
-                await _paymentIntentService.CreateAsync(createOptions, requestOptions, cancellationToken);
+            var paymentIntent = await _pipeline.ExecuteAsync(
+                async ct => await _paymentIntentService.CreateAsync(createOptions, requestOptions, ct),
+                cancellationToken);
 
             _logger.LogInformation(
                 "Stripe PaymentIntent {PaymentIntentId} created with status {Status}. " +
@@ -94,6 +100,26 @@ public class StripePaymentGateway : IPaymentGateway
                 null);
 
             return Result.Success(result);
+        }
+        catch (BrokenCircuitException)
+        {
+            _logger.LogWarning(
+                "Stripe circuit breaker is OPEN for Order {OrderId}. Fast-failing payment.",
+                request.OrderId);
+            return Result.Failure<PaymentResult>(Error.Failure(
+                "Payment.CircuitOpen",
+                "Payment service is temporarily unavailable. Please try again in a moment."));
+        }
+        catch (StripeException ex) when (ex.IsCardDeclined())
+        {
+            _logger.LogInformation(
+                "Card declined for Order {OrderId}: {UserMessage}",
+                request.OrderId, ex.GetUserMessage());
+            // Card decline is a domain outcome, not an infrastructure failure
+            return Result.Success(new PaymentResult(
+                string.Empty,
+                PaymentResultStatus.Failed,
+                ex.GetUserMessage()));
         }
         catch (StripeException ex)
         {
@@ -124,9 +150,11 @@ public class StripePaymentGateway : IPaymentGateway
                 "Querying Stripe payment status for PaymentIntent {PaymentIntentId}",
                 externalTransactionId);
 
-            var paymentIntent = await _paymentIntentService.GetAsync(
-                externalTransactionId,
-                cancellationToken: cancellationToken);
+            var paymentIntent = await _pipeline.ExecuteAsync(
+                async ct => await _paymentIntentService.GetAsync(
+                    externalTransactionId,
+                    cancellationToken: ct),
+                cancellationToken);
 
             var status = MapStripeStatus(paymentIntent.Status);
             var result = new PaymentResult(
@@ -139,6 +167,15 @@ public class StripePaymentGateway : IPaymentGateway
                 paymentIntent.Id, paymentIntent.Status);
 
             return Result.Success(result);
+        }
+        catch (BrokenCircuitException)
+        {
+            _logger.LogWarning(
+                "Stripe circuit breaker is OPEN. Fast-failing status query for {PaymentIntentId}.",
+                externalTransactionId);
+            return Result.Failure<PaymentResult>(Error.Failure(
+                "Payment.CircuitOpen",
+                "Payment service is temporarily unavailable."));
         }
         catch (StripeException ex)
         {
@@ -170,7 +207,9 @@ public class StripePaymentGateway : IPaymentGateway
                 Reason = MapRefundReason(request.Reason)
             };
 
-            var refund = await _refundService.CreateAsync(refundOptions, cancellationToken: cancellationToken);
+            var refund = await _pipeline.ExecuteAsync(
+                async ct => await _refundService.CreateAsync(refundOptions, cancellationToken: ct),
+                cancellationToken);
 
             var success = refund.Status == "succeeded";
             var result = new RefundResult(
@@ -183,6 +222,15 @@ public class StripePaymentGateway : IPaymentGateway
                 refund.Id, refund.Status);
 
             return Result.Success(result);
+        }
+        catch (BrokenCircuitException)
+        {
+            _logger.LogWarning(
+                "Stripe circuit breaker is OPEN. Fast-failing refund for Transaction {TransactionId}.",
+                request.OriginalTransactionId);
+            return Result.Failure<RefundResult>(Error.Failure(
+                "Refund.CircuitOpen",
+                "Refund service is temporarily unavailable. The operation will be retried automatically."));
         }
         catch (StripeException ex)
         {
