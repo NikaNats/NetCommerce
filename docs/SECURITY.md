@@ -252,8 +252,8 @@ All incoming Stripe webhooks are verified using HMAC-SHA256 signatures:
 
 ```csharp
 var stripeEvent = EventUtility.ConstructEvent(
-    json, 
-    request.Headers["Stripe-Signature"], 
+    json,
+    request.Headers["Stripe-Signature"],
     webhookSecret
 );
 ```

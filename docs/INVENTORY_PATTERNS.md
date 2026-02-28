@@ -33,7 +33,7 @@ Active ──────────────────────→ Pen
   │ (ExpiresAt ≤ now)               │ (Payment succeeds)
   ↓                                 ↓
 Expired                         Confirmed
-                                    
+
 Active ──────────────────────→ Released
   (Order cancelled)
 
@@ -99,9 +99,9 @@ When available quantity drops to or below `LowStockThreshold` after a reservatio
 All stock mutations use PostgreSQL's `SELECT ... FOR UPDATE` to acquire row-level locks:
 
 ```sql
-SELECT s.*, s.xmin 
-FROM inventory.stocks AS s 
-WHERE s.product_id = @productId 
+SELECT s.*, s.xmin
+FROM inventory.stocks AS s
+WHERE s.product_id = @productId
 FOR UPDATE
 ```
 

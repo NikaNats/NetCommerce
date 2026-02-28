@@ -307,8 +307,8 @@ SELECT COUNT(*) FROM ordering.wolverine_outgoing_envelopes;
 SELECT COUNT(*) FROM ordering.wolverine_incoming_envelopes;
 
 -- Check saga states
-SELECT state, COUNT(*) 
-FROM ordering.wolverine_saga_state 
+SELECT state, COUNT(*)
+FROM ordering.wolverine_saga_state
 GROUP BY state;
 ```
 

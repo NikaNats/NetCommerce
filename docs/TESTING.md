@@ -199,7 +199,7 @@ public class IntegrationTestFixture : IAsyncLifetime
     // - EF Core migrations (all 6 schemas)
     // - Wolverine messaging (in-memory)
     // - Service registrations (repositories, handlers)
-    
+
     public async Task InitializeAsync()
     {
         // Start containers
