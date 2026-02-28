@@ -17,15 +17,15 @@
   the iteration process.
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: C# 13 / .NET 10 (Native AOT, `PublishAot=true`)  
+**Primary Dependencies**: EF Core 10, Wolverine (outbox), Keycloak 26 (BFF), HybridCache (Redis), Aspire 13.1  
+**Storage**: PostgreSQL — per-module schema (`HasDefaultSchema`); Redis for HybridCache + introspection  
+**Testing**: xUnit 2.9 + Shouldly + NSubstitute + Bogus (unit); Testcontainers + Respawn (integration); NetArchTest (architecture)  
+**Target Platform**: Linux container / .NET Aspire local dev; Native AOT Linux x64 for production  
+**Project Type**: Modular monolith web-service (Clean Architecture, DDD, bounded context per module)  
+**Performance Goals**: &lt;100 ms p95 reads; &lt;250 ms p95 writes; idempotent retries for all cross-module events  
+**Constraints**: AOT-safe serialization only (no reflection); `Result<T>` for business errors (no exceptions); no cross-module DB joins  
+**Scale/Scope**: Single deployment unit; 8 bounded contexts; event-driven cross-module coordination via Wolverine outbox
 
 ## Constitution Check
 
@@ -56,43 +56,28 @@ specs/[###-feature]/
 -->
 
 ```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+# NetCommerce module layout for this feature:
+src/{Module}/
+├── {Module}.Domain/
+│   ├── Aggregates/          # New/modified aggregate roots
+│   ├── Events/              # Domain events (IDomainEvent)
+│   └── ValueObjects/        # Immutable value objects
+├── {Module}.Application/
+│   ├── Commands/            # Command + Result<T> handler (static, [WolverineHandler])
+│   ├── Queries/             # Query + handler (static)
+│   └── Sagas/               # Wolverine saga state machines (if needed)
+└── {Module}.Infrastructure/
+    ├── Persistence/         # DbContext, entity configs, migrations
+    └── Repositories/        # I{Aggregate}Repository implementations
 
-tests/
-├── contract/
-├── integration/
-└── unit/
+src/Api/Endpoints/{Module}/  # IEndpointGroup Minimal API endpoints
+src/Domain.Shared/NetCommerce.Domain.Shared/Events/  # New integration events
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
+tests/NetCommerce.Domain.Tests/{Module}/       # Pure unit tests
+tests/NetCommerce.Integration.Tests/{Module}/  # Testcontainers integration tests
 ```
 
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+**Structure Decision**: [Document which modules are touched, new aggregates, new integration events, new API endpoints]
 
 ## Complexity Tracking
 
@@ -100,5 +85,5 @@ directories captured above]
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| [e.g., cross-module query] | [current need] | [why event-driven insufficient] |
+| [e.g., new shared event type] | [specific cross-BC contract] | [why existing event type insufficient] |

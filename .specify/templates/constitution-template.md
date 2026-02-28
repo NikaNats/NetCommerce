@@ -1,50 +1,111 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+# NetCommerce Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Modular Monolith — Hard Boundary Enforcement
+Each bounded context (Catalog, Ordering, Inventory, Payments, Shipping, Media, Basket, Finance) is a fully isolated module with its own:
+- Database schema — no cross-module FK relationships in the database
+- `DbContext` inheriting `BaseDbContext` with `HasDefaultSchema("<module>")`
+- Application / Domain / Infrastructure project split per Clean Architecture
+- Communication only via Wolverine integration events (transactional outbox) — no direct project-to-project service calls across modules
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Cross-module dependencies are forbidden. Shared concepts live exclusively in `NetCommerce.Domain.Shared` (value objects, integration events) or `NetCommerce.Kernel.*` (infrastructure primitives).
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Domain-Driven Design — Aggregates Own Their Invariants
+- Every write operation flows through an Aggregate Root; no direct repository updates to child entities
+- Domain events raised via `RaiseDomainEvent()` on the aggregate; never constructed outside
+- Integration events live in `src/Domain.Shared/NetCommerce.Domain.Shared/Events/` and are published via Wolverine outbox
+- Value objects inherit `ValueObject`, override `GetEqualityComponents()`, and are immutable
+- Strongly-typed IDs are mandatory: `readonly record struct OrderId(Guid Value) : IStronglyTypedId<OrderId>`; never use raw `Guid` as an identifier
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### III. Result Pattern — No Exceptions for Business Logic (NON-NEGOTIABLE)
+- All command handlers return `Result<T>` from `NetCommerce.Kernel.Core.Results`
+- Business errors use `Error.Validation(...)`, `Error.NotFound(...)`, `Error.Conflict(...)` — never `throw`
+- Exceptions are reserved for infrastructure failures only
+- API layer maps `Result<T>` to HTTP status codes; domain layer never references HTTP types
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### IV. Test-First for Domain and Security Logic
+- Domain logic and security handlers: write failing tests first, then implement (TDD)
+- Unit tests (`NetCommerce.Domain.Tests`): xUnit + Shouldly + NSubstitute + Bogus — no I/O, pure in-memory
+- Integration tests (`NetCommerce.Integration.Tests`): Testcontainers + real Postgres/Redis + Respawn between tests
+- Architecture tests (`NetCommerce.Architecture.Tests`): NetArchTest validates Clean Architecture boundaries on every PR
+- `TreatWarningsAsErrors=true` in Release/CI — zero warnings policy
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### V. Wolverine Messaging — Outbox by Default
+- All cross-module communication via Wolverine handlers with `[WolverineHandler]` attribute
+- Handlers are static classes; cascading messages are returned as values (not published imperatively)
+- Integration events are always persisted in the same transaction as domain changes (transactional outbox)
+- Sagas use explicit state machines with named states; no ambient state
+- Idempotency is the handler author's responsibility — use `X-Idempotency-Key` for critical endpoints
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### VI. Native AOT Compatibility (NON-NEGOTIABLE)
+- `PublishAot=true`, `IlcDisableReflection=true` — no runtime reflection anywhere in production code
+- All JSON serialization via source-generated `JsonSerializerContext` (`[JsonSerializable(typeof(...))]`)
+- New types added to `ApiJsonContext` (API layer) or module-specific context as appropriate
+- No `dynamic`, no `System.Reflection.Emit`, no unbound generics at runtime
+- Verify AOT compatibility before merging features that add new serialized types
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### VII. Security — Zero-Trust, Keycloak-Native
+- API never issues tokens; all OAuth 2.0 token lifecycle delegated to Keycloak (BFF pattern)
+- ROPC (password grant) is explicitly rejected — Authorization Code + PKCE only for users
+- Client Credentials for M2M; Token Exchange (RFC 8693) for downstream service calls
+- Authorization uses role+resource model: `[RequireRole]` + `ResourceOwnerAuthorization` + `AdminElevatedAuthorization`
+- Per-user and per-IP rate limiting applied to all auth and sensitive endpoints
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Technology Stack
+
+| Layer | Technology |
+|-------|------------|
+| Runtime | .NET 10, Native AOT |
+| Orchestration | .NET Aspire 13.1 |
+| Messaging | Wolverine (transactional outbox) |
+| ORM | EF Core 10 (per-module DbContext, code-first migrations) |
+| Database | PostgreSQL (per module schema) |
+| Cache | Redis (HybridCache, introspection cache) |
+| Auth | Keycloak 26 (OIDC, OAuth 2.1, PKCE) |
+| Search | Meilisearch |
+| Logging | Serilog → Seq |
+| Testing | xUnit 2.9 · Shouldly 4.3 · NSubstitute 5.3 · Bogus · Testcontainers · NetArchTest |
+| CI | GitHub Actions — `dotnet test NetCommerce.slnx -v minimal --nologo` |
+
+## Module Structure Pattern
+
+Every bounded context follows this layout:
+
+```
+src/{Module}/
+├── {Module}.Application/   # Commands, queries, Wolverine handlers, sagas
+├── {Module}.Domain/        # Aggregates, entities, value objects, domain events
+└── {Module}.Infrastructure/# EF Core DbContext, repositories, external adapters
+```
+
+Shared kernel assemblies:
+- `NetCommerce.Kernel.Core` — `Entity<TId>`, `AggregateRoot<TId>`, `Result<T>`, `IStronglyTypedId`
+- `NetCommerce.Kernel.EfCore` — `BaseDbContext`, `BaseRepository<TAggregate, TId>`
+- `NetCommerce.Kernel.Security` — `KeycloakTokenProxy`, auth handlers, rate limiting
+- `NetCommerce.Domain.Shared` — `Money` (GEL default), integration events
+
+## Development Workflow
+
+1. **Feature branch**: `git checkout -b <NNN>-<feature-name>` from `main`
+2. **Spec**: Use `/speckit.specify` to define requirements; get approval before planning
+3. **Plan**: Use `/speckit.plan` with tech context (module, aggregates, events, endpoints)
+4. **Tasks**: Use `/speckit.tasks` to generate ordered, dependency-resolved task list
+5. **Implement**: Domain logic first → application handlers → infrastructure → API endpoints
+6. **Tests**: Unit tests alongside implementation; integration tests for full slice
+7. **Quality gates** before PR:
+   - `dotnet test NetCommerce.slnx -v minimal --nologo` → 0 failures
+   - Architecture test pass
+   - `dotnet build --configuration Release` → 0 errors, 0 warnings
+8. **PR**: Link spec.md; describe module boundary impact; call out new integration events
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- This constitution supersedes all per-feature decisions; conflicts must be raised as a constitution amendment
+- AOT and Result Pattern rules are non-negotiable — no exceptions without explicit constitution amendment
+- New modules require: new DbContext, new schema, Wolverine handler registration, migration in AppHost
+- Serialization risk: Wolverine saga state uses fully qualified type names — clear tables before deploying type renames; see `docs/PHASE_5_SERIALIZATION_MIGRATION.md`
+- `Money` value object uses GEL as default currency; multi-currency must be explicit
+- Architecture tests run on every PR — they are the automated constitution enforcement layer
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-02-28 | **Last Amended**: 2026-02-28
