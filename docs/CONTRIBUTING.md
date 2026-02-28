@@ -1,578 +1,326 @@
-# Contributing to NetCommerce
+# Contributing
 
-> **Guidelines for contributing to the NetCommerce platform**
-
----
-
-## Table of Contents
-
-1. [Code of Conduct](#code-of-conduct)
-2. [Getting Started](#getting-started)
-3. [Development Workflow](#development-workflow)
-4. [Code Standards](#code-standards)
-5. [Architecture Guidelines](#architecture-guidelines)
-6. [Pull Request Process](#pull-request-process)
-7. [Commit Messages](#commit-messages)
-8. [Testing Requirements](#testing-requirements)
-9. [Documentation](#documentation)
-10. [Review Process](#review-process)
-
----
-
-## Code of Conduct
-
-- Be respectful and inclusive
-- Provide constructive feedback
-- Focus on the code, not the person
-- Help others learn and grow
-
----
-
-## Getting Started
-
-### Prerequisites
-
-```powershell
-# Required
-- .NET 10 SDK (Preview)
-- Docker Desktop
-- Git
-
-# Recommended
-- Visual Studio Code with C# Dev Kit
-- JetBrains Rider 2025.1+
-```
-
-### Setup
-
-```powershell
-# Clone the repository
-git clone https://github.com/your-org/NetCommerce.git
-cd NetCommerce
-
-# Restore dependencies
-dotnet restore
-
-# Run tests to verify setup
-dotnet test NetCommerce.slnx --nologo
-
-# Start the application
-dotnet run --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
-```
-
-### IDE Configuration
-
-#### VS Code
-
-Install recommended extensions:
-- C# Dev Kit
-- .NET Aspire
-- EditorConfig
-- GitLens
-
-#### JetBrains Rider
-
-Import the shared settings from `.editorconfig`.
-
----
+Guidelines for contributing to NetCommerce. Follow these conventions to maintain codebase consistency and pass all architecture tests.
 
 ## Development Workflow
 
-### Branch Strategy
+1. Create a feature branch from `main`
+2. Implement changes following the conventions below
+3. Run all tests: `dotnet test NetCommerce.slnx -v minimal --nologo`
+4. Verify architecture boundaries: `dotnet test tests/NetCommerce.Architecture.Tests --nologo`
+5. Submit a pull request
 
-```
-main                    Production-ready code
-├── develop             Integration branch
-│   ├── feature/xxx     New features
-│   ├── bugfix/xxx      Bug fixes
-│   ├── refactor/xxx    Code improvements
-│   └── docs/xxx        Documentation
-└── release/vX.Y        Release candidates
-```
-
-### Creating a Feature Branch
-
-```powershell
-# Update develop
-git checkout develop
-git pull origin develop
-
-# Create feature branch
-git checkout -b feature/add-wishlist-module
-
-# Make changes, commit, push
-git add .
-git commit -m "feat(wishlist): add wishlist aggregate root"
-git push -u origin feature/add-wishlist-module
-```
-
-### Local Development Cycle
-
-```powershell
-# 1. Start infrastructure
-dotnet run --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
-
-# 2. Make changes
-
-# 3. Run tests
-dotnet test NetCommerce.slnx --nologo
-
-# 4. Verify architecture
-dotnet test tests/NetCommerce.Architecture.Tests --nologo
-
-# 5. Check for warnings (treated as errors in CI)
-dotnet build -c Release
-```
-
----
-
-## Code Standards
-
-### C# Conventions
-
-```csharp
-// ✅ DO: Use file-scoped namespaces
-namespace NetCommerce.Ordering.Domain.Orders;
-
-// ✅ DO: Use primary constructors for simple types
-public sealed class OrderService(IOrderRepository repository, ILogger<OrderService> logger)
-{
-    // ...
-}
-
-// ✅ DO: Use records for DTOs and value objects
-public sealed record OrderDto(Guid Id, string OrderNumber, Money Total);
-
-// ✅ DO: Use expression-bodied members where appropriate
-public Money Total => Items.Sum(i => i.Subtotal);
-
-// ✅ DO: Use nullable reference types
-public string? Description { get; private set; }
-
-// ❌ DON'T: Use var when type isn't obvious
-var x = GetSomething();  // What type is this?
-
-// ✅ DO: Be explicit when type isn't obvious
-Order order = GetOrder();
-```
-
-### Naming Conventions
-
-| Element | Convention | Example |
-|---------|------------|---------|
-| Classes | PascalCase | `OrderRepository` |
-| Interfaces | IPascalCase | `IOrderRepository` |
-| Methods | PascalCase | `GetByIdAsync` |
-| Properties | PascalCase | `OrderNumber` |
-| Private fields | _camelCase | `_repository` |
-| Parameters | camelCase | `orderId` |
-| Constants | PascalCase | `MaxRetries` |
-| Generic types | T-prefix | `TEntity`, `TId` |
-
-### File Organization
-
-```csharp
-// Order: Using directives → Namespace → Type
-
-using System;
-using NetCommerce.Kernel.Core.Domain;
-
-namespace NetCommerce.Ordering.Domain.Orders;
-
-/// <summary>
-/// XML documentation for public types.
-/// </summary>
-public sealed class Order : AggregateRoot<OrderId>
-{
-    // 1. Constants
-    private const int MaxItems = 100;
-
-    // 2. Static members
-    public static Order Create(...) { }
-
-    // 3. Private fields
-    private readonly List<OrderItem> _items = [];
-
-    // 4. Constructor (private for aggregates)
-    private Order() { }
-
-    // 5. Properties
-    public OrderNumber OrderNumber { get; private set; } = null!;
-
-    // 6. Public methods
-    public Result AddItem(...) { }
-
-    // 7. Private methods
-    private void ValidateState() { }
-}
-```
-
-### Result Pattern Usage
-
-```csharp
-// ✅ DO: Return Result<T> from domain operations
-public Result<Order> AddItem(ProductId productId, Money price, int quantity)
-{
-    if (Status != OrderStatus.Draft)
-        return Result.Failure<Order>(Error.Validation("Order.InvalidState",
-            "Cannot add items to a submitted order"));
-
-    if (_items.Count >= MaxItems)
-        return Result.Failure<Order>(Error.Validation("Order.TooManyItems",
-            $"Order cannot have more than {MaxItems} items"));
-
-    _items.Add(new OrderItem(productId, price, quantity));
-    return Result.Success(this);
-}
-
-// ✅ DO: Chain results with Bind/Map
-public Result<OrderDto> GetOrderDto(Guid orderId)
-{
-    return GetOrderById(orderId)
-        .Map(order => order.ToDto());
-}
-
-// ❌ DON'T: Throw exceptions for business logic errors
-public void AddItem(...)
-{
-    if (Status != OrderStatus.Draft)
-        throw new InvalidOperationException("..."); // Don't do this
-}
-```
-
-### Domain Event Pattern
-
-```csharp
-// ✅ DO: Raise domain events from aggregates
-public Result Submit()
-{
-    if (!_items.Any())
-        return Result.Failure(Error.Validation("Order.Empty", "Order has no items"));
-
-    Status = OrderStatus.Submitted;
-    SubmittedAt = DateTime.UtcNow;
-
-    // Raise event for side effects
-    RaiseDomainEvent(new OrderSubmittedDomainEvent(Id, OrderNumber, CustomerId));
-
-    return Result.Success();
-}
-
-// ✅ DO: Name events in past tense
-public sealed record OrderSubmittedDomainEvent(
-    OrderId OrderId,
-    string OrderNumber,
-    Guid CustomerId) : IDomainEvent;
-```
-
----
-
-## Architecture Guidelines
+## Project Conventions
 
 ### Module Structure
 
-Every bounded context follows this structure:
+Every bounded context follows this three-layer structure:
 
 ```
 src/{Module}/
-├── {Module}.Domain/              # Core business logic
-│   ├── {Aggregate}/              # Aggregate folder
-│   │   ├── {Aggregate}.cs        # Aggregate root
-│   │   ├── {Aggregate}Id.cs      # Strongly typed ID
-│   │   ├── {Entity}.cs           # Child entities
-│   │   ├── I{Aggregate}Repository.cs  # Repository interface
-│   │   └── Events/               # Domain events
-│   └── ValueObjects/             # Shared value objects
-│
-├── {Module}.Application/         # Use cases
-│   ├── {Feature}/
-│   │   ├── Commands/             # State-changing operations
-│   │   └── Queries/              # Read operations
-│   └── Services/                 # Application services
-│
-└── {Module}.Infrastructure/      # External concerns
-    ├── Persistence/              # EF Core configuration
-    ├── Handlers/                 # Wolverine handlers
-    └── Services/                 # External service implementations
+├── {Module}.Application/     # Commands, queries, Wolverine handlers
+├── {Module}.Domain/          # Aggregates, entities, value objects
+├── {Module}.Infrastructure/  # EF Core, external service adapters
 ```
 
-### Layer Dependencies
+- **Domain** depends on nothing (only `NetCommerce.Kernel.Core`)
+- **Application** depends on Domain and `NetCommerce.Kernel.Application`
+- **Infrastructure** depends on Application and `NetCommerce.Kernel.EfCore`
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ALLOWED DEPENDENCIES                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Domain Layer (innermost):                                      │
-│  ├── Depends on: Kernel.Core only                              │
-│  ├── NO dependencies on Application or Infrastructure          │
-│  └── NO dependencies on other modules                          │
-│                                                                 │
-│  Application Layer:                                             │
-│  ├── Depends on: Domain, Kernel.Core, Kernel.Application       │
-│  ├── NO dependencies on Infrastructure                         │
-│  └── NO dependencies on other modules                          │
-│                                                                 │
-│  Infrastructure Layer (outermost):                              │
-│  ├── Depends on: Domain, Application, Kernel.*                 │
-│  ├── Implements interfaces from Domain/Application             │
-│  └── NO dependencies on other modules' Infrastructure          │
-│                                                                 │
-│  Cross-Module Communication:                                     │
-│  └── ONLY via Domain.Shared integration events                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+These boundaries are enforced by architecture tests in `NetCommerce.Architecture.Tests`.
 
-### Adding a New Module
+### Strongly Typed IDs
 
-1. **Create projects:**
-```powershell
-dotnet new classlib -n NetCommerce.Wishlist.Domain -o src/Wishlist/Wishlist.Domain
-dotnet new classlib -n NetCommerce.Wishlist.Application -o src/Wishlist/Wishlist.Application
-dotnet new classlib -n NetCommerce.Wishlist.Infrastructure -o src/Wishlist/Wishlist.Infrastructure
-```
-
-2. **Add to solution:**
-```powershell
-dotnet sln add src/Wishlist/Wishlist.Domain
-dotnet sln add src/Wishlist/Wishlist.Application
-dotnet sln add src/Wishlist/Wishlist.Infrastructure
-```
-
-3. **Add project references following layer rules**
-
-4. **Create database in AppHost:**
-```csharp
-var wishlistDb = postgres.AddDatabase("WishlistDb", "wishlist");
-```
-
-5. **Add architecture tests for new module**
-
----
-
-## Pull Request Process
-
-### Before Creating PR
-
-- [ ] All tests pass locally
-- [ ] No compiler warnings (treated as errors in Release)
-- [ ] Architecture tests pass
-- [ ] Code follows project conventions
-- [ ] Documentation updated if needed
-
-### PR Title Format
-
-```
-type(scope): short description
-
-Examples:
-feat(ordering): add order cancellation within grace period
-fix(inventory): prevent overselling under high concurrency
-refactor(payments): extract payment gateway abstraction
-docs(api): add authentication examples to API reference
-test(catalog): add product search integration tests
-```
-
-### PR Description Template
-
-```markdown
-## Summary
-Brief description of changes.
-
-## Changes
-- Added X
-- Modified Y
-- Removed Z
-
-## Type
-- [ ] Feature
-- [ ] Bug fix
-- [ ] Refactor
-- [ ] Documentation
-- [ ] Tests
-
-## Testing
-- [ ] Unit tests added/updated
-- [ ] Integration tests added/updated
-- [ ] Manually tested locally
-
-## Breaking Changes
-None / Description of breaking changes
-
-## Related Issues
-Closes #123
-```
-
-### Review Checklist
-
-Reviewers will verify:
-
-- [ ] Code follows architecture guidelines
-- [ ] Result pattern used (no business exceptions)
-- [ ] Domain events raised appropriately
-- [ ] Tests cover happy path and error cases
-- [ ] No security vulnerabilities
-- [ ] Performance considerations addressed
-- [ ] Documentation updated
-
----
-
-## Commit Messages
-
-### Conventional Commits
-
-```
-type(scope): description
-
-[optional body]
-
-[optional footer]
-```
-
-### Types
-
-| Type | Description |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `refactor` | Code change that neither fixes nor adds |
-| `docs` | Documentation only |
-| `test` | Adding or updating tests |
-| `perf` | Performance improvement |
-| `chore` | Build, CI, tooling changes |
-
-### Examples
-
-```
-feat(ordering): implement order grace period cancellation
-
-- Add GracePeriodExpiredDomainEvent
-- Update OrderFulfillmentSaga to handle grace period
-- Add configuration for grace period duration
-
-Closes #456
-
----
-
-fix(inventory): prevent race condition in stock reservation
-
-The stock reservation was not using optimistic concurrency,
-allowing overselling under high load.
-
-- Add RowVersion to Stock entity
-- Update ReserveStock handler to retry on concurrency conflict
-- Add integration test for concurrent reservations
-
----
-
-refactor(payments): extract IPaymentGateway abstraction
-
-Prepare for multiple payment provider support by extracting
-a common interface from the Stripe-specific implementation.
-```
-
----
-
-## Testing Requirements
-
-### Minimum Requirements
-
-| Change Type | Required Tests |
-|-------------|----------------|
-| New aggregate | Unit tests for all methods |
-| New command handler | Unit + integration test |
-| Bug fix | Regression test |
-| Refactor | Existing tests must pass |
-
-### Test Quality
+All entity IDs implement `IStronglyTypedId<T>` as a `readonly record struct`:
 
 ```csharp
-// ✅ DO: Test business rules, not implementation
-[Fact]
-public void Submit_WithEmptyOrder_ShouldFail()
+public readonly record struct ProductId(Guid Value) : IStronglyTypedId<ProductId>
 {
-    // Arrange
-    var order = Order.Create(customerId, address, "key");
+    public static ProductId Create(Guid value) => new(value);
+    public static ProductId Parse(string s, IFormatProvider? provider) => new(Guid.Parse(s, provider));
+    public static bool TryParse(string? s, IFormatProvider? provider, out ProductId result)
+    {
+        if (Guid.TryParse(s, provider, out var guid))
+        {
+            result = new(guid);
+            return true;
+        }
+        result = default;
+        return false;
+    }
+}
+```
 
-    // Act
-    var result = order.Submit();
+EF Core converters register automatically via `StronglyTypedIdConvention` in `BaseDbContext`.
 
-    // Assert
-    result.IsFailure.ShouldBeTrue();
-    result.Error.Code.ShouldBe("Order.Empty");
+### Result Pattern
+
+Return `Result<T>` from all command handlers. Never throw exceptions for business errors:
+
+```csharp
+// Correct
+public static Result<Guid> Handle(CreateProductCommand command)
+{
+    if (string.IsNullOrWhiteSpace(command.Title))
+        return Result.Failure<Guid>(Error.Validation("Title is required"));
+
+    var product = Product.Create(command.Title, command.Price);
+    return Result.Success(product.Id.Value);
 }
 
-// ❌ DON'T: Test implementation details
-[Fact]
-public void Submit_ShouldSetStatusTo1()  // Don't expose internal status codes
+// Incorrect — do NOT throw for business logic
+public static Guid Handle(CreateProductCommand command)
+{
+    if (string.IsNullOrWhiteSpace(command.Title))
+        throw new ArgumentException("Title is required"); // ❌
+    ...
+}
 ```
 
-### Coverage Expectations
+### Wolverine Message Handlers
 
-- Domain logic: 90%+
-- Application handlers: 80%+
-- New features: Must include tests
-
----
-
-## Documentation
-
-### When to Update Docs
-
-- New public API endpoints → Update [API_REFERENCE.md](API_REFERENCE.md)
-- New patterns or conventions → Update relevant guide
-- Configuration changes → Update [DEPLOYMENT.md](DEPLOYMENT.md)
-- Security changes → Update [SECURITY.md](SECURITY.md)
-
-### XML Documentation
+Use static handler classes with the `[WolverineHandler]` attribute. Return values become cascading messages published via the transactional outbox:
 
 ```csharp
-/// <summary>
-/// Creates a new order for the specified customer.
-/// </summary>
-/// <param name="customerId">The unique identifier of the customer.</param>
-/// <param name="address">The shipping address for the order.</param>
-/// <param name="idempotencyKey">Key to prevent duplicate order creation.</param>
-/// <returns>A new Order in Draft status.</returns>
-/// <exception cref="ArgumentException">Thrown when address is invalid.</exception>
-public static Order Create(Guid customerId, ShippingAddress address, string idempotencyKey)
+[WolverineHandler]
+public static class OrderSubmittedHandler
+{
+    public static InventoryReserved Handle(
+        OrderSubmittedIntegrationEvent @event,
+        ILogger logger)
+    {
+        logger.LogInformation("Processing order {OrderId}", @event.OrderId);
+        return new InventoryReserved(@event.OrderId, ...);
+    }
+}
 ```
 
----
+Handler discovery scans specific assemblies registered in `Program.cs`. New handler assemblies must be added to the Wolverine configuration.
 
-## Review Process
+### Domain Events vs Integration Events
 
-### Timeline
+| Type | Scope | Location | Transport |
+|---|---|---|---|
+| Domain Events | Internal to a module | `{Module}.Domain/Events/` | In-process via `RaiseDomainEvent()` |
+| Integration Events | Cross-module | `src/Domain.Shared/Events/` | Wolverine transactional outbox |
 
-- Initial review: Within 2 business days
-- Follow-up reviews: Within 1 business day
-- Merge after approval: Same day
+Domain events are raised on aggregate roots:
 
-### Approval Requirements
+```csharp
+public void Publish()
+{
+    Status = ProductStatus.Published;
+    RaiseDomainEvent(new ProductPublishedEvent(Id));
+}
+```
 
-| Change Size | Approvals Required |
-|-------------|-------------------|
-| Small (< 100 lines) | 1 |
-| Medium (100-500 lines) | 2 |
-| Large (> 500 lines) | 2 + architect review |
-| Architecture changes | Team lead approval |
+Integration events are published via Wolverine and consumed by other modules:
 
-### Addressing Feedback
+```csharp
+public record OrderSubmittedIntegrationEvent(Guid OrderId, string OrderNumber, Guid CustomerId);
+```
 
-- Respond to all comments
-- Push fixes as new commits (easier to review)
-- Request re-review when ready
-- Squash commits before merge
+### EF Core DbContext
 
----
+Each module has its own `DbContext` inheriting `BaseDbContext`, with an isolated schema:
 
-## Questions?
+```csharp
+public class CatalogDbContext : BaseDbContext
+{
+    public const string Schema = "catalog";
 
-- Create a GitHub Discussion for general questions
-- Open an Issue for bugs or feature requests
-- Tag `@platform-team` for architecture questions
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<Category> Categories => Set<Category>();
 
----
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema(Schema);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(CatalogDbContext).Assembly);
+    }
+}
+```
 
-**Thank you for contributing to NetCommerce!** 🚀
+### Value Objects
+
+Inherit from `ValueObject` and override `GetEqualityComponents()`:
+
+```csharp
+public sealed class Address : ValueObject
+{
+    public string Street { get; }
+    public string City { get; }
+    public string PostalCode { get; }
+
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return Street;
+        yield return City;
+        yield return PostalCode;
+    }
+}
+```
+
+The `Money` value object defaults to **GEL** currency:
+
+```csharp
+Money.Create(100m);           // 100 GEL
+Money.Create(50m, "USD");     // 50 USD
+```
+
+### Endpoint Registration
+
+Endpoints implement `IEndpoint` (static) or `IEndpointGroup` and are registered explicitly in `MapNetCommerceEndpoints()` for Native AOT compatibility:
+
+```csharp
+public class ProductEndpoints : IEndpoint
+{
+    public static void Map(IEndpointRouteBuilder app, ApiVersionSet versionSet)
+    {
+        var group = app.MapGroup("/api/v{version:apiVersion}/products")
+            .WithApiVersionSet(versionSet);
+
+        group.MapGet("/{id:guid}", GetById).AllowAnonymous();
+        group.MapPost("/", Create).RequireAuthorization("VendorOnly");
+        // ...
+    }
+}
+```
+
+### JSON Source Generation
+
+All request/response types must be registered in `ApiJsonContext` for Native AOT:
+
+```csharp
+[JsonSerializable(typeof(CreateProductCommand))]
+[JsonSerializable(typeof(ProductDto))]
+[JsonSerializable(typeof(PaginatedResponse<ProductDto>))]
+public partial class ApiJsonContext : JsonSerializerContext { }
+```
+
+Forgetting to register a type causes runtime serialization failures in AOT builds.
+
+## Code Quality
+
+### Analysis Rules
+
+The solution enforces:
+
+- `AnalysisLevel: latest-all` with all analyzers enabled
+- `TreatWarningsAsErrors` in Release and CI builds
+- `EnforceCodeStyleInBuild: true`
+- Nullable reference types enabled globally
+
+Suppressed warnings (with justification):
+
+| Warning | Reason |
+|---|---|
+| `CS1591` | XML doc comments not required on all public members |
+| `CA1014` | Assembly-level `CLSCompliant` attribute not needed |
+| `NETSDK1210` | Aspire implicit usings conflict |
+| `NU1608` | Transitive dependency version resolution |
+
+### Naming Conventions
+
+Architecture tests enforce these naming rules:
+
+- Command handler classes end with `Handler`
+- Integration events end with `IntegrationEvent` or appear in `Events` namespace
+- DbContext classes end with `DbContext`
+- Repository classes end with `Repository`
+
+### Architecture Boundaries
+
+The `NetCommerce.Architecture.Tests` project uses NetArchTest to validate:
+
+- **Forbidden dependencies** — Domain layers never reference Infrastructure or Application
+- **Layer dependencies** — Application does not reference UI/API layer
+- **Naming conventions** — consistent naming across all modules
+
+Run before every PR:
+
+```powershell
+dotnet test tests/NetCommerce.Architecture.Tests --nologo
+```
+
+## Testing Guidelines
+
+### Test Categories
+
+| Project | Type | Infrastructure |
+|---|---|---|
+| `NetCommerce.Domain.Tests` | Unit tests | In-memory, no external deps |
+| `NetCommerce.Architecture.Tests` | Architecture tests | Static analysis, no runtime |
+| `NetCommerce.Integration.Tests` | Integration tests | Testcontainers (PostgreSQL, Redis) |
+| `NetCommerce.LoadTests` | Load/stress tests | NBomber, requires PostgreSQL |
+| `NetCommerce.AppHost.Tests` | Topology tests | Aspire hosting |
+
+### Writing Unit Tests
+
+Use xUnit, FluentAssertions, NSubstitute, and Bogus:
+
+```csharp
+public class ProductTests
+{
+    [Fact]
+    public void Create_WithValidData_ReturnsProduct()
+    {
+        var product = Product.Create("Widget", Money.Create(29.99m));
+
+        product.Title.Should().Be("Widget");
+        product.Price.Amount.Should().Be(29.99m);
+        product.Price.Currency.Should().Be("GEL");
+    }
+}
+```
+
+### Writing Integration Tests
+
+Use `IntegrationTestFixture` with Testcontainers and Respawn:
+
+```csharp
+public class OrderRepositoryTests(IntegrationTestFixture fixture)
+    : IClassFixture<IntegrationTestFixture>
+{
+    [Fact]
+    public async Task SaveAndRetrieve_Order_Succeeds()
+    {
+        // Arrange — fixture provides real PostgreSQL + Redis
+        await using var scope = fixture.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+
+        // Act & Assert
+        ...
+    }
+}
+```
+
+Respawn resets the database between tests for isolation.
+
+## Commit Conventions
+
+Use conventional commit messages:
+
+```
+feat(catalog): add product image management endpoints
+fix(inventory): prevent partial reservation leak on concurrent requests
+refactor(kernel): migrate Result pattern to Kernel.Core
+test(ordering): add saga compensation sad-path tests
+docs(api): update webhook reference with dispute events
+```
+
+## Pull Request Checklist
+
+- [ ] All tests pass: `dotnet test NetCommerce.slnx -v minimal --nologo`
+- [ ] Architecture tests pass: `dotnet test tests/NetCommerce.Architecture.Tests --nologo`
+- [ ] No new analyzer warnings in Release build
+- [ ] New types registered in `ApiJsonContext` if exposed via API
+- [ ] Integration events added to `src/Domain.Shared/Events/` if cross-module
+- [ ] EF Core migration added if schema changes
+- [ ] Documentation updated for public API changes
+
+## Related Documentation
+
+- [Architecture](ARCHITECTURE.md) — design principles and module boundaries
+- [Testing](TESTING.md) — full test strategy and fixture setup
+- [API Reference](API_REFERENCE.md) — endpoint documentation standards
+- [Native AOT](NATIVE_AOT_VERIFICATION.md) — AOT compatibility verification

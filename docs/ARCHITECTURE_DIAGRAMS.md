@@ -1,345 +1,425 @@
 # Architecture Diagrams
 
-## 1. Saga Failure Recovery - Guarded Compensation Flow
+Visual representations of NetCommerce's modular monolith architecture, data flows, and deployment topology.
+
+## System Context
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Order Fulfillment Saga Lifecycle                      │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   NotStarted │────▶│  Reserving   │────▶│   Locking    │────▶│  Processing  │
-│              │     │  Inventory   │     │  Inventory   │     │   Payment    │
-└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-                            │                                           │
-                            │ FAIL                                      │ SUCCESS
-                            ▼                                           ▼
-                     ┌──────────────┐                           ┌──────────────┐
-                     │    Failed    │                           │ Confirming   │
-                     │              │                           │  Inventory   │
-                     └──────────────┘                           └──────────────┘
-                                                                        │
-                                                                        │ SUCCESS
-                                                                        ▼
-                                                                 ┌──────────────┐
-                                                                 │  Completed   │
-                                                                 │   (Saga      │
-                                                                 │   Deleted)   │
-                                                                 └──────────────┘
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    THE GUARDED COMPENSATION PATTERN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-When InventoryConfirmationFailed occurs (payment taken, inventory failed):
-
-                           ┌──────────────┐
-                           │ Confirming   │
-                           │  Inventory   │
-                           └──────┬───────┘
-                                  │
-                                  │ InventoryConfirmationFailed
-                                  ▼
-                          ┌───────────────┐
-                          │ Compensating  │◀─── Issue RefundPaymentCommand
-                          │   (WAITING)   │     Release inventory
-                          └───────┬───────┘     Saga STAYS ALIVE
-                                  │
-                    ┌─────────────┴─────────────┐
-                    │                           │
-                    │ RefundCompleted           │ RefundFailed
-                    ▼                           ▼
-            ┌──────────────┐          ┌────────────────────┐
-            │    Failed    │          │   Manual           │
-            │   (Refund    │          │   Intervention     │
-            │  Confirmed)  │          │    Required        │
-            │              │          │   (Saga Persists   │
-            │ MarkCompleted│          │    in Database)    │
-            └──────────────┘          └────────────────────┘
-                 Saga Deleted                Alert Triggered
-                 Audit Trail                 Admin Dashboard
-                 Complete                    Human Action
+                            ┌─────────────┐
+                            │   Browser   │
+                            │   Client    │
+                            └──────┬──────┘
+                                   │ HTTPS
+                            ┌──────▼──────┐
+                            │  Keycloak   │
+                            │   (OIDC)    │
+                            └──────┬──────┘
+                                   │ JWT
+                            ┌──────▼──────┐
+                            │ NetCommerce │
+                            │    API      │
+                            └──┬──┬──┬──┬─┘
+                ┌──────────────┘  │  │  └──────────────┐
+                │                 │  │                  │
+        ┌───────▼───────┐ ┌──────▼──▼──────┐  ┌───────▼───────┐
+        │  PostgreSQL   │ │     Redis      │  │    Stripe     │
+        │   (6 schemas) │ │  (cache+basket)│  │  (payments)   │
+        └───────────────┘ └────────────────┘  └───────────────┘
+                │
+        ┌───────▼───────┐ ┌────────────────┐  ┌───────────────┐
+        │  MeiliSearch  │ │  Azure Blob    │  │     Seq       │
+        │   (search)    │ │  (media)       │  │   (logs)      │
+        └───────────────┘ └────────────────┘  └───────────────┘
 ```
 
-## 2. Shipping Module Architecture
+## Module Dependency Graph
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Bounded Context: Ordering                        │
-└─────────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   │ Order Finalized (Payment + Inventory OK)
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │  OrderReadyForShipping       │
-                    │  Integration Event           │
-                    │  ─────────────────────       │
-                    │  - OrderId                   │
-                    │  - Items (with weights)      │
-                    │  - ShippingAddress           │
-                    └──────────────┬───────────────┘
-                                   │
-                                   │ Published via Wolverine Outbox
-                                   │ (Guaranteed Delivery)
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Bounded Context: Shipping                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                           │
-│   ┌─────────────────────────────────────────────┐                       │
-│   │ OrderReadyForShippingHandler (Wolverine)     │                       │
-│   └────────────────┬─────────────────────────────┘                       │
-│                    │                                                     │
-│                    │ Calls                                               │
-│                    ▼                                                     │
-│          ┌──────────────────┐                                           │
-│          │ ShippingService  │                                           │
-│          └────────┬─────────┘                                           │
-│                   │                                                      │
-│                   │ Select Courier                                      │
-│                   ▼                                                     │
-│    ┌──────────────────────────────┐                                    │
-│    │   Courier Adapter Pattern    │                                    │
-│    ├──────────────────────────────┤                                    │
-│    │  ICourierAdapter Interface   │                                    │
-│    │  ─────────────────────────   │                                    │
-│    │  - CreateLabelAsync()        │                                    │
-│    │  - CancelLabelAsync()        │                                    │
-│    │  - GetTrackingStatusAsync()  │                                    │
-│    └─────────┬────────────────────┘                                    │
-│              │                                                          │
-│     ┌────────┼──────────┬─────────┐                                   │
-│     ▼        ▼          ▼         ▼                                   │
-│  ┌─────┐ ┌──────┐  ┌──────┐  ┌──────┐                               │
-│  │ DHL │ │FedEx │  │  UPS │  │ USPS │                               │
-│  │     │ │      │  │      │  │      │                               │
-│  └──┬──┘ └───┬──┘  └───┬──┘  └───┬──┘                               │
-│     │        │         │         │                                    │
-│     └────────┴─────────┴─────────┘                                   │
-│              │ Courier APIs                                           │
-│              ▼                                                        │
-│     ┌─────────────────┐                                              │
-│     │ CourierLabelResult│                                             │
-│     │ - TrackingNumber │                                             │
-│     │ - LabelUrl       │                                             │
-│     │ - Cost           │                                             │
-│     │ - ETA            │                                             │
-│     └────────┬─────────┘                                             │
-│              │                                                        │
-│              │ Create Shipment Entity                                │
-│              ▼                                                        │
-│     ┌──────────────────────┐                                         │
-│     │  Shipment Aggregate  │                                         │
-│     │  ──────────────────  │                                         │
-│     │  - TrackingNumber    │                                         │
-│     │  - CourierProvider   │                                         │
-│     │  - Weight/Dimensions │                                         │
-│     │  - Status            │                                         │
-│     └──────────┬───────────┘                                         │
-│                │                                                      │
-│                │ Raise Domain Event                                  │
-│                ▼                                                      │
-│    ┌─────────────────────────┐                                       │
-│    │ShipmentCreatedIntegration│                                      │
-│    │         Event            │                                      │
-│    │  ───────────────────     │                                      │
-│    │  - OrderId               │                                      │
-│    │  - TrackingNumber        │                                      │
-│    │  - CourierProvider       │                                      │
-│    │  - ETA                   │                                      │
-│    └────────────┬─────────────┘                                      │
-│                 │                                                     │
-└─────────────────┼─────────────────────────────────────────────────────┘
-                  │
-                  │ Published via Wolverine Outbox
-                  ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Bounded Context: Ordering                         │
-│                                                                           │
-│                ┌────────────────────────────┐                            │
-│                │ ShipmentCreatedEvent       │                            │
-│                │ Handler (future)           │                            │
-│                └────────────┬───────────────┘                            │
-│                             │                                            │
-│                             ▼                                            │
-│                  Update Order.Status = "Shipped"                         │
-│                  Store TrackingNumber                                    │
-│                  Notify Customer                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+                    ┌─────────────────────────┐
+                    │       API Layer          │
+                    │  (Minimal APIs, Auth,    │
+                    │   Middleware, JSON Gen)   │
+                    └────┬───┬───┬───┬───┬────┘
+                         │   │   │   │   │
+          ┌──────────────┤   │   │   │   ├──────────────┐
+          │              │   │   │   │   │              │
+    ┌─────▼────┐  ┌──────▼───▼───▼───▼───▼──────┐ ┌────▼─────┐
+    │ Catalog  │  │  Ordering  Inventory         │ │ Finance  │
+    │ .App     │  │  .App      .App     Payments │ │ .App     │
+    │ .Domain  │  │  .Domain   .Domain  .App     │ │ .Domain  │
+    │ .Infra   │  │  .Infra    .Infra   .Domain  │ │ .Infra   │
+    └─────┬────┘  │                     .Infra   │ └────┬─────┘
+          │       └──────────┬───────────────────┘      │
+          │                  │                          │
+    ┌─────▼──────────────────▼──────────────────────────▼─────┐
+    │                    Domain.Shared                         │
+    │     Integration Events · Saga Messages · Money VO       │
+    ├─────────────────────────────────────────────────────────┤
+    │                    Kernel.Core                           │
+    │     Entity · AggregateRoot · ValueObject · Result       │
+    ├─────────────────────────────────────────────────────────┤
+    │                  Kernel.Adapters                         │
+    │    EfCore · AspNetCore · Compliance · SourceGenerators   │
+    └─────────────────────────────────────────────────────────┘
 ```
 
-## 3. Courier Webhook Integration (Future)
+## Clean Architecture Layer Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        External Courier Systems                          │
-└─────────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   │ Webhooks (Status Updates)
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Shipping.Infrastructure                               │
-│                                                                           │
-│   ┌─────────────────────────────────────────────────────────┐           │
-│   │  WebhookController (REST API)                           │           │
-│   │  ────────────────────────────────────                   │           │
-│   │  POST /api/webhooks/dhl                                 │           │
-│   │  POST /api/webhooks/fedex                               │           │
-│   │  POST /api/webhooks/ups                                 │           │
-│   └──────────────────────┬──────────────────────────────────┘           │
-│                          │                                               │
-│                          │ Parse & Validate                             │
-│                          ▼                                               │
-│              ┌─────────────────────┐                                    │
-│              │  Shipment Repository │                                    │
-│              │  - Get by TrackingNo │                                    │
-│              │  - Update Status     │                                    │
-│              └──────────┬───────────┘                                    │
-│                         │                                                │
-│                         │ Update Aggregate                              │
-│                         ▼                                                │
-│              ┌─────────────────────┐                                    │
-│              │  Shipment.MarkPickedUp()                                 │
-│              │  Shipment.MarkDelivered()                                │
-│              │  Shipment.MarkFailed()                                   │
-│              └──────────┬───────────┘                                    │
-│                         │                                                │
-│                         │ Raise Domain Event                            │
-│                         ▼                                                │
-│              ┌─────────────────────────┐                                │
-│              │ShipmentDeliveredIntegration│                              │
-│              │         Event            │                               │
-│              └──────────┬──────────────┘                                │
-└─────────────────────────┼────────────────────────────────────────────────┘
-                          │
-                          │ Published to Ordering
-                          ▼
-                Order.MarkDelivered()
-                Customer Notification
+    ┌───────────────────────────────────────────────┐
+    │              Infrastructure Layer              │
+    │                                               │
+    │  ┌──────────────────────────────────────────┐ │
+    │  │           Application Layer              │ │
+    │  │                                          │ │
+    │  │  ┌────────────────────────────────────┐  │ │
+    │  │  │          Domain Layer              │  │ │
+    │  │  │                                    │  │ │
+    │  │  │  ┌──────────────────────────────┐  │  │ │
+    │  │  │  │       Kernel.Core           │  │  │ │
+    │  │  │  │                              │  │  │ │
+    │  │  │  │  Entity<TId>                │  │  │ │
+    │  │  │  │  AggregateRoot<TId>         │  │  │ │
+    │  │  │  │  ValueObject                │  │  │ │
+    │  │  │  │  Result<T> / Error          │  │  │ │
+    │  │  │  │  IStronglyTypedId<T>        │  │  │ │
+    │  │  │  │  Guard                      │  │  │ │
+    │  │  │  └──────────────────────────────┘  │  │ │
+    │  │  │                                    │  │ │
+    │  │  │  Aggregates, Entities              │  │ │
+    │  │  │  Value Objects, Domain Events      │  │ │
+    │  │  │  Repository Interfaces             │  │ │
+    │  │  └────────────────────────────────────┘  │ │
+    │  │                                          │ │
+    │  │  Commands, Queries, Handlers             │ │
+    │  │  Service Interfaces                      │ │
+    │  │  Saga State Machines                     │ │
+    │  └──────────────────────────────────────────┘ │
+    │                                               │
+    │  EF Core DbContexts, Repositories            │
+    │  External API Clients (Stripe, MeiliSearch)   │
+    │  Background Services                          │
+    └───────────────────────────────────────────────┘
 ```
 
-## 4. Data Flow - Happy Path
+**Dependency Rule:** Dependencies always point inward. Domain never references Application or Infrastructure.
+
+## Order Fulfillment Saga State Machine
 
 ```
-Timeline:  ═══▶
-
-┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-│ Customer │────▶│ Ordering │────▶│ Inventory│────▶│ Payments │────▶│ Shipping │
-│ Checkout │     │  Module  │     │  Module  │     │  Module  │     │  Module  │
-└──────────┘     └──────────┘     └──────────┘     └──────────┘     └──────────┘
-                      │                 │                 │                │
-                      │                 │                 │                │
-   1. Create Order    │                 │                 │                │
-   ═══════════════════▶                 │                 │                │
-                      │ 2. Reserve      │                 │                │
-                      │    Inventory    │                 │                │
-                      │ ════════════════▶                 │                │
-                      │                 │                 │                │
-                      │                 │ 3. Inventory    │                │
-                      │                 │    Reserved     │                │
-                      │ ◀════════════════                 │                │
-                      │                 │                 │                │
-                      │ 4. Request Payment                │                │
-                      │ ══════════════════════════════════▶                │
-                      │                 │                 │                │
-                      │                 │                 │ 5. Payment     │
-                      │                 │                 │    Succeeded   │
-                      │ ◀══════════════════════════════════                │
-                      │                 │                 │                │
-                      │ 6. Confirm      │                 │                │
-                      │    Inventory    │                 │                │
-                      │ ════════════════▶                 │                │
-                      │                 │                 │                │
-                      │                 │ 7. Inventory    │                │
-                      │                 │    Confirmed    │                │
-                      │ ◀════════════════                 │                │
-                      │                 │                 │                │
-                      │ 8. Order Ready for Shipping       │                │
-                      │ ═══════════════════════════════════════════════════▶
-                      │                 │                 │                │
-                      │                 │                 │                │ 9. Create
-                      │                 │                 │                │    Shipping
-                      │                 │                 │                │    Label
-                      │                 │                 │                │    (DHL API)
-                      │                 │                 │                │
-                      │                 │                 │ 10. Shipment   │
-                      │                 │                 │     Created    │
-                      │ ◀═══════════════════════════════════════════════════
-                      │                 │                 │                │
-                      │ 11. Update Order Status to "Shipped"               │
-                      │     Store Tracking Number                          │
-                      │     Notify Customer                                 │
+                        ┌──────────────┐
+                        │  NotStarted  │
+                        │     (0)      │
+                        └──────┬───────┘
+                               │ StartOrderFulfillmentCommand
+                        ┌──────▼───────┐
+                 ┌──────│  Reserving   │──────┐
+                 │      │  Inventory   │      │
+                 │      │     (1)      │      │
+                 │      └──────┬───────┘      │
+                 │             │               │ InventoryReservationFailed
+                 │             │ Inventory     │ or Timeout (5min)
+                 │             │ Reserved      │
+                 │      ┌──────▼───────┐      │
+                 │      │  InGrace     │      │
+                 │      │  Period (2)  │      │      ┌──────────────┐
+                 │      └──────┬───────┘      ├─────>│    Failed    │
+                 │             │               │      │     (8)      │
+                 │             │ GracePeriod   │      └──────────────┘
+                 │             │ Timeout       │
+                 │      ┌──────▼───────┐      │
+                 │      │  Locking     │      │
+                 │      │  Inventory   │──────┘
+                 │      │     (3)      │
+                 │      └──────┬───────┘
+                 │             │ InventoryLocked
+                 │      ┌──────▼───────┐
+                 │      │ Processing   │
+                 │      │  Payment (4) │──────┐
+                 │      └──────┬───────┘      │ PaymentFailed
+                 │             │               │ or Timeout (30min)
+                 │             │ Payment       │
+                 │             │ Succeeded     │
+                 │      ┌──────▼───────┐      │
+                 │      │ Confirming   │      │
+                 │      │ Inventory(5) │──────┤
+                 │      └──────┬───────┘      │ InventoryConfirmationFailed
+                 │             │               │
+                 │             │ Inventory     │
+                 │             │ Confirmed     │
+                 │      ┌──────▼───────┐      │
+                 │      │  Completed   │      │
+                 │      │     (7)      │      │
+                 │      └──────────────┘      │
+                 │                            │
+                 │                     ┌──────▼───────┐
+                 │                     │ Compensating │
+                 │                     │     (6)      │
+                 │                     └──────┬───────┘
+                 │                            │
+                 │              ┌─────────────┼─────────────┐
+                 │              │             │             │
+                 │       RefundCompleted  RefundFailed  Timeout (4h)
+                 │              │             │             │
+                 │       ┌──────▼──────┐ ┌────▼───────┐    │
+                 │       │   Failed    │ │  Manual    │◄───┘
+                 └──────>│    (8)      │ │Intervention│
+                         └─────────────┘ │    (9)     │
+                                         └────────────┘
 ```
 
-## 5. Failure Scenario - Inventory Confirmation Failed
+### Saga Timeout Durations
+
+| Timeout | Duration | Trigger Condition |
+|---|---|---|
+| Inventory Reservation | 5 minutes | Stuck in `ReservingInventory` |
+| Grace Period | 5 minutes | Customer cancellation window |
+| Payment | 30 minutes | Awaiting Stripe webhook |
+| Inventory Confirmation | 5 minutes | Stuck in `ConfirmingInventory` |
+| Compensation Stalled | 4 hours | Refund not completing |
+
+## Data Flow: Order Placement
 
 ```
-┌──────────┐     ┌──────────┐     ┌──────────┐
-│ Ordering │     │ Inventory│     │ Payments │
-│  Saga    │     │  Module  │     │  Module  │
-└────┬─────┘     └──────────┘     └──────────┘
-     │                 │                 │
-     │ ConfirmInventory│                 │
-     │ ════════════════▶                 │
-     │                 │                 │
-     │                 │ ❌ Confirmation │
-     │                 │    Failed!      │
-     │ ◀════════════════                 │
-     │                 │                 │
-     │ [State: Compensating]             │
-     │                 │                 │
-     │ RefundPayment   │                 │
-     │ ══════════════════════════════════▶
-     │                 │                 │
-     │ ReleaseInventory│                 │
-     │ ════════════════▶                 │
-     │                 │                 │
-     │ [Saga WAITS for refund confirmation]
-     │                 │                 │
-     │                 │    ✅ Refund    │
-     │                 │       Succeeded │
-     │ ◀══════════════════════════════════
-     │                 │                 │
-     │ [State: Failed] │                 │
-     │ [MarkCompleted()]                 │
-     │ [Saga Deleted]  │                 │
-     │                 │                 │
-
-
-     Alternative Path:
-
-     │                 │    ❌ Refund    │
-     │                 │       Failed!   │
-     │ ◀══════════════════════════════════
-     │                 │                 │
-     │ [State: ManualInterventionRequired]
-     │ [Saga PERSISTS in Database]       │
-     │ [Alert to Operations Team]        │
-     │ [Shows up on Admin Dashboard]     │
+Client                API              Ordering           Inventory          Payments           Finance
+  │                    │                  │                   │                  │                 │
+  │ POST /orders       │                  │                   │                  │                 │
+  │ X-Idempotency-Key  │                  │                   │                  │                 │
+  │───────────────────>│                  │                   │                  │                 │
+  │                    │ CreateOrder      │                   │                  │                 │
+  │                    │ Command          │                   │                  │                 │
+  │                    │─────────────────>│                   │                  │                 │
+  │                    │                  │ StartOrderFulfill │                  │                 │
+  │                    │                  │ mentCommand       │                  │                 │
+  │                    │                  │──────────────────>│                  │                 │
+  │                    │                  │                   │                  │                 │
+  │                    │                  │ ReserveInventory  │                  │                 │
+  │                    │                  │ Command           │                  │                 │
+  │                    │                  │──────────────────>│                  │                 │
+  │                    │                  │                   │ SELECT FOR UPDATE│                 │
+  │                    │                  │                   │ (pessimistic)    │                 │
+  │                    │                  │  InventoryReserved│                  │                 │
+  │                    │                  │<──────────────────│                  │                 │
+  │                    │                  │                   │                  │                 │
+  │                    │                  │    [5min Grace Period]               │                 │
+  │                    │                  │                   │                  │                 │
+  │                    │                  │ RequestPayment    │                  │                 │
+  │                    │                  │ Command           │                  │                 │
+  │                    │                  │─────────────────────────────────────>│                 │
+  │                    │                  │                   │                  │ Stripe API      │
+  │                    │                  │                   │                  │────────────>    │
+  │                    │                  │                   │                  │                 │
+  │                    │ Stripe Webhook   │                   │                  │                 │
+  │                    │<══════════════════════════════════════════════════════──│                 │
+  │                    │                  │  PaymentSucceeded │                  │                 │
+  │                    │                  │<─────────────────────────────────────│                 │
+  │                    │                  │                   │                  │  Audit Entry    │
+  │                    │                  │                   │                  │────────────────>│
+  │                    │                  │ ConfirmInventory  │                  │                 │
+  │                    │                  │──────────────────>│                  │                 │
+  │                    │                  │                   │ Deduct stock     │                 │
+  │                    │                  │ InventoryConfirmed│                  │                 │
+  │                    │                  │<──────────────────│                  │                 │
+  │                    │                  │                   │                  │                 │
+  │  SignalR: Status   │                  │                   │                  │                 │
+  │<═══════════════════│  OrderCompleted  │                   │                  │                 │
+  │                    │                  │                   │                  │                 │
 ```
 
----
+## Stripe Webhook Processing
 
-## Key Architectural Decisions
+```
+Stripe                     API                        Payments              Ordering Saga
+  │                         │                            │                      │
+  │ POST /api/webhooks/     │                            │                      │
+  │ stripe                  │                            │                      │
+  │ Stripe-Signature: ...   │                            │                      │
+  │────────────────────────>│                            │                      │
+  │                         │ Verify Signature           │                      │
+  │                         │ (EventUtility              │                      │
+  │                         │  .ConstructEvent)          │                      │
+  │                         │                            │                      │
+  │                         │ TryClaimEvent              │                      │
+  │                         │ (INSERT ON CONFLICT        │                      │
+  │                         │  DO NOTHING)               │                      │
+  │                         │───────────────────────────>│                      │
+  │                         │                            │                      │
+  │                         │ ProcessExternalPayment     │                      │
+  │                         │ Confirmation               │                      │
+  │                         │───────────────────────────>│                      │
+  │                         │                            │ Update Transaction   │
+  │                         │                            │ Status               │
+  │                         │                            │                      │
+  │                         │                            │ PaymentSucceeded     │
+  │                         │                            │─────────────────────>│
+  │                         │                            │                      │ Continue Saga
+  │  200 OK                 │                            │                      │
+  │<────────────────────────│                            │                      │
+```
 
-### Why Bounded Contexts?
-- **Autonomy**: Shipping can be scaled independently
-- **Separation of Concerns**: Physical logistics != Digital ordering
-- **Team Ownership**: Different teams can own different contexts
-- **Technology Flexibility**: Each context can use optimal tech stack
+## Aspire Resource Topology
 
-### Why Adapter Pattern for Couriers?
-- **Extensibility**: Add new couriers without changing core logic
-- **Testability**: Mock adapters for unit tests
-- **Resilience**: One courier failure doesn't affect others
-- **Business Logic Isolation**: Shipping rules separate from API details
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Aspire AppHost                               │
+│                                                                      │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐   │
+│  │  PostgreSQL  │    │    Redis     │    │      Keycloak        │   │
+│  │  (persistent)│    │  (persistent)│    │    (persistent)      │   │
+│  │              │    │              │    │  realm: netcommerce   │   │
+│  │  ┌─CatalogDb│    │  RedisInsight│    │  token-exchange      │   │
+│  │  ├─OrderingDb│    └──────────────┘    │  fine-grained-authz  │   │
+│  │  ├─Inventory │                        └──────────────────────┘   │
+│  │  ├─PaymentsDb│    ┌──────────────┐    ┌──────────────────────┐   │
+│  │  ├─ShippingDb│    │ MeiliSearch  │    │     Azurite          │   │
+│  │  └─KeycloakDb│    │  (persistent)│    │  Blob:10000          │   │
+│  │              │    │              │    │  Queue:10001         │   │
+│  │  PgAdmin:5050│    └──────────────┘    │  Table:10002         │   │
+│  └──────────────┘                        └──────────────────────┘   │
+│                       ┌──────────────┐                               │
+│                       │     Seq      │                               │
+│                       │  (persistent)│                               │
+│                       │  structured  │                               │
+│                       │    logs      │                               │
+│                       └──────────────┘                               │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │                    NetCommerce.Api                            │    │
+│  │  References: CatalogDb, OrderingDb, InventoryDb, PaymentsDb │    │
+│  │              redis, blobs, seq, meilisearch, keycloak       │    │
+│  │  Health: /health/ready                                       │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### Why Guarded Compensation?
-- **Financial Integrity**: Never lose track of money
-- **Compliance**: Full audit trail required by regulations
-- **Observability**: Know exact state of every transaction
-- **Human Oversight**: Critical failures escalate appropriately
+## Database Schema Isolation
 
----
+```
+PostgreSQL Instance
+├── catalog schema
+│   ├── Products
+│   ├── Categories
+│   └── ProductImages
+├── ordering schema
+│   ├── Orders
+│   ├── OrderItems
+│   ├── wolverine_incoming_envelopes
+│   ├── wolverine_outgoing_envelopes
+│   └── wolverine_saga_state (OrderFulfillmentSaga)
+├── inventory schema
+│   ├── Stocks
+│   └── StockReservations
+├── payments schema
+│   ├── PaymentTransactions
+│   └── ProcessedWebhookEvents
+├── shipping schema
+│   ├── Shipments
+│   └── ShipmentItems
+└── finance schema
+    ├── FinancialAuditEntries
+    ├── ReconciliationSessions
+    └── ReconciliationDiscrepancies
+```
 
-*Diagrams created: 2026-01-05*
+No cross-schema foreign keys. Cross-module data access occurs only through Wolverine messaging.
+
+## Reconciliation Engine Flow
+
+```
+                    ┌───────────────────┐
+                    │  T+1 Daily Trigger │
+                    │ (CheckDailyRecon   │
+                    │  ciliation)        │
+                    └────────┬──────────┘
+                             │
+                    ┌────────▼──────────┐
+                    │ Fetch Internal     │
+                    │ Completed Txns     │
+                    │ (PaymentsDb)       │
+                    └────────┬──────────┘
+                             │
+                    ┌────────▼──────────┐
+                    │ Fetch External     │
+                    │ PSP Ledger         │
+                    │ (Stripe API)       │
+                    └────────┬──────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+     ┌────────▼────────┐     │    ┌─────────▼────────┐
+     │ Left Outer Join │     │    │ Right Outer Join  │
+     │ Internal→External│    │    │ External→Internal │
+     │                  │     │    │                   │
+     │ Finds:           │     │    │ Finds:            │
+     │ - MissingExternal│     │    │ - GHOST CHARGES   │
+     │ - AmountMismatch │     │    │ - MissingInternal │
+     └────────┬────────┘     │    └─────────┬────────┘
+              │              │              │
+              └──────────────┼──────────────┘
+                             │
+                    ┌────────▼──────────┐
+                    │ Publish Alerts     │
+                    │                   │
+                    │ Ghost Charges     │
+                    │ → CriticalFinan   │
+                    │   cialAlert       │
+                    │                   │
+                    │ Amount Mismatches │
+                    │ > $100 threshold  │
+                    │ → Alert           │
+                    └───────────────────┘
+```
+
+## Native AOT Compilation Pipeline
+
+```
+Source Code
+    │
+    ▼
+┌──────────────────┐
+│ dotnet publish    │
+│ -c Release        │
+│ -r linux-x64      │
+│ -p:PublishAot=true │
+└────────┬─────────┘
+         │
+    ┌────▼─────────────┐
+    │ Roslyn Compilation│
+    │ + Source Generators│
+    │                   │
+    │ ApiJsonContext    │
+    │ ConfigBinding Gen │
+    │ Wolverine Codegen │
+    └────────┬─────────┘
+             │
+    ┌────────▼─────────┐
+    │ IL Linker (Trim)  │
+    │                   │
+    │ Removes unused    │
+    │ code paths        │
+    └────────┬─────────┘
+             │
+    ┌────────▼─────────┐
+    │ ILC (AOT Compiler)│
+    │                   │
+    │ Native binary     │
+    │ ~45MB             │
+    │ No JIT needed     │
+    └────────┬─────────┘
+             │
+    ┌────────▼─────────┐
+    │ Docker (Chiseled) │
+    │                   │
+    │ No shell          │
+    │ Non-root (1654)   │
+    │ ~65MB total       │
+    │ ~80ms startup     │
+    └──────────────────┘
+```
+
+## Related Documentation
+
+- [Architecture](ARCHITECTURE.md) — design principles and module structure
+- [Messaging Patterns](MESSAGING_PATTERNS.md) — saga state machine details
+- [Native AOT](NATIVE_AOT_VERIFICATION.md) — verification checkpoints
+- [Deployment](DEPLOYMENT.md) — production deployment topology

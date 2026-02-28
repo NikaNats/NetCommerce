@@ -1,751 +1,418 @@
-# NetCommerce Operations Guide
+# Operations
 
-> **Monitoring, observability, and operational procedures**
+Operational procedures for monitoring, maintaining, and troubleshooting NetCommerce in production.
 
----
+## Health Monitoring
 
-## Table of Contents
+### Health Check Endpoints
 
-1. [Observability Stack](#observability-stack)
-2. [Metrics](#metrics)
-3. [Logging](#logging)
-4. [Distributed Tracing](#distributed-tracing)
-5. [Health Checks](#health-checks)
-6. [Alerting](#alerting)
-7. [Dashboards](#dashboards)
-8. [Runbooks](#runbooks)
-9. [Incident Response](#incident-response)
-10. [Capacity Planning](#capacity-planning)
+| Endpoint | Purpose | Frequency |
+|---|---|---|
+| `GET /health/ready` | Readiness — all dependencies available | Every 5s |
+| `GET /health/live` | Liveness — process alive | Every 10s |
 
----
+Readiness checks verify connectivity to:
+- PostgreSQL (all 6 schemas)
+- Redis
+- MeiliSearch
+- Keycloak (optional, degrades gracefully)
 
-## Observability Stack
+### OpenTelemetry
 
-### Components
+The application exports telemetry via OTLP to configured collectors:
+
+| Signal | Instrumentation |
+|---|---|
+| **Traces** | ASP.NET Core, HTTP Client, EF Core, Redis |
+| **Metrics** | Runtime, Process, ASP.NET Core, custom business metrics |
+| **Logs** | Serilog → Seq (structured JSON) |
+
+### Seq Log Queries
+
+Common log queries for operational monitoring:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    OBSERVABILITY ARCHITECTURE                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────┐       │
-│  │                    NetCommerce API                               │       │
-│  │                                                                  │       │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │       │
-│  │  │   Metrics    │  │   Logging    │  │   Tracing    │         │       │
-│  │  │ (OpenTelemetry)│  │ (Serilog)  │  │(OpenTelemetry)│         │       │
-│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │       │
-│  └─────────┼─────────────────┼─────────────────┼────────────────────┘       │
-│            │                 │                 │                            │
-│            ▼                 ▼                 ▼                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                     │
-│  │  Prometheus  │  │     Seq      │  │    Jaeger    │                     │
-│  │  (Metrics)   │  │  (Logging)   │  │  (Tracing)   │                     │
-│  └──────┬───────┘  └──────────────┘  └──────────────┘                     │
-│         │                                                                   │
-│         ▼                                                                   │
-│  ┌──────────────┐                                                          │
-│  │   Grafana    │  ◀── Unified dashboards                                  │
-│  │ (Dashboards) │                                                          │
-│  └──────────────┘                                                          │
-│                                                                             │
-│  PRODUCTION ALTERNATIVE:                                                    │
-│  ┌──────────────────────────────────────────────────────────┐              │
-│  │  Azure Monitor / Application Insights / Datadog          │              │
-│  │  (All-in-one: Metrics + Logs + Traces + Alerts)         │              │
-│  └──────────────────────────────────────────────────────────┘              │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+# Failed webhook processing
+@Message like 'Stripe webhook%' and @Level = 'Error'
+
+# Saga state transitions
+SourceContext = 'OrderFulfillmentSaga'
+
+# Dead letter queue entries
+@Message like 'Dead letter%'
+
+# Reconciliation alerts
+SourceContext like '%Reconciliation%' and @Level >= 'Warning'
+
+# Inventory contention
+@Message like '%FOR UPDATE%' or @Message like '%concurrency%'
+
+# Slow database queries (>100ms)
+EfCoreQueryDuration > 100
 ```
 
-### Development vs Production
+### Key Metrics
 
-| Aspect | Development | Production |
-|--------|-------------|------------|
-| Logging | Seq (localhost:5341) | Azure Monitor / Datadog |
-| Metrics | Prometheus + Grafana | Azure Monitor Metrics |
-| Tracing | Jaeger | Azure App Insights |
-| Alerting | None | PagerDuty / OpsGenie |
+| Metric | Description | Alert Threshold |
+|---|---|---|
+| `orders.created` | Orders placed per minute | N/A (baseline) |
+| `orders.completed` | Orders fulfilled per minute | < 50% of created |
+| `orders.failed` | Orders failed per minute | > 5% of created |
+| `saga.manual_intervention` | Sagas needing admin | > 0 |
+| `inventory.reservations.leaked` | Leaked reservations | > 0 |
+| `payments.reconciliation.discrepancies` | Unresolved discrepancies | > 0 |
+| `dlq.messages.count` | Dead letter queue depth | > 10 |
+| `webhooks.failed` | Failed webhook processing | > 0 |
 
----
+## Dead Letter Queue Management
 
-## Metrics
+Failed Wolverine messages are routed to the dead letter queue after retry exhaustion.
 
-### OpenTelemetry Configuration
+### Monitoring DLQ
 
-```csharp
-// src/Api/Program.cs
-builder.Services.AddOpenTelemetry()
-    .WithMetrics(metrics =>
-    {
-        metrics.AddAspNetCoreInstrumentation();
-        metrics.AddHttpClientInstrumentation();
-        metrics.AddRuntimeInstrumentation();
-
-        // Custom meters
-        metrics.AddMeter("NetCommerce.Ordering");
-        metrics.AddMeter("NetCommerce.Inventory");
-        metrics.AddMeter("NetCommerce.Payments");
-        metrics.AddMeter("NetCommerce.Messaging");
-
-        // Export to Prometheus
-        metrics.AddPrometheusExporter();
-    });
+```http
+GET /api/admin/dlq?limit=50&offset=0
+Authorization: Bearer <admin-elevated-token>
 ```
 
-### Key Business Metrics
+### Replaying Messages
 
-```csharp
-public class OrderingMetrics
+```http
+# Replay single message
+POST /api/admin/dlq/{id}/replay
+Authorization: Bearer <admin-elevated-token>
+
+# Bulk replay by message type
+POST /api/admin/dlq/bulk-replay
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
+
 {
-    private readonly Counter<long> _ordersCreated;
-    private readonly Counter<long> _ordersCompleted;
-    private readonly Counter<long> _ordersCancelled;
-    private readonly Histogram<double> _orderValue;
-    private readonly Histogram<double> _checkoutDuration;
-
-    public OrderingMetrics(IMeterFactory meterFactory)
-    {
-        var meter = meterFactory.Create("NetCommerce.Ordering");
-
-        _ordersCreated = meter.CreateCounter<long>(
-            "orders.created",
-            description: "Total orders created");
-
-        _ordersCompleted = meter.CreateCounter<long>(
-            "orders.completed",
-            description: "Total orders completed successfully");
-
-        _ordersCancelled = meter.CreateCounter<long>(
-            "orders.cancelled",
-            description: "Total orders cancelled");
-
-        _orderValue = meter.CreateHistogram<double>(
-            "orders.value",
-            unit: "GEL",
-            description: "Order value distribution");
-
-        _checkoutDuration = meter.CreateHistogram<double>(
-            "checkout.duration",
-            unit: "ms",
-            description: "Time from cart to order completion");
-    }
-
-    public void RecordOrderCreated() => _ordersCreated.Add(1);
-    public void RecordOrderValue(decimal amount) => _orderValue.Record((double)amount);
+  "messageTypeFilter": "ProcessExternalPaymentConfirmation",
+  "limit": 200
 }
 ```
 
-### Infrastructure Metrics
+### Discarding Messages
 
-| Metric | Description | Threshold |
-|--------|-------------|-----------|
-| `http_requests_duration_seconds` | Request latency | P99 < 500ms |
-| `http_requests_total` | Request count | - |
-| `db_connections_active` | Active DB connections | < 80% of pool |
-| `redis_commands_duration_seconds` | Redis latency | P99 < 10ms |
-| `wolverine_messages_processed` | Message throughput | - |
-| `wolverine_messages_failed` | Failed messages | < 1% |
-
-### Prometheus Queries
-
-```promql
-# Request rate
-rate(http_requests_total[5m])
-
-# Error rate
-sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
-
-# P99 latency
-histogram_quantile(0.99, rate(http_requests_duration_seconds_bucket[5m]))
-
-# Orders per minute
-rate(orders_created_total[1m]) * 60
-
-# Checkout success rate
-sum(rate(orders_completed_total[5m])) / sum(rate(orders_created_total[5m]))
+```http
+DELETE /api/admin/dlq/{id}
+Authorization: Bearer <admin-elevated-token>
 ```
 
----
+### DLQ Triage Procedure
 
-## Logging
+1. **Check message type** — categorize as payment, inventory, or order
+2. **Check failure reason** — transient (retry) vs permanent (investigate)
+3. **For payment messages** — verify Stripe dashboard before replaying
+4. **For inventory messages** — check stock levels before replaying
+5. **Replay or discard** based on analysis
+6. **Monitor** — verify replayed message processes successfully
 
-### Structured Logging Configuration
+## Order Recovery
 
-```csharp
-// src/Api/Program.cs
-builder.Host.UseSerilog((context, configuration) =>
+### Stuck Saga Detection
+
+```http
+GET /api/v1/orders/manual-intervention
+Authorization: Bearer <admin-token>
+```
+
+### Saga State Inspection
+
+```http
+GET /api/admin/orders/{orderId}/saga-details
+Authorization: Bearer <admin-elevated-token>
+```
+
+Returns full saga state including:
+- Current state (enum value)
+- All tracking flags (inventory reserved, locked, paid, confirmed)
+- Payment transaction ID
+- Failure reason
+- Timestamps
+
+### Recovery Actions
+
+#### Force Complete
+
+Use when payment is confirmed in Stripe but saga is stuck:
+
+```http
+POST /api/admin/orders/{orderId}/force-complete
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
+
 {
-    configuration
-        .ReadFrom.Configuration(context.Configuration)
-        .Enrich.FromLogContext()
-        .Enrich.WithMachineName()
-        .Enrich.WithEnvironmentName()
-        .Enrich.WithProperty("Application", "NetCommerce.Api")
-        .WriteTo.Console(
-            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-        .WriteTo.Seq(context.Configuration["Seq:ServerUrl"] ?? "http://localhost:5341");
-});
-```
-
-### Logging Conventions
-
-```csharp
-// ✅ DO: Use structured logging with named properties
-_logger.LogInformation(
-    "Order {OrderId} created for customer {CustomerId}. Total: {Total} {Currency}",
-    order.Id,
-    order.CustomerId,
-    order.Total.Amount,
-    order.Total.Currency);
-
-// ✅ DO: Include correlation IDs
-_logger.LogInformation(
-    "Processing payment for order {OrderId}. CorrelationId: {CorrelationId}",
-    orderId,
-    Activity.Current?.Id);
-
-// ❌ DON'T: Log PII directly
-_logger.LogInformation("Order for {Email}", customer.Email);  // Don't do this
-
-// ✅ DO: Use appropriate log levels
-_logger.LogDebug("Entering method {Method}", nameof(ProcessPayment));
-_logger.LogInformation("Order {OrderId} submitted", orderId);
-_logger.LogWarning("Payment retry {Attempt} for order {OrderId}", attempt, orderId);
-_logger.LogError(ex, "Payment failed for order {OrderId}", orderId);
-_logger.LogCritical("Database connection lost");
-```
-
-### Log Levels
-
-| Level | Use Case | Example |
-|-------|----------|---------|
-| Debug | Detailed diagnostics | Method entry/exit |
-| Information | Normal operations | Order created, payment processed |
-| Warning | Recoverable issues | Retry attempt, fallback used |
-| Error | Operation failed | Payment failed, external service down |
-| Critical | System failure | Database unreachable, data corruption |
-
-### Seq Queries
-
-```
-# Find all errors for an order
-OrderId = "550e8400-e29b-41d4-a716-446655440000" and @Level = 'Error'
-
-# Find slow requests (> 500ms)
-@Properties.ElapsedMilliseconds > 500
-
-# Find all saga state transitions
-SourceContext like '%Saga%'
-
-# Find dead letter messages
-MessageType = 'DeadLetterEnvelope'
-
-# Error rate by endpoint
-@Level = 'Error' | select count(*) group by RequestPath
-
-# Recent authentication failures
-@Level = 'Warning' and Message like '%Authentication failed%'
-```
-
----
-
-## Distributed Tracing
-
-### OpenTelemetry Configuration
-
-```csharp
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing =>
-    {
-        tracing.AddAspNetCoreInstrumentation();
-        tracing.AddHttpClientInstrumentation();
-        tracing.AddEntityFrameworkCoreInstrumentation();
-        tracing.AddNpgsql();
-        tracing.AddSource("Wolverine");
-
-        // Export to Jaeger (dev) or Azure Monitor (prod)
-        if (builder.Environment.IsDevelopment())
-            tracing.AddJaegerExporter();
-        else
-            tracing.AddAzureMonitorTraceExporter();
-    });
-```
-
-### Trace Propagation
-
-```csharp
-// Traces automatically propagate through:
-// - HTTP requests (via W3C Trace Context headers)
-// - Wolverine messages (via envelope metadata)
-// - Database queries (via EF Core instrumentation)
-
-// Access current trace
-var traceId = Activity.Current?.TraceId.ToString();
-var spanId = Activity.Current?.SpanId.ToString();
-```
-
-### Custom Spans
-
-```csharp
-public async Task ProcessPaymentAsync(PaymentCommand command)
-{
-    using var activity = ActivitySource.StartActivity("ProcessPayment");
-    activity?.SetTag("order.id", command.OrderId.ToString());
-    activity?.SetTag("payment.amount", command.Amount.Amount);
-
-    try
-    {
-        var result = await _gateway.ChargeAsync(command);
-        activity?.SetTag("payment.success", result.IsSuccess);
-        activity?.SetTag("payment.transaction_id", result.TransactionId);
-    }
-    catch (Exception ex)
-    {
-        activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-        throw;
-    }
+  "reason": "Payment confirmed in Stripe dashboard",
+  "notes": "Charge ch_xxx settled, webhook delivery was delayed"
 }
 ```
 
----
+#### Override Payment Status
 
-## Health Checks
+Use when webhook was lost but payment is verifiable:
 
-### Endpoint Configuration
-
-```csharp
-// src/Api/Program.cs
-builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString, name: "postgres")
-    .AddRedis(redisConnectionString, name: "redis")
-    .AddUrlGroup(new Uri(keycloakUrl), name: "keycloak")
-    .AddCheck<MeilisearchHealthCheck>("meilisearch")
-    .AddCheck<WolverineHealthCheck>("wolverine");
-
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-    Predicate = _ => false  // Just check if app is running
-});
-
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
-{
-    Predicate = _ => true,  // Check all dependencies
-    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
-});
-```
-
-### Health Check Response
-
-```json
-GET /health/ready
+```http
+POST /api/admin/orders/{orderId}/override-payment-status
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
 
 {
-  "status": "Healthy",
-  "totalDuration": "00:00:00.1234567",
-  "entries": {
-    "postgres": {
-      "status": "Healthy",
-      "duration": "00:00:00.0234567"
-    },
-    "redis": {
-      "status": "Healthy",
-      "duration": "00:00:00.0012345"
-    },
-    "keycloak": {
-      "status": "Healthy",
-      "duration": "00:00:00.0456789"
-    },
-    "meilisearch": {
-      "status": "Healthy",
-      "duration": "00:00:00.0123456"
-    },
-    "wolverine": {
-      "status": "Healthy",
-      "duration": "00:00:00.0001234"
-    }
-  }
+  "paymentStatus": "Succeeded",
+  "stripeChargeId": "ch_xxx",
+  "reason": "Manual Stripe dashboard verification"
 }
 ```
 
-### Kubernetes Probes
+#### Force Cancel
 
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health/live
-    port: 8080
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  failureThreshold: 3
+Use for unrecoverable orders:
 
-readinessProbe:
-  httpGet:
-    path: /health/ready
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 5
-  failureThreshold: 3
-```
+```http
+POST /api/admin/orders/{orderId}/force-cancel
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
 
----
-
-## Alerting
-
-### Alert Rules
-
-```yaml
-# prometheus/alerts.yaml
-groups:
-- name: netcommerce
-  rules:
-  # High error rate
-  - alert: HighErrorRate
-    expr: sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.01
-    for: 5m
-    labels:
-      severity: critical
-    annotations:
-      summary: "High error rate detected"
-      description: "Error rate is {{ $value | humanizePercentage }}"
-
-  # High latency
-  - alert: HighLatency
-    expr: histogram_quantile(0.99, rate(http_requests_duration_seconds_bucket[5m])) > 0.5
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "High P99 latency"
-      description: "P99 latency is {{ $value | humanizeDuration }}"
-
-  # Database connection exhaustion
-  - alert: DatabaseConnectionsHigh
-    expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Database connections > 80%"
-
-  # Wolverine message backlog
-  - alert: MessageBacklog
-    expr: wolverine_incoming_messages_queued > 1000
-    for: 10m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Wolverine message backlog building up"
-
-  # Dead letter queue growth
-  - alert: DeadLetterGrowth
-    expr: increase(wolverine_dead_letters_total[1h]) > 10
-    labels:
-      severity: warning
-    annotations:
-      summary: "Dead letter messages increasing"
-
-  # Saga stuck
-  - alert: SagaStuck
-    expr: wolverine_saga_active{state="ManualInterventionRequired"} > 0
-    labels:
-      severity: critical
-    annotations:
-      summary: "Saga requires manual intervention"
-```
-
-### Severity Levels
-
-| Severity | Response Time | Action |
-|----------|---------------|--------|
-| Critical | < 15 minutes | Page on-call engineer |
-| Warning | < 4 hours | Create ticket, investigate |
-| Info | Next business day | Review in standup |
-
----
-
-## Dashboards
-
-### Key Dashboards
-
-#### 1. Business Overview
-- Orders per hour (trend)
-- Revenue (today vs yesterday)
-- Checkout conversion rate
-- Payment success rate
-- Active users
-
-#### 2. API Performance
-- Request rate by endpoint
-- P50, P95, P99 latency
-- Error rate by status code
-- Slow endpoints (> 500ms)
-
-#### 3. Infrastructure Health
-- Database connections
-- Redis memory usage
-- CPU / Memory utilization
-- Disk I/O
-
-#### 4. Messaging
-- Messages processed per minute
-- Message processing latency
-- Dead letter queue size
-- Active sagas by state
-
-### Sample Grafana Dashboard JSON
-
-```json
 {
-  "title": "NetCommerce Overview",
-  "panels": [
-    {
-      "title": "Orders Per Minute",
-      "type": "graph",
-      "targets": [
-        {
-          "expr": "rate(orders_created_total[1m]) * 60"
-        }
-      ]
-    },
-    {
-      "title": "Request Latency (P99)",
-      "type": "gauge",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.99, rate(http_requests_duration_seconds_bucket[5m])) * 1000"
-        }
-      ],
-      "thresholds": [
-        { "value": 200, "color": "green" },
-        { "value": 500, "color": "yellow" },
-        { "value": 1000, "color": "red" }
-      ]
-    }
-  ]
+  "reason": "Duplicate order, customer contacted",
+  "refundAmount": 49.99,
+  "notifyCustomer": true
 }
 ```
 
----
+#### Retry Step
 
-## Runbooks
+Retry a specific saga step:
 
-### Runbook: High Error Rate
+```http
+POST /api/admin/orders/{orderId}/retry-step
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
 
-```markdown
-## Symptoms
-- Alert: HighErrorRate triggered
-- Error rate > 1%
-
-## Investigation Steps
-1. Check Seq for error patterns:
-   ```
-   @Level = 'Error' | select count(*) group by @Exception.Type
-   ```
-
-2. Identify affected endpoints:
-   ```
-   @Level = 'Error' | select count(*) group by RequestPath
-   ```
-
-3. Check recent deployments:
-   - Was there a recent deployment?
-   - Rollback if necessary
-
-4. Check infrastructure:
-   - Database connectivity
-   - Redis connectivity
-   - Keycloak availability
-
-## Resolution
-- If database issue: See "Database Connectivity" runbook
-- If external service: Enable circuit breaker fallback
-- If code bug: Rollback deployment
+{
+  "step": "ProcessingPayment"
+}
 ```
 
-### Runbook: Database Connectivity
+#### Bulk Retry
 
-```markdown
-## Symptoms
-- Health check /health/ready failing
-- "Connection refused" or "timeout" errors in logs
+Retry all stuck sagas in a specific state:
 
-## Investigation Steps
-1. Check PostgreSQL status:
-   ```bash
-   kubectl get pods -l app=postgres
-   ```
+```http
+POST /api/admin/orders/bulk-retry-stuck
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
 
-2. Check connection count:
-   ```sql
-   SELECT count(*) FROM pg_stat_activity;
-   SELECT max_connections FROM pg_settings;
-   ```
-
-3. Check for long-running queries:
-   ```sql
-   SELECT pid, now() - query_start AS duration, query
-   FROM pg_stat_activity
-   WHERE state = 'active'
-   ORDER BY duration DESC
-   LIMIT 10;
-   ```
-
-## Resolution
-- If connection exhaustion: Increase pool size or add PgBouncer
-- If long queries: Kill blocking queries, add indexes
-- If Pod failure: Restart or failover to replica
+{
+  "sagaState": "ProcessingPayment",
+  "maxOrdersToRetry": 100
+}
 ```
 
-### Runbook: Saga Stuck
+## Reconciliation
 
-```markdown
-## Symptoms
-- Alert: SagaStuck triggered
-- Orders stuck in "ManualInterventionRequired" state
+### Daily Reconciliation
 
-## Investigation Steps
-1. Query stuck sagas:
-   ```sql
-   SELECT id, state->>'OrderId', state->>'FailureReason'
-   FROM wolverine.saga_state
-   WHERE state->>'State' = 'ManualInterventionRequired';
-   ```
+The `ReconciliationEngine` runs T+1 daily reconciliation comparing internal payment records against the external PSP (Stripe) ledger.
 
-2. Check failure reason:
-   - Payment refund failed?
-   - Inventory release failed?
+#### Manual Trigger
 
-3. Check related systems:
-   - Payment gateway status
-   - Inventory service health
+```http
+POST /api/admin/finance/reconciliation-sessions/trigger
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
 
-## Resolution
-1. Fix underlying issue (refund, inventory)
-2. Manually complete compensation:
-   ```sql
-   -- Mark saga as failed after manual resolution
-   UPDATE wolverine.saga_state
-   SET state = jsonb_set(state, '{State}', '"Failed"')
-   WHERE id = '<saga-id>';
-   ```
-3. Notify customer if needed
+{
+  "date": "2025-01-15"
+}
 ```
 
----
+#### Viewing Results
+
+```http
+GET /api/admin/finance/reconciliation-sessions?startDate=2025-01-01&endDate=2025-01-31
+Authorization: Bearer <admin-elevated-token>
+```
+
+### Discrepancy Types
+
+| Type | Severity | Description | Action |
+|---|---|---|---|
+| `MissingExternal` | Warning | Internal record exists, no PSP record | Investigate Stripe dashboard |
+| `MissingInternal` | **Critical** | PSP record exists, no internal record (GHOST CHARGE) | Immediate investigation |
+| `AmountMismatch` | Warning | Amounts differ > $0.01 threshold | Review transaction details |
+
+### Resolving Discrepancies
+
+```http
+POST /api/admin/finance/discrepancies/resolve
+Authorization: Bearer <admin-elevated-token>
+Content-Type: application/json
+
+{
+  "sessionId": "session-guid",
+  "externalTxnId": "pi_xxx",
+  "action": "AcceptDiscrepancy",
+  "reason": "Timing difference, resolved on next day reconciliation"
+}
+```
+
+**Resolution Actions:**
+
+| Action | Description |
+|---|---|
+| `CreateShadowOrder` | Create an internal record for a ghost charge |
+| `RefundGhostCharge` | Refund a charge with no internal record |
+| `AcceptDiscrepancy` | Accept and document the discrepancy |
+| `InvestigateFurther` | Flag for deeper investigation |
+
+### Alerting
+
+Ghost charges and amount mismatches above the configured threshold trigger `CriticalFinancialAlert`:
+
+| Setting | Default | Description |
+|---|---|---|
+| `Finance:Alerting:DiscrepancyAlertThreshold` | `100` | Dollar threshold |
+| `Finance:Alerting:SendEmailAlerts` | `false` | Email notifications |
+| `Finance:Alerting:FinanceAlertEmail` | — | Alert recipient |
+| `Finance:Alerting:PagerDutyRoutingKey` | — | PagerDuty integration |
+
+## Reservation Cleanup
+
+The `ReservationCleanupJob` runs as a `BackgroundService` with a `PeriodicTimer`:
+
+| Setting | Default | Description |
+|---|---|---|
+| `ReservationCleanup:IntervalMinutes` | `5` | Cleanup cycle interval |
+| `ReservationCleanup:ExpiryMinutes` | `30` | Reservation max age |
+
+The job cleans:
+1. **Active** reservations past their `ExpiresAt` timestamp
+2. **PendingPayment** reservations that are stuck (payment timeout exceeded)
+
+Released quantities return to the available stock pool.
+
+## Database Maintenance
+
+### Wolverine Table Monitoring
+
+Monitor the size of Wolverine outbox tables:
+
+```sql
+-- Check outbox backlog
+SELECT COUNT(*) FROM ordering.wolverine_outgoing_envelopes;
+
+-- Check incoming queue
+SELECT COUNT(*) FROM ordering.wolverine_incoming_envelopes;
+
+-- Check saga states
+SELECT state, COUNT(*) 
+FROM ordering.wolverine_saga_state 
+GROUP BY state;
+```
+
+A growing outbox backlog indicates message processing issues.
+
+### Connection Pool
+
+PostgreSQL connection pool settings are managed by Npgsql. Monitor for connection pool exhaustion:
+
+```sql
+-- Active connections
+SELECT count(*) FROM pg_stat_activity WHERE datname = 'netcommerce';
+```
+
+### Index Maintenance
+
+```sql
+-- Reindex after heavy write operations
+REINDEX TABLE catalog.products;
+REINDEX TABLE inventory.stocks;
+```
+
+## Cache Management
+
+### Redis Monitoring
+
+```powershell
+# Monitor Redis memory
+redis-cli info memory
+
+# Check key count
+redis-cli dbsize
+
+# Monitor slow commands
+redis-cli slowlog get 10
+```
+
+### Cache Invalidation
+
+Product cache is invalidated automatically via domain events. To force a full cache flush:
+
+```powershell
+redis-cli flushdb
+```
+
+HybridCache configuration:
+- **L1 (in-process):** 5 minute TTL
+- **L2 (Redis):** 60 minute TTL
+
+## Search Index
+
+### MeiliSearch Sync
+
+Product search indexes are updated via domain event handlers when products are created, updated, or published.
+
+To force a full reindex:
+
+1. Delete the existing index via MeiliSearch API
+2. The sync handler rebuilds the index on the next product change
+3. Alternatively, trigger a full rebuild via the admin panel
+
+### Search Index Health
+
+```http
+GET http://meilisearch:7700/health
+```
 
 ## Incident Response
 
-### Severity Definitions
+### Payment Webhook Failures
 
-| Level | Description | Example |
-|-------|-------------|---------|
-| SEV1 | Complete outage | API unresponsive |
-| SEV2 | Major degradation | Payments failing |
-| SEV3 | Minor degradation | Search slow |
-| SEV4 | Cosmetic issue | UI glitch |
+1. Check Stripe dashboard for delivery status
+2. Search Seq logs: `@Message like 'Stripe webhook%' and @Level = 'Error'`
+3. Check DLQ for failed payment commands
+4. Verify `ProcessedWebhookEvents` table for idempotency issues
+5. Replay from DLQ if the root cause is resolved
 
-### Incident Timeline
+### Saga Stuck in ProcessingPayment
 
-```
-1. DETECT (T+0)
-   └── Alert fires or customer reports issue
+1. Check Stripe dashboard — is the PaymentIntent settled?
+2. If yes: use `override-payment-status` endpoint
+3. If no: wait for Stripe webhook retry (up to 72h)
+4. If expired: use `force-cancel` with refund
 
-2. TRIAGE (T+5min)
-   └── Assess severity and impact
-   └── Page additional responders if needed
+### Ghost Charges Detected
 
-3. MITIGATE (T+15min)
-   └── Apply immediate fix (rollback, restart, scale)
-   └── Communicate status to stakeholders
+1. Review reconciliation session details
+2. Cross-reference with Stripe dashboard
+3. If legitimate: create shadow order
+4. If erroneous: refund ghost charge
+5. Document resolution reason
 
-4. RESOLVE (T+?)
-   └── Root cause fixed
-   └── Systems fully recovered
+### Database Connection Exhaustion
 
-5. POSTMORTEM (T+48h)
-   └── Document timeline
-   └── Identify root cause
-   └── Action items for prevention
-```
+1. Check `pg_stat_activity` for stuck connections
+2. Verify connection pool settings in Npgsql
+3. Check for long-running transactions (saga timeouts)
+4. Restart application pods if immediate relief needed
+5. Investigate root cause (missing transaction scope closures)
 
-### Communication Template
+## Related Documentation
 
-```markdown
-**Incident Update - [SEV LEVEL] - [Title]**
-
-**Status:** Investigating / Mitigating / Resolved
-**Impact:** [Who is affected and how]
-**Start Time:** [HH:MM UTC]
-**Current Actions:** [What we're doing]
-**Next Update:** [HH:MM UTC]
-
----
-Example:
-
-**Incident Update - SEV2 - Payment Processing Delays**
-
-**Status:** Mitigating
-**Impact:** ~15% of checkout attempts failing
-**Start Time:** 14:30 UTC
-**Current Actions:** Routing traffic to backup payment gateway
-**Next Update:** 15:00 UTC
-```
-
----
-
-## Capacity Planning
-
-### Key Capacity Metrics
-
-| Resource | Current | Threshold | Growth Rate |
-|----------|---------|-----------|-------------|
-| API Pods | 4 | 10 max | Auto-scale |
-| DB Connections | 200 | 500 max | 5%/month |
-| Redis Memory | 2GB | 6GB max | 3%/month |
-| Storage | 100GB | 256GB max | 10%/month |
-
-### Scaling Triggers
-
-```yaml
-# Kubernetes HPA
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: netcommerce-api
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: netcommerce-api
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
-```
-
-### Load Testing Baseline
-
-| Scenario | Target | Current |
-|----------|--------|---------|
-| Steady state | 100 RPS | ✅ 150 RPS |
-| Peak (flash sale) | 500 RPS | ✅ 600 RPS |
-| P99 latency | < 500ms | ✅ 350ms |
-| Error rate | < 1% | ✅ 0.2% |
-
----
-
-**Document Version:** 1.0
-**Last Updated:** February 2026
-**Maintainer:** NetCommerce SRE Team
+- [Deployment](DEPLOYMENT.md) — infrastructure and deployment
+- [Troubleshooting](TROUBLESHOOTING.md) — common issues and fixes
+- [Financial Integrity](FINANCIAL_INTEGRITY_MATRIX.md) — reconciliation details
+- [Webhook Reference](WEBHOOK_REFERENCE.md) — Stripe webhook handling
+- [Messaging Patterns](MESSAGING_PATTERNS.md) — DLQ and outbox details

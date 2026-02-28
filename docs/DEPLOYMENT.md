@@ -1,885 +1,257 @@
-# NetCommerce Deployment Guide
+# Deployment
 
-> **Production deployment, infrastructure, and environment configuration**
+Deployment guide for NetCommerce covering local development, Docker, Native AOT, and production environments.
 
----
+## Deployment Modes
 
-## Table of Contents
-
-1. [Deployment Overview](#deployment-overview)
-2. [Local Development](#local-development)
-3. [Environment Configuration](#environment-configuration)
-4. [Infrastructure Requirements](#infrastructure-requirements)
-5. [Container Orchestration](#container-orchestration)
-6. [Database Migrations](#database-migrations)
-7. [Keycloak Setup](#keycloak-setup)
-8. [Production Checklist](#production-checklist)
-9. [Scaling Considerations](#scaling-considerations)
-10. [Disaster Recovery](#disaster-recovery)
-
----
-
-## Deployment Overview
-
-### Aspire Orchestration
-
-NetCommerce uses **.NET Aspire** for both local development and production deployment orchestration:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    DEPLOYMENT ARCHITECTURE                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  LOCAL DEVELOPMENT (Aspire AppHost)                                         │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  dotnet run --project src/NetCommerce.AppHost                     │      │
-│  │                                                                   │      │
-│  │  Starts automatically:                                            │      │
-│  │  • PostgreSQL (5 databases)                                       │      │
-│  │  • Redis                                                          │      │
-│  │  • Keycloak 26                                                    │      │
-│  │  • Seq (logging)                                                  │      │
-│  │  • Meilisearch                                                    │      │
-│  │  • Azurite (blob storage emulator)                               │      │
-│  │  • NetCommerce API                                                │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-│  PRODUCTION (Azure Container Apps / Kubernetes)                             │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  aspire publish                                                   │      │
-│  │                                                                   │      │
-│  │  Generates:                                                       │      │
-│  │  • Container images                                               │      │
-│  │  • Kubernetes manifests                                           │      │
-│  │  • Azure Bicep/ARM templates                                      │      │
-│  │  • Environment variable configurations                            │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Deployment Models
-
-| Model | Use Case | Infrastructure |
-|-------|----------|----------------|
-| Local | Development | Docker Desktop + Aspire |
-| Azure Container Apps | Small/Medium | Managed containers |
-| Azure Kubernetes Service | Large | Full K8s control |
-| On-Premises | Enterprise | Self-managed K8s |
-
----
+| Mode | Startup | Memory | Container Size | Use Case |
+|---|---|---|---|---|
+| **JIT (Development)** | ~2.5s | ~180 MB | ~230 MB | Local dev, debugging |
+| **Native AOT (Production)** | ~80ms | ~100 MB | ~65 MB | Production, Kubernetes |
 
 ## Local Development
 
-### Prerequisites
+### Aspire-Managed Infrastructure
 
 ```powershell
-# 1. Install .NET 10 SDK
-winget install Microsoft.DotNet.SDK.Preview
-
-# 2. Install Docker Desktop
-winget install Docker.DockerDesktop
-
-# 3. Install Aspire workload
-dotnet workload install aspire
-
-# 4. Verify installation
-dotnet workload list
-# Should show: aspire
-```
-
-### Start the Application
-
-```powershell
-# Clone repository
-git clone https://github.com/your-org/NetCommerce.git
-cd NetCommerce
-
-# Run with Aspire (starts all infrastructure)
 dotnet run --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
 ```
 
-### Aspire Dashboard
+Aspire provisions all infrastructure containers automatically. No manual Docker Compose setup is needed.
 
-After starting, the Aspire dashboard is available at:
+### Environment Variables (Aspire-Injected)
 
-- **Dashboard**: https://localhost:17235
-- **API**: https://localhost:7001
-- **Swagger**: https://localhost:7001/swagger
-- **Keycloak**: http://localhost:8080 (admin/admin)
-- **pgAdmin**: http://localhost:5050
-- **Redis Insight**: http://localhost:8001
-- **Seq**: http://localhost:5341
+Aspire injects these automatically in development:
 
-### Data Persistence
+| Variable | Source |
+|---|---|
+| `ConnectionStrings__CatalogDb` | PostgreSQL container |
+| `ConnectionStrings__OrderingDb` | PostgreSQL container |
+| `ConnectionStrings__InventoryDb` | PostgreSQL container |
+| `ConnectionStrings__PaymentsDb` | PostgreSQL container |
+| `ConnectionStrings__redis` | Redis container |
+| `ConnectionStrings__blobs` | Azurite container |
+| `ConnectionStrings__seq` | Seq container |
+| `ConnectionStrings__meilisearch` | MeiliSearch container |
+| `Auth__Audience` | `netcommerce-api` |
+| `Auth__ApiScope` | `netcommerce.api` |
+| `Auth__ClientId` | `netcommerce-api` |
 
-Aspire containers use persistent volumes:
+## Docker Build
 
-```csharp
-// src/NetCommerce.AppHost/Program.cs
-var postgres = builder.AddPostgres("postgres", password: postgresPassword)
-    .WithDataVolume()                         // Persistent storage
-    .WithLifetime(ContainerLifetime.Persistent);  // Survive restarts
-
-var redis = builder.AddRedis("redis")
-    .WithDataVolume()
-    .WithLifetime(ContainerLifetime.Persistent);
-```
-
-### Reset Local Environment
-
-```powershell
-# Stop all containers
-docker compose down -v
-
-# Remove Aspire volumes (fresh start)
-docker volume prune -f
-
-# Restart
-dotnet run --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
-```
-
----
-
-## Environment Configuration
-
-### Configuration Hierarchy
-
-```
-1. appsettings.json           (base configuration)
-2. appsettings.{Environment}.json  (environment-specific)
-3. Environment variables       (overrides, secrets)
-4. Aspire configuration        (injected automatically)
-```
-
-### Key Environment Variables
-
-```bash
-# ─────────────────────────────────────────────────────────────────────────────
-# DATABASE CONNECTIONS (Injected by Aspire)
-# ─────────────────────────────────────────────────────────────────────────────
-ConnectionStrings__CatalogDb=Host=postgres;Database=catalog;Username=postgres;Password=...
-ConnectionStrings__OrderingDb=Host=postgres;Database=ordering;Username=postgres;Password=...
-ConnectionStrings__InventoryDb=Host=postgres;Database=inventory;Username=postgres;Password=...
-ConnectionStrings__PaymentsDb=Host=postgres;Database=payments;Username=postgres;Password=...
-
-# ─────────────────────────────────────────────────────────────────────────────
-# REDIS (Injected by Aspire)
-# ─────────────────────────────────────────────────────────────────────────────
-ConnectionStrings__redis=redis:6379
-
-# ─────────────────────────────────────────────────────────────────────────────
-# KEYCLOAK IDENTITY
-# ─────────────────────────────────────────────────────────────────────────────
-Keycloak__AuthServerUrl=http://keycloak:8080
-Keycloak__Realm=netcommerce
-
-# Override for production
-Auth__Audience=netcommerce-api
-Auth__ApiScope=netcommerce.api
-Auth__ClientId=netcommerce-api
-Auth__ClientSecret=<from-key-vault>    # NEVER hardcode in production!
-Auth__IntrospectionEnabled=true
-Auth__IntrospectionCacheSeconds=30
-Auth__TokenExchangeEnabled=true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# MEILISEARCH
-# ─────────────────────────────────────────────────────────────────────────────
-ConnectionStrings__meilisearch=http://meilisearch:7700
-Meilisearch__MasterKey=<from-key-vault>
-
-# ─────────────────────────────────────────────────────────────────────────────
-# AZURE BLOB STORAGE
-# ─────────────────────────────────────────────────────────────────────────────
-# Development (Azurite)
-ConnectionStrings__blobs=AccountName=devstoreaccount1;AccountKey=...;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1
-
-# Production
-ConnectionStrings__blobs=DefaultEndpointsProtocol=https;AccountName=netcommerceblobs;AccountKey=...
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SEQ LOGGING
-# ─────────────────────────────────────────────────────────────────────────────
-# Development
-Seq__ServerUrl=http://seq:5341
-
-# Production (use Azure Monitor or Datadog instead)
-Logging__LogLevel__Default=Warning
-```
-
-### appsettings.json Structure
-
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Wolverine": "Information"
-    }
-  },
-  "Auth": {
-    "Audience": "netcommerce-api",
-    "ApiScope": "netcommerce.api",
-    "IntrospectionEnabled": true,
-    "IntrospectionCacheSeconds": 30,
-    "TokenExchangeEnabled": true
-  },
-  "Features": {
-    "EnableMeilisearch": true,
-    "EnableBlobStorage": true,
-    "MaxRequestBodySizeBytes": 10485760
-  }
-}
-```
-
-### appsettings.Production.json
-
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Warning",
-      "Microsoft.AspNetCore": "Warning",
-      "Wolverine": "Warning"
-    }
-  },
-  "Auth": {
-    "IntrospectionEnabled": true,
-    "IntrospectionCacheSeconds": 30
-  }
-}
-```
-
----
-
-## Infrastructure Requirements
-
-### Production Infrastructure
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    PRODUCTION INFRASTRUCTURE                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  COMPUTE                                                                    │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  NetCommerce API                                                  │      │
-│  │  • Min: 2 replicas (HA)                                          │      │
-│  │  • CPU: 1 vCPU per replica                                       │      │
-│  │  • Memory: 2GB per replica                                       │      │
-│  │  • Auto-scale: 2-10 replicas (CPU > 70%)                        │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-│  DATABASES                                                                   │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  PostgreSQL (Azure Database for PostgreSQL - Flexible Server)    │      │
-│  │  • SKU: General Purpose (4 vCores, 16GB) minimum                │      │
-│  │  • Storage: 256GB with auto-grow                                │      │
-│  │  • High Availability: Zone-redundant                            │      │
-│  │  • Backup: Geo-redundant, 35-day retention                      │      │
-│  │                                                                   │      │
-│  │  Databases:                                                       │      │
-│  │  • catalog (Catalog module)                                      │      │
-│  │  • ordering (Ordering module + Wolverine)                        │      │
-│  │  • inventory (Inventory module)                                  │      │
-│  │  • payments (Payments module)                                    │      │
-│  │  • keycloak (Identity)                                           │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-│  CACHING                                                                     │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  Azure Cache for Redis                                            │      │
-│  │  • SKU: Standard C1 (1GB) minimum                                │      │
-│  │  • Clustering: Enabled for > 1GB                                 │      │
-│  │  • Used for: Session, introspection cache, basket, distributed   │      │
-│  │    locking                                                        │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-│  IDENTITY                                                                    │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  Keycloak (Azure Container Apps or AKS)                          │      │
-│  │  • 2 replicas (HA)                                               │      │
-│  │  • PostgreSQL backend                                            │      │
-│  │  • Redis for session clustering                                  │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-│  STORAGE                                                                     │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  Azure Blob Storage                                               │      │
-│  │  • Tier: Hot (frequently accessed product images)                │      │
-│  │  • Redundancy: ZRS or GRS                                        │      │
-│  │  • CDN: Azure CDN for public images                              │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-│  SEARCH                                                                      │
-│  ┌──────────────────────────────────────────────────────────────────┐      │
-│  │  Meilisearch (Azure Container Apps)                              │      │
-│  │  • 1 replica (with persistent volume)                            │      │
-│  │  • Memory: 2GB minimum                                           │      │
-│  │  • Storage: SSD for index                                        │      │
-│  └──────────────────────────────────────────────────────────────────┘      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Resource Sizing Guide
-
-| Component | Development | Staging | Production |
-|-----------|-------------|---------|------------|
-| API Replicas | 1 | 2 | 2-10 (auto) |
-| API Memory | 512MB | 1GB | 2GB |
-| PostgreSQL vCores | 2 | 4 | 8+ |
-| PostgreSQL Storage | 32GB | 128GB | 256GB+ |
-| Redis Memory | 250MB | 1GB | 6GB |
-| Meilisearch Memory | 512MB | 1GB | 2GB |
-
----
-
-## Container Orchestration
-
-### Docker Build
+### Standard JIT Build
 
 ```dockerfile
-# Dockerfile (multi-stage build)
-FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+COPY . .
+RUN dotnet publish src/Api/NetCommerce.Api.csproj -c Release -o /app
 
-# Copy solution and project files
-COPY NetCommerce.slnx .
-COPY Directory.Build.props .
-COPY Directory.Packages.props .
-COPY src/ src/
-
-# Restore
-RUN dotnet restore NetCommerce.slnx
-
-# Build
-RUN dotnet build src/Api/NetCommerce.Api.csproj -c Release --no-restore
-
-# Publish
-RUN dotnet publish src/Api/NetCommerce.Api.csproj -c Release -o /app --no-build
-
-# Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/health/ready || exit 1
-
 COPY --from=build /app .
 ENTRYPOINT ["dotnet", "NetCommerce.Api.dll"]
 ```
 
-### Kubernetes Deployment
+### Native AOT Build
 
-```yaml
-# k8s/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: netcommerce-api
-  labels:
-    app: netcommerce-api
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: netcommerce-api
-  template:
-    metadata:
-      labels:
-        app: netcommerce-api
-    spec:
-      containers:
-      - name: api
-        image: netcommerce.azurecr.io/netcommerce-api:latest
-        ports:
-        - containerPort: 8080
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "500m"
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
-        env:
-        - name: ASPNETCORE_ENVIRONMENT
-          value: "Production"
-        - name: Auth__ClientSecret
-          valueFrom:
-            secretKeyRef:
-              name: netcommerce-secrets
-              key: keycloak-client-secret
-        livenessProbe:
-          httpGet:
-            path: /health/live
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health/ready
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: netcommerce-api
-spec:
-  selector:
-    app: netcommerce-api
-  ports:
-  - port: 80
-    targetPort: 8080
-  type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: netcommerce-api
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  tls:
-  - hosts:
-    - api.netcommerce.com
-    secretName: netcommerce-tls
-  rules:
-  - host: api.netcommerce.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: netcommerce-api
-            port:
-              number: 80
+```powershell
+docker build -t netcommerce-api-aot -f src/Api/Dockerfile .
 ```
 
-### Azure Container Apps (Bicep)
+**Build Timeline:**
+- First build: ~5–7 minutes (ILC compilation takes 3–5 minutes)
+- Subsequent builds: ~30 seconds (layer caching)
 
-```bicep
-// infra/main.bicep
-param location string = resourceGroup().location
-param environmentName string = 'netcommerce'
+**AOT Build Requirements:**
+1. Source-generated JSON via `ApiJsonContext` (~80+ types registered)
+2. Wolverine `TypeLoadMode.Static` — pre-generated handler code
+3. No runtime reflection in critical paths
+4. All types in `ApiJsonContext` for serialization
 
-// Container Apps Environment
-resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
-  name: '${environmentName}-env'
-  location: location
-  properties: {
-    daprAIConnectionString: applicationInsights.properties.ConnectionString
-  }
-}
+### Native AOT Container Properties
 
-// NetCommerce API
-resource apiApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: '${environmentName}-api'
-  location: location
-  properties: {
-    managedEnvironmentId: containerAppEnv.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8080
-        transport: 'auto'
-      }
-      secrets: [
-        {
-          name: 'keycloak-client-secret'
-          value: keycloakClientSecret
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: 'api'
-          image: '${containerRegistry.properties.loginServer}/netcommerce-api:latest'
-          resources: {
-            cpu: json('1.0')
-            memory: '2Gi'
-          }
-          env: [
-            {
-              name: 'ASPNETCORE_ENVIRONMENT'
-              value: 'Production'
-            }
-            {
-              name: 'Auth__ClientSecret'
-              secretRef: 'keycloak-client-secret'
-            }
-          ]
-          probes: [
-            {
-              type: 'Liveness'
-              httpGet: {
-                path: '/health/live'
-                port: 8080
-              }
-            }
-            {
-              type: 'Readiness'
-              httpGet: {
-                path: '/health/ready'
-                port: 8080
-              }
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 2
-        maxReplicas: 10
-        rules: [
-          {
-            name: 'http-scale'
-            http: {
-              metadata: {
-                concurrentRequests: '100'
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-}
-```
+| Property | Value |
+|---|---|
+| Base Image | Ubuntu Chiseled (no shell) |
+| User | Non-root (UID 1654) |
+| Binary Size | ~45 MB |
+| Container Size | ~65 MB |
+| Startup Time | ~80ms |
+| Memory (Idle) | ~100 MB |
 
----
+### Performance Comparison
+
+| Metric | Native AOT (Chiseled) | JIT (Warmed) |
+|---|---|---|
+| Startup | ~80ms | ~2.5s |
+| Memory (Idle) | ~100 MB | ~180 MB |
+| Requests/sec | ~8,500 | ~7,200 |
+| P95 Latency | ~12ms | ~18ms |
+| Binary Size | ~45 MB | ~85 MB |
+| Container Size | ~65 MB | ~230 MB |
+
+## Production Configuration
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `ConnectionStrings__CatalogDb` | Catalog database | `Host=pg;Database=netcommerce;...` |
+| `ConnectionStrings__OrderingDb` | Ordering database | Same host, separate schema |
+| `ConnectionStrings__InventoryDb` | Inventory database | Same host, separate schema |
+| `ConnectionStrings__PaymentsDb` | Payments database | Same host, separate schema |
+| `ConnectionStrings__redis` | Redis connection | `redis:6379` |
+| `ConnectionStrings__blobs` | Azure Blob Storage | Azure connection string |
+| `ConnectionStrings__seq` | Seq ingestion URL | `http://seq:5341` |
+| `ConnectionStrings__meilisearch` | MeiliSearch URL | `http://meilisearch:7700` |
+| `Jwt__Authority` | Keycloak realm URL | `https://keycloak/realms/netcommerce` |
+| `Jwt__Audience` | JWT audience | `netcommerce-api` |
+| `Auth__TokenEndpoint` | Token endpoint | `https://keycloak/.../token` |
+| `Auth__IntrospectionEndpoint` | Introspection URL | `https://keycloak/.../introspect` |
+| `Auth__ClientId` | API client ID | `netcommerce-api` |
+| `Auth__ClientSecret` | API client secret | (secret) |
+| `Stripe__SecretKey` | Stripe API key | `sk_live_...` |
+| `Stripe__WebhookSecret` | Webhook signing secret | `whsec_...` |
+
+### Optional Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `ReservationCleanup__IntervalMinutes` | `5` | Cleanup job interval |
+| `ReservationCleanup__ExpiryMinutes` | `30` | Reservation expiry |
+| `GracePeriod__DurationMinutes` | `5` | Order grace period |
+| `Finance__Alerting__DiscrepancyAlertThreshold` | `100` | Dollar threshold for alerts |
+| `Finance__Alerting__SendEmailAlerts` | `false` | Email alert toggle |
+| `Finance__Alerting__FinanceAlertEmail` | — | Alert recipient |
+| `Finance__Alerting__PagerDutyRoutingKey` | — | PagerDuty integration |
+| `Sentry__Dsn` | — | Sentry error tracking |
 
 ## Database Migrations
 
-### EF Core Migrations
+### Development (Automatic)
 
-Each module maintains its own migrations:
-
-```powershell
-# Generate migration for Catalog module
-dotnet ef migrations add InitialCreate `
-  --project src/Catalog/Catalog.Infrastructure `
-  --startup-project src/Api `
-  --context CatalogDbContext
-
-# Generate migration for Ordering module
-dotnet ef migrations add InitialCreate `
-  --project src/Ordering/Ordering.Infrastructure `
-  --startup-project src/Api `
-  --context OrderingDbContext
-
-# Apply all migrations
-dotnet ef database update --project src/Api
-```
-
-### Production Migration Strategy
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    MIGRATION STRATEGY                                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  APPROACH: Blue-Green with Rolling Migrations                               │
-│                                                                             │
-│  1. Deploy migration job (separate from API)                                │
-│     ┌─────────────────────────────────────────────────────────────┐        │
-│     │  Job: netcommerce-migrations                                 │        │
-│     │  • Runs EF migrations for all modules                       │        │
-│     │  • Waits for database connectivity                          │        │
-│     │  • Applies migrations in order                              │        │
-│     │  • Exits on success                                         │        │
-│     └─────────────────────────────────────────────────────────────┘        │
-│                                                                             │
-│  2. Wait for migration completion                                           │
-│     ┌─────────────────────────────────────────────────────────────┐        │
-│     │  CI/CD waits for job success before proceeding              │        │
-│     └─────────────────────────────────────────────────────────────┘        │
-│                                                                             │
-│  3. Rolling deployment of API                                               │
-│     ┌─────────────────────────────────────────────────────────────┐        │
-│     │  • New pods start with new code                             │        │
-│     │  • Old pods drain connections                               │        │
-│     │  • Zero downtime                                            │        │
-│     └─────────────────────────────────────────────────────────────┘        │
-│                                                                             │
-│  CRITICAL: Migrations must be backward-compatible!                          │
-│  • Add columns as nullable first                                            │
-│  • Rename via copy, not ALTER                                              │
-│  • Deploy data migration separately from schema change                     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Migration Job (Kubernetes)
-
-```yaml
-# k8s/migration-job.yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: netcommerce-migrations
-spec:
-  template:
-    spec:
-      containers:
-      - name: migrations
-        image: netcommerce.azurecr.io/netcommerce-api:latest
-        command: ["dotnet", "NetCommerce.Api.dll", "--migrate"]
-        env:
-        - name: ConnectionStrings__CatalogDb
-          valueFrom:
-            secretKeyRef:
-              name: db-secrets
-              key: catalog-connection
-      restartPolicy: Never
-  backoffLimit: 3
-```
-
----
-
-## Keycloak Setup
-
-### Production Keycloak Configuration
-
-```yaml
-# k8s/keycloak-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: keycloak
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-      - name: keycloak
-        image: quay.io/keycloak/keycloak:26.0
-        args: ["start"]
-        env:
-        - name: KC_DB
-          value: "postgres"
-        - name: KC_DB_URL
-          value: "jdbc:postgresql://postgres:5432/keycloak"
-        - name: KC_DB_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: keycloak-db
-              key: username
-        - name: KC_DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: keycloak-db
-              key: password
-        - name: KC_HOSTNAME
-          value: "auth.netcommerce.com"
-        - name: KC_PROXY
-          value: "edge"  # Behind load balancer
-        - name: KC_FEATURES
-          value: "token-exchange,admin-fine-grained-authz"
-        - name: KC_CACHE
-          value: "ispn"
-        - name: KC_CACHE_STACK
-          value: "kubernetes"
-        - name: KC_HEALTH_ENABLED
-          value: "true"
-        - name: KC_METRICS_ENABLED
-          value: "true"
-```
-
-### Realm Import
-
-```json
-{
-  "realm": "netcommerce",
-  "enabled": true,
-  "sslRequired": "external",
-  "roles": {
-    "realm": [
-      { "name": "admin", "description": "Administrator" },
-      { "name": "vendor", "description": "Vendor/Seller" },
-      { "name": "customer", "description": "Customer" }
-    ]
-  },
-  "clients": [
-    {
-      "clientId": "netcommerce-api",
-      "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "${KEYCLOAK_CLIENT_SECRET}",
-      "serviceAccountsEnabled": true,
-      "authorizationServicesEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "standardFlowEnabled": false,
-      "protocolMappers": [
-        {
-          "name": "audience",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-audience-mapper",
-          "config": {
-            "included.client.audience": "netcommerce-api",
-            "access.token.claim": "true"
-          }
-        }
-      ]
-    },
-    {
-      "clientId": "netcommerce-frontend",
-      "enabled": true,
-      "publicClient": true,
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "webOrigins": ["https://netcommerce.com", "http://localhost:3000"],
-      "redirectUris": ["https://netcommerce.com/*", "http://localhost:3000/*"],
-      "attributes": {
-        "pkce.code.challenge.method": "S256"
-      }
-    }
-  ]
-}
-```
-
----
-
-## Production Checklist
-
-### Pre-Deployment
-
-- [ ] **Security**
-  - [ ] Auth__ClientSecret in Key Vault (not env var)
-  - [ ] Meilisearch master key in Key Vault
-  - [ ] PostgreSQL passwords in Key Vault
-  - [ ] HTTPS certificates issued
-  - [ ] Token introspection enabled (`Auth__IntrospectionEnabled=true`)
-  - [ ] Network policies configured (pod-to-pod isolation)
-
-- [ ] **Database**
-  - [ ] Migrations tested in staging
-  - [ ] Backup configured and tested
-  - [ ] Connection pooling configured (PgBouncer or built-in)
-  - [ ] Read replicas for reporting (optional)
-
-- [ ] **Observability**
-  - [ ] Application Insights / Datadog configured
-  - [ ] Alerts for error rate > 1%
-  - [ ] Alerts for P99 latency > 500ms
-  - [ ] Dashboard for key metrics
-
-- [ ] **Performance**
-  - [ ] Load testing completed
-  - [ ] Auto-scaling configured and tested
-  - [ ] CDN configured for static assets
-  - [ ] Redis connection pooling
-
-### Post-Deployment
-
-- [ ] Health checks passing (`/health/ready`)
-- [ ] Logs flowing to observability platform
-- [ ] Smoke tests passing
-- [ ] Rollback plan tested
-
----
-
-## Scaling Considerations
-
-### Horizontal Scaling
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    SCALING ARCHITECTURE                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  STATELESS COMPONENTS (Scale Out)                                           │
-│  ├── NetCommerce API: 2-10 replicas                                        │
-│  ├── Keycloak: 2-4 replicas (with infinispan clustering)                  │
-│  └── Meilisearch: 1 replica (search is single-writer)                     │
-│                                                                             │
-│  STATEFUL COMPONENTS (Scale Up, then Shard)                                 │
-│  ├── PostgreSQL: Vertical first, then read replicas, then Citus           │
-│  └── Redis: Vertical first, then cluster mode                              │
-│                                                                             │
-│  BOTTLENECK ANALYSIS:                                                       │
-│                                                                             │
-│  1. Database connections                                                     │
-│     └── Solution: PgBouncer connection pooling (100 pool → 1000 clients)  │
-│                                                                             │
-│  2. Wolverine outbox processing                                             │
-│     └── Solution: Increase batch size, add more workers                    │
-│                                                                             │
-│  3. Token introspection                                                      │
-│     └── Solution: Already cached (30s TTL), increase cache if needed       │
-│                                                                             │
-│  4. Meilisearch indexing                                                     │
-│     └── Solution: Batch updates, async indexing                            │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Connection Pooling
+In development, EF Core migrations run automatically on startup for all six schemas:
 
 ```csharp
-// Configure EF Core connection pooling
-builder.Services.AddDbContext<OrderingDbContext>(options =>
-{
-    options.UseNpgsql(connectionString, npgsql =>
-    {
-        npgsql.EnableRetryOnFailure(3);
-        npgsql.CommandTimeout(30);
-    });
-},
-poolSize: 100);  // Connection pool size
+// Program.cs (development only)
+await app.MigrateDatabaseAsync<CatalogDbContext>();
+await app.MigrateDatabaseAsync<OrderingDbContext>();
+await app.MigrateDatabaseAsync<InventoryDbContext>();
+await app.MigrateDatabaseAsync<PaymentsDbContext>();
+await app.MigrateDatabaseAsync<FinanceDbContext>();
+await app.MigrateDatabaseAsync<ShippingDbContext>();
 ```
 
----
+### Production (Manual)
 
-## Disaster Recovery
+Run migrations as a separate step before deployment:
 
-### Backup Strategy
+```powershell
+# Generate migration script
+dotnet ef migrations script --project src/Catalog/Catalog.Infrastructure --context CatalogDbContext --idempotent -o migrations/catalog.sql
 
-| Component | Backup Frequency | Retention | Recovery Time |
-|-----------|------------------|-----------|---------------|
-| PostgreSQL | Continuous (PITR) | 35 days | < 1 hour |
-| Redis | Hourly snapshot | 7 days | < 15 minutes |
-| Blob Storage | Geo-redundant | Indefinite | < 30 minutes |
-| Keycloak Config | Daily export | 30 days | < 1 hour |
-
-### Recovery Procedure
-
-```
-SCENARIO: Complete region failure
-
-1. DNS FAILOVER (Automatic)
-   └── Azure Traffic Manager routes to DR region
-
-2. DATABASE FAILOVER (< 1 hour)
-   └── Promote read replica to primary
-   └── Update connection strings via Key Vault
-
-3. REDIS RECOVERY (< 15 minutes)
-   └── Deploy new Redis from backup
-   └── Clear introspection cache (forces re-validation)
-
-4. VERIFICATION
-   └── Health checks passing
-   └── Smoke tests passing
-   └── Monitor error rates for 30 minutes
+# Apply to production
+psql -h prod-postgres -U admin -d netcommerce -f migrations/catalog.sql
 ```
 
-### RTO/RPO Targets
+**Wolverine Tables:**
 
-| Metric | Target | Achieved |
-|--------|--------|----------|
-| **RTO** (Recovery Time) | < 4 hours | 1-2 hours |
-| **RPO** (Data Loss) | < 15 minutes | 5 minutes (PITR) |
+Wolverine creates its own tables (`wolverine_incoming_envelopes`, `wolverine_outgoing_envelopes`, saga state tables) in the `ordering` schema. These are managed automatically by Wolverine — do not modify manually.
 
----
+## Health Checks
 
-**Document Version:** 1.0
-**Last Updated:** February 2026
-**Maintainer:** NetCommerce Platform Team
+| Endpoint | Purpose | Checks |
+|---|---|---|
+| `GET /health/ready` | Readiness probe | PostgreSQL, Redis, MeiliSearch connectivity |
+| `GET /health/live` | Liveness probe | Process alive |
+
+### Kubernetes Probes
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+```
+
+## Wolverine Codegen
+
+For Native AOT, Wolverine handler code must be pre-generated:
+
+```powershell
+dotnet run --project src/Api/NetCommerce.Api.csproj -- codegen write
+```
+
+This writes generated handler code to `Internal/Generated/WolverineHandlers/`. These files must be committed to source control for AOT builds.
+
+## AOT Verification
+
+Run the 5-checkpoint AOT verification script:
+
+```powershell
+.\scripts\Verify-NativeAOT.ps1 -CheckpointsToRun "1,2,3,4,5"
+```
+
+See [NATIVE_AOT_VERIFICATION.md](NATIVE_AOT_VERIFICATION.md) for checkpoint details.
+
+## Build Configuration
+
+### Directory.Build.props
+
+Key build settings applied to all projects:
+
+| Setting | Value | Purpose |
+|---|---|---|
+| `TargetFramework` | `net10.0` | .NET 10 |
+| `TreatWarningsAsErrors` | `true` (Release/CI) | Zero-warning policy |
+| `IsAotCompatible` | `true` (non-test) | AOT compatibility |
+| `EnableTrimAnalyzer` | `true` | Trim analysis |
+| `EnableAotAnalyzer` | `true` (AOT projects) | AOT analysis |
+| `Deterministic` | `true` | Reproducible builds |
+| `RestorePackagesWithLockFile` | `true` | Lock file pinning |
+| `NuGetAudit` | `true` | Vulnerability scanning |
+| `NuGetAuditLevel` | `moderate` | Audit threshold |
+| `ControlFlowGuard` | `Guard` | Binary hardening |
+
+### CI Build
+
+```powershell
+# CI pipeline
+dotnet restore NetCommerce.slnx --locked-mode
+dotnet build NetCommerce.slnx -c Release --no-restore
+dotnet test NetCommerce.slnx -c Release -v minimal --nologo --no-build
+```
+
+The `--locked-mode` flag ensures the lock file is respected and no package resolution occurs during CI.
+
+## Rollback Procedure
+
+1. Deploy the previous container image version
+2. Verify health checks pass (`/health/ready`)
+3. Check Wolverine outbox for pending messages — they will continue processing after rollback
+4. Monitor DLQ for any messages that fail due to schema incompatibility
+
+### Wolverine Serialization Compatibility
+
+Wolverine saga state and outbox messages are serialized with fully qualified type names. Schema changes that rename types or move namespaces can break in-flight messages.
+
+**For breaking changes:**
+1. Clear Wolverine tables before deployment (development)
+2. Use type forwarding for production (see [PHASE_5_SERIALIZATION_MIGRATION.md](PHASE_5_SERIALIZATION_MIGRATION.md))
+
+## Related Documentation
+
+- [Getting Started](GETTING_STARTED.md) — local development setup
+- [Operations](OPERATIONS.md) — monitoring and maintenance
+- [Native AOT](NATIVE_AOT_VERIFICATION.md) — AOT verification process
+- [Architecture](ARCHITECTURE.md) — system design

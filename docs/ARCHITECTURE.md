@@ -1,794 +1,269 @@
-# NetCommerce Architecture Guide
+# Architecture
 
-> **Comprehensive technical architecture documentation for the NetCommerce Modular Monolith**
+NetCommerce is a **Modular Monolith** built with .NET 10. Each bounded context is a self-contained module with its own domain, application, and infrastructure layers. Modules communicate exclusively through Wolverine messaging with transactional outbox guarantees.
 
----
+## Design Principles
 
-## Table of Contents
+| Principle | Implementation |
+|---|---|
+| **Domain-Driven Design** | Aggregates, entities, value objects, domain events per bounded context |
+| **Clean Architecture** | Domain at the center, no outward dependencies |
+| **Modular Monolith** | Single deployable unit, isolated module boundaries enforced by architecture tests |
+| **CQRS** | Commands via Wolverine handlers, queries via direct repository access |
+| **Event-Driven** | Integration events via transactional outbox, saga orchestration |
+| **Result Pattern** | No exceptions for business errors — `Result<T>` everywhere |
 
-1. [Executive Summary](#executive-summary)
-2. [Architectural Principles](#architectural-principles)
-3. [System Overview](#system-overview)
-4. [Bounded Contexts](#bounded-contexts)
-5. [Clean Architecture Layers](#clean-architecture-layers)
-6. [Domain-Driven Design Implementation](#domain-driven-design-implementation)
-7. [Kernel Infrastructure](#kernel-infrastructure)
-8. [Data Architecture](#data-architecture)
-9. [Messaging Architecture](#messaging-architecture)
-10. [Security Architecture](#security-architecture)
-11. [Observability Architecture](#observability-architecture)
-12. [Scalability Strategy](#scalability-strategy)
-
----
-
-## Executive Summary
-
-NetCommerce is a **production-grade e-commerce platform** built as a **Modular Monolith** using .NET 10 and .NET Aspire 13.1. The architecture follows the "Modular Monolith First" strategy, allowing the system to be deployed as a single unit while maintaining strict module boundaries that enable future microservices extraction if scaling requirements demand it.
-
-### Key Architectural Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| **Modular Monolith** | Simplifies deployment, debugging, and transactions while maintaining bounded context separation |
-| **Database-per-Module** | Each module owns its schema, enabling independent evolution and future extraction |
-| **Wolverine Messaging** | Provides transactional outbox, saga orchestration, and durable messaging |
-| **Clean Architecture** | Enforces dependency inversion, keeping domain logic isolated from infrastructure |
-| **Strongly Typed IDs** | Prevents primitive obsession and provides compile-time type safety |
-| **Result Pattern** | Eliminates exception-based flow control for business errors |
-
----
-
-## Architectural Principles
-
-### 1. Domain-Centric Design
-
-The domain model is the heart of the system. All business logic resides in the Domain layer, which has **zero dependencies** on infrastructure or frameworks.
+## Module Boundaries
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         API Layer                                │
-│              (Minimal APIs, Controllers, Filters)               │
-├─────────────────────────────────────────────────────────────────┤
-│                      Application Layer                           │
-│           (Commands, Queries, Handlers, Sagas)                  │
-├─────────────────────────────────────────────────────────────────┤
-│                        Domain Layer                              │
-│     (Aggregates, Entities, Value Objects, Domain Events)        │
-├─────────────────────────────────────────────────────────────────┤
-│                    Infrastructure Layer                          │
-│        (EF Core, Redis, External APIs, File Storage)            │
-└─────────────────────────────────────────────────────────────────┘
-                              ▲
-                              │ Dependencies point inward
-                              │ (Dependency Inversion)
+┌──────────────────────────────────────────────────────────────────────────┐
+│                            API Layer                                     │
+│  Minimal APIs · Wolverine.Http · JSON Source Gen · Auth · Rate Limiting  │
+├──────┬──────┬──────┬──────┬──────┬──────┬──────┬────────────────────────┤
+│      │      │      │      │      │      │      │                        │
+│ Cata │ Bask │ Orde │ Inve │ Paym │ Ship │ Medi │       Finance          │
+│ log  │ et   │ ring │ ntory│ ents │ ping │ a    │                        │
+│      │      │      │      │      │      │      │                        │
+├──────┴──────┴──────┴──────┴──────┴──────┴──────┴────────────────────────┤
+│                     Wolverine Message Bus                                │
+│              Transactional Outbox · Saga Persistence                     │
+├──────────────────────────────────────────────────────────────────────────┤
+│                     Shared Kernel                                        │
+│    Domain.Shared (Events, Money) · Kernel.Core · Kernel.Adapters        │
+├──────────────────────────────────────────────────────────────────────────┤
+│                     Infrastructure                                       │
+│    PostgreSQL 17 · Redis 8 · MeiliSearch · Azure Blob · Stripe          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Explicit Over Implicit
+### Bounded Contexts
 
-- **No magic strings**: Strongly typed IDs, configuration objects, and error codes
-- **No hidden control flow**: Result pattern instead of exceptions for expected failures
-- **No ambient state**: All dependencies explicitly injected
-
-### 3. Fail-Safe by Default
-
-- **Transactional Outbox**: Messages are persisted atomically with domain changes
-- **Idempotency**: Critical operations can be safely retried
-- **Compensating Transactions**: Sagas implement rollback logic for all failure scenarios
-
-### 4. Observable by Default
-
-- **OpenTelemetry Integration**: Distributed tracing across all operations
-- **Structured Logging**: Machine-readable logs with correlation IDs
-- **Health Checks**: Liveness and readiness probes for orchestration
-
----
-
-## System Overview
-
-### High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              .NET Aspire Orchestration                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                        NetCommerce.Api                               │   │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐       │   │
-│  │  │ Catalog │ │ Basket  │ │Ordering │ │Inventory│ │Payments │       │   │
-│  │  │ Module  │ │ Module  │ │ Module  │ │ Module  │ │ Module  │ ...   │   │
-│  │  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘       │   │
-│  │       │           │           │           │           │             │   │
-│  │       └───────────┴─────┬─────┴───────────┴───────────┘             │   │
-│  │                         │                                           │   │
-│  │              ┌──────────▼──────────┐                               │   │
-│  │              │   Wolverine Bus     │                               │   │
-│  │              │ (In-Process + Outbox)│                              │   │
-│  │              └─────────────────────┘                               │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                        │
-│  ┌─────────────────────────────────┼───────────────────────────────────┐   │
-│  │                    Infrastructure Services                           │   │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │   │
-│  │  │PostgreSQL│ │  Redis   │ │ Keycloak │ │   Seq    │ │Meilisearch│ │   │
-│  │  │(per-module)│ │ (Cache)  │ │  (IAM)   │ │(Logging) │ │ (Search)  │ │   │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Module Communication
-
-Modules communicate through two mechanisms:
-
-1. **Synchronous Queries**: Read operations via direct service calls (same process)
-2. **Asynchronous Commands/Events**: Write operations via Wolverine messaging with transactional outbox
-
-```
-┌──────────────┐    Integration Event    ┌──────────────┐
-│   Ordering   │ ───────────────────────▶│  Inventory   │
-│    Module    │   OrderSubmittedEvent   │    Module    │
-└──────────────┘                         └──────────────┘
-       │                                        │
-       │ Same Transaction                       │ Same Transaction
-       ▼                                        ▼
-┌──────────────┐                         ┌──────────────┐
-│ OrderingDb   │                         │ InventoryDb  │
-│   + Outbox   │                         │   + Inbox    │
-└──────────────┘                         └──────────────┘
-```
-
----
-
-## Bounded Contexts
-
-### Module Boundaries
-
-| Module | Responsibility | Key Aggregates | Storage |
-|--------|---------------|----------------|---------|
-| **Catalog** | Product information, categories, search | `Product`, `Category` | PostgreSQL + Meilisearch |
-| **Basket** | Temporary shopping cart | `ShoppingBasket` | Redis |
-| **Ordering** | Order lifecycle, fulfillment orchestration | `Order` | PostgreSQL |
-| **Inventory** | Stock levels, reservations, alerts | `Stock` | PostgreSQL + Redis (locks) |
-| **Payments** | Payment processing, refunds, ledger | `PaymentTransaction` | PostgreSQL |
-| **Shipping** | Courier integration, tracking | `Shipment` | PostgreSQL |
-| **Finance** | Reconciliation, reporting | `ReconciliationSession` | PostgreSQL |
-| **Media** | File uploads, CDN management | N/A (stateless) | Azure Blob Storage |
-
-### Context Map
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            UPSTREAM CONTEXTS                                 │
-│                                                                             │
-│    ┌──────────────┐                              ┌──────────────┐          │
-│    │   Catalog    │◀─────Published Language─────▶│    Media     │          │
-│    │ (Conformist) │        (Product Images)      │  (Supplier)  │          │
-│    └──────────────┘                              └──────────────┘          │
-│           │                                                                 │
-│           │ Product Info                                                    │
-│           ▼                                                                 │
-│    ┌──────────────┐        ┌──────────────┐        ┌──────────────┐       │
-│    │   Basket     │───────▶│   Ordering   │───────▶│  Inventory   │       │
-│    │ (Customer)   │ Items  │ (Partnership)│ Reserve│ (Conformist) │       │
-│    └──────────────┘        └──────────────┘        └──────────────┘       │
-│                                   │                        │               │
-│                                   │ Payment Request        │ Confirm      │
-│                                   ▼                        │               │
-│                            ┌──────────────┐                │               │
-│                            │   Payments   │◀───────────────┘               │
-│                            │  (Supplier)  │                                │
-│                            └──────────────┘                                │
-│                                   │                                        │
-│                                   │ Reconcile                              │
-│                                   ▼                                        │
-│    ┌──────────────┐        ┌──────────────┐                               │
-│    │   Shipping   │◀───────│   Finance    │                               │
-│    │ (Conformist) │ Ship   │  (Analyst)   │                               │
-│    └──────────────┘        └──────────────┘                               │
-│                                                                             │
-│                            DOWNSTREAM CONTEXTS                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
----
+| Context | Database Schema | Responsibility |
+|---|---|---|
+| **Catalog** | `catalog` | Product lifecycle, categories, pricing, MeiliSearch sync |
+| **Basket** | — (Redis) | Shopping basket with per-user isolation |
+| **Ordering** | `ordering` | Order creation, saga orchestration, grace period |
+| **Inventory** | `inventory` | Stock management, soft reservations, pessimistic locking |
+| **Payments** | `payments` | Stripe integration, webhook processing, refunds, disputes |
+| **Shipping** | `shipping` | Shipment tracking, courier adapter pattern |
+| **Media** | — (Azure Blob) | Image upload, presigned URLs, content type validation |
+| **Finance** | `finance` | Financial audit trail, T+1 reconciliation, ghost-charge detection |
 
 ## Clean Architecture Layers
 
-### Layer Responsibilities
-
-#### Domain Layer (`{Module}.Domain`)
-
-The innermost layer containing business logic with **zero external dependencies**.
-
-```csharp
-// Example: Ordering.Domain/Orders/Order.cs
-public sealed class Order : AggregateRoot<Guid>
-{
-    public string OrderNumber { get; private set; }
-    public OrderStatus Status { get; private set; }
-    public Money TotalAmount { get; private set; }
-
-    // Rich domain behavior - not anemic!
-    public Result ConfirmPayment(string transactionId)
-    {
-        if (Status != OrderStatus.Submitted)
-            return Result.Failure(Error.Validation("Order must be submitted"));
-
-        Status = OrderStatus.Paid;
-        PaymentTransactionId = transactionId;
-        PaidAt = DateTime.UtcNow;
-
-        RaiseDomainEvent(new OrderPaidDomainEvent(Id, transactionId));
-        return Result.Success();
-    }
-}
-```
-
-**Contains:**
-- Aggregates and Entities
-- Value Objects
-- Domain Events
-- Domain Services (pure business logic)
-- Repository Interfaces (abstractions only)
-
-#### Application Layer (`{Module}.Application`)
-
-Orchestrates use cases by coordinating domain objects and infrastructure.
-
-```csharp
-// Example: Ordering.Application/Orders/Commands/ConfirmOrderPaymentHandler.cs
-[WolverineHandler]
-public static class ConfirmOrderPaymentHandler
-{
-    public static async Task<Result> Handle(
-        ConfirmOrderPaymentCommand command,
-        IOrderRepository repository,
-        ILogger logger)
-    {
-        var order = await repository.GetByIdAsync(command.OrderId);
-        if (order is null)
-            return Result.Failure(Error.NotFound("Order", command.OrderId));
-
-        var result = order.ConfirmPayment(command.TransactionId);
-        if (result.IsFailure)
-            return result;
-
-        await repository.UpdateAsync(order);
-
-        logger.LogInformation("Payment confirmed for Order {OrderId}", command.OrderId);
-        return Result.Success();
-    }
-}
-```
-
-**Contains:**
-- Command/Query Handlers (Wolverine)
-- Sagas (Process Managers)
-- Application Services
-- DTOs and Contracts
-
-#### Infrastructure Layer (`{Module}.Infrastructure`)
-
-Implements abstractions defined in Domain and Application layers.
-
-```csharp
-// Example: Ordering.Infrastructure/Persistence/OrderRepository.cs
-public sealed class OrderRepository : BaseRepository<Order, Guid>, IOrderRepository
-{
-    public OrderRepository(OrderingDbContext context) : base(context) { }
-
-    public async Task<Order?> GetByOrderNumberAsync(string orderNumber)
-    {
-        return await DbSet
-            .Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
-    }
-}
-```
-
-**Contains:**
-- EF Core DbContext and Configurations
-- Repository Implementations
-- External Service Integrations
-- Background Jobs
-
----
-
-## Domain-Driven Design Implementation
-
-### Strongly Typed IDs
-
-All entity identifiers use the `IStronglyTypedId<T>` pattern:
-
-```csharp
-public readonly record struct OrderId(Guid Value) : IStronglyTypedId<OrderId>
-{
-    public static OrderId Create(Guid value) => new(value);
-    public static OrderId New() => new(Guid.NewGuid());
-    public static OrderId Empty => new(Guid.Empty);
-
-    // IParsable<T> implementation for model binding
-    public static OrderId Parse(string s, IFormatProvider? provider)
-        => new(Guid.Parse(s));
-    public static bool TryParse(string? s, IFormatProvider? provider, out OrderId result)
-    {
-        if (Guid.TryParse(s, out var guid))
-        {
-            result = new OrderId(guid);
-            return true;
-        }
-        result = Empty;
-        return false;
-    }
-}
-```
-
-**Benefits:**
-- Compile-time type safety (can't pass `ProductId` where `OrderId` is expected)
-- Self-documenting code
-- Automatic EF Core converter registration via convention
-
-### Value Objects
-
-Immutable objects defined by their attributes, not identity:
-
-```csharp
-public sealed class Money : ValueObject
-{
-    public decimal Amount { get; }
-    public string Currency { get; }
-
-    public static Money Create(decimal amount, string currency = "GEL")
-    {
-        if (amount < 0)
-            throw new ArgumentException("Amount cannot be negative");
-        return new Money(Math.Round(amount, 2), currency.ToUpperInvariant());
-    }
-
-    public Money Add(Money other)
-    {
-        EnsureSameCurrency(other);
-        return new Money(Amount + other.Amount, Currency);
-    }
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Amount;
-        yield return Currency;
-    }
-}
-```
-
-### Aggregate Root Pattern
-
-Aggregates enforce invariants and serve as transactional boundaries:
-
-```csharp
-public abstract class AggregateRoot<TId> : Entity<TId> where TId : notnull
-{
-    /// <summary>Row version for optimistic concurrency.</summary>
-    public uint Version { get; protected set; }
-
-    protected void RaiseDomainEvent(IDomainEvent domainEvent)
-    {
-        AddDomainEvent(domainEvent);
-    }
-}
-```
-
-**Rules:**
-1. Only aggregate roots have repositories
-2. References between aggregates use IDs, not object references
-3. Transactions should not span multiple aggregates
-4. Domain events enable cross-aggregate consistency
-
-### Result Pattern
-
-Explicit error handling without exceptions:
-
-```csharp
-public class Result<TValue> : Result
-{
-    public TValue Value { get; }
-
-    public static implicit operator Result<TValue>(TValue value)
-        => new(value, true, Error.None);
-}
-
-public sealed record Error(string Code, string Description, int StatusCode = 500)
-{
-    public static Error NotFound(string entity, object id)
-        => new($"{entity}.NotFound", $"{entity} with id '{id}' not found", 404);
-
-    public static Error Validation(string description)
-        => new("Validation.Error", description, 422);
-
-    public static Error Conflict(string description)
-        => new("Conflict.Error", description, 409);
-}
-
-// Usage in handlers
-public static async Task<Result<OrderDto>> Handle(GetOrderQuery query, ...)
-{
-    var order = await repository.GetByIdAsync(query.OrderId);
-    return order is null
-        ? Result.Failure<OrderDto>(Error.NotFound("Order", query.OrderId))
-        : Result.Success(order.ToDto());
-}
-```
-
----
-
-## Kernel Infrastructure
-
-The `NetCommerce.Kernel.*` assemblies provide shared infrastructure:
-
-### NetCommerce.Kernel.Core
-
-Domain primitives and abstractions:
+Each module follows three layers with strict dependency rules:
 
 ```
-NetCommerce.Kernel.Core/
-├── Domain/
-│   ├── Entity.cs              # Base entity with domain events
-│   ├── AggregateRoot.cs       # Aggregate root with concurrency
-│   ├── ValueObject.cs         # Value object base class
-│   └── IDomainEvent.cs        # Domain event marker interface
-├── Ids/
-│   └── IStronglyTypedId.cs    # Strongly typed ID contract
-├── Results/
-│   ├── Result.cs              # Result pattern implementation
-│   └── Error.cs               # Error representation
-└── Application/
-    └── IAuditableCommand.cs   # Audit marker interface
+                    ┌─────────────────┐
+                    │   Domain Layer   │  Aggregates, Entities, Value Objects
+                    │   (innermost)    │  Domain Events, Repository Interfaces
+                    └────────▲────────┘
+                             │ depends on
+                    ┌────────┴────────┐
+                    │ Application Layer│  Commands, Queries, Handlers
+                    │                  │  Service Interfaces
+                    └────────▲────────┘
+                             │ depends on
+                    ┌────────┴────────┐
+                    │ Infrastructure   │  EF Core, External APIs
+                    │   (outermost)    │  Repository Implementations
+                    └─────────────────┘
 ```
 
-### NetCommerce.Kernel.EfCore
+**Dependency rules:**
+- Domain depends only on `NetCommerce.Kernel.Core`
+- Application depends on Domain and `NetCommerce.Kernel.Application`
+- Infrastructure depends on Application and `NetCommerce.Kernel.EfCore`
+- No layer may reference the API project directly
 
-Entity Framework Core infrastructure:
+These rules are validated automatically by `NetCommerce.Architecture.Tests` using NetArchTest.
 
-```
-NetCommerce.Kernel.EfCore/
-├── Persistence/
-│   ├── BaseDbContext.cs       # Pre-configured DbContext
-│   ├── BaseRepository.cs      # Generic repository
-│   └── StronglyTypedIdConvention.cs  # Auto ID converter registration
-└── Interceptors/
-    └── DomainEventInterceptor.cs  # Publishes domain events on SaveChanges
-```
+## Kernel Assemblies
 
-### NetCommerce.Kernel.Wolverine
+The kernel provides shared primitives without introducing cross-module coupling:
 
-Messaging infrastructure:
+| Assembly | Contents |
+|---|---|
+| `NetCommerce.Kernel.Core` | `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject`, `Result<T>`, `Error`, `Guard`, `IStronglyTypedId<T>`, `EncryptedData`, `BlindIndex` |
+| `NetCommerce.Kernel.Application` | `ICommand<T>`, `IQuery<T>`, `IRepository<T>`, `IUnitOfWork`, `ITenantContext`, `PaginatedResponse<T>` |
+| `NetCommerce.Kernel.EfCore` | `BaseDbContext`, `BaseRepository<TAggregate, TId>`, `StronglyTypedIdConvention`, multi-tenancy filters |
+| `NetCommerce.Kernel.AspNetCore` | `GlobalExceptionHandler`, API middleware, Kestrel hardening |
+| `NetCommerce.Kernel.Compliance` | `AuditEntry`, `PiiVaultEntry`, `IEncryptionService`, audit middleware |
 
-```
-NetCommerce.Kernel.Wolverine/
-├── WolverineKernelExtensions.cs  # Production-ready defaults
-├── Middleware/
-│   └── AuditMiddleware.cs     # Command auditing
-└── Serialization/              # (Legacy resolver removed in Phase 6)
-```
+### Domain.Shared
 
----
+`NetCommerce.Domain.Shared` contains cross-cutting types that multiple modules depend on:
 
-## Data Architecture
-
-### Database-per-Module Strategy
-
-Each bounded context owns its PostgreSQL schema:
-
-```sql
--- Catalog schema
-CREATE SCHEMA catalog;
-CREATE TABLE catalog.products (...);
-CREATE TABLE catalog.categories (...);
-
--- Ordering schema
-CREATE SCHEMA ordering;
-CREATE TABLE ordering.orders (...);
-CREATE TABLE ordering.order_items (...);
-
--- Wolverine infrastructure (shared)
-CREATE SCHEMA wolverine;
-CREATE TABLE wolverine.wolverine_incoming_envelopes (...);
-CREATE TABLE wolverine.wolverine_outgoing_envelopes (...);
-CREATE TABLE wolverine.saga_state (...);
-```
-
-### Caching Strategy
-
-| Data Type | Cache Location | TTL | Invalidation |
-|-----------|---------------|-----|--------------|
-| Product catalog | Redis + Meilisearch | 5 min | Domain event |
-| User sessions | Redis | 30 min | Sliding |
-| Shopping baskets | Redis | 7 days | Explicit |
-| Stock locks | Redis (RedLock) | 30 sec | Auto-expire |
-| Idempotency keys | Redis | 24 hours | Auto-expire |
-
-### Search Architecture
-
-Meilisearch provides the product search read model:
-
-```
-┌──────────────┐    ProductCreated    ┌───────────────────┐
-│   Catalog    │ ───────────────────▶│ SearchProjection  │
-│   (Writes)   │    ProductUpdated    │    Handler        │
-└──────────────┘                      └─────────┬─────────┘
-                                                │
-                                                ▼
-                                      ┌───────────────────┐
-                                      │   Meilisearch     │
-                                      │   (Read Model)    │
-                                      └───────────────────┘
-                                                │
-                                                ▼
-                                      ┌───────────────────┐
-                                      │   Search API      │
-                                      │   < 50ms p99      │
-                                      └───────────────────┘
-```
-
----
+- **Integration events** — `OrderSubmittedIntegrationEvent`, `StockReservedIntegrationEvent`, etc.
+- **Saga messages** — Commands, events, and timeouts for the order fulfillment saga
+- **Value objects** — `Money` (default currency: GEL)
+- **Real-time messages** — `OrderStatusChanged` (SignalR)
 
 ## Messaging Architecture
 
-### Wolverine Configuration
+All inter-module communication flows through Wolverine with PostgreSQL-backed transactional outbox:
+
+```
+Module A                     Wolverine                    Module B
+   │                            │                            │
+   │  Save Entity + Publish     │                            │
+   │  (same transaction)        │                            │
+   │ ──────────────────────────>│                            │
+   │                            │  Outbox polls & delivers   │
+   │                            │ ──────────────────────────>│
+   │                            │                            │  Handle message
+   │                            │                            │  (own transaction)
+```
+
+Key characteristics:
+- **Transactional outbox** — messages are saved atomically with domain changes
+- **At-least-once delivery** — handlers must be idempotent
+- **TypeLoadMode.Static** — pre-generated handler code for Native AOT compatibility
+- **Dead letter queue** — failed messages routed to DLQ with admin replay endpoints
+
+See [MESSAGING_PATTERNS.md](MESSAGING_PATTERNS.md) for the complete saga state machine and event catalog.
+
+## Data Architecture
+
+### Database per Schema
+
+Each module owns an isolated PostgreSQL schema. No cross-schema joins or foreign keys:
+
+| Schema | Tables |
+|---|---|
+| `catalog` | Products, Categories, ProductImages |
+| `ordering` | Orders, OrderItems, wolverine_* (saga, outbox) |
+| `inventory` | Stocks, StockReservations |
+| `payments` | PaymentTransactions, ProcessedWebhookEvents |
+| `shipping` | Shipments, ShipmentItems |
+| `finance` | FinancialAuditEntries, ReconciliationSessions, ReconciliationDiscrepancies |
+
+### Concurrency Control
+
+- **Optimistic concurrency** — EF Core `xmin` system column as concurrency token on all aggregates
+- **Pessimistic locking** — `SELECT ... FOR UPDATE` for inventory operations under high contention
+
+### Caching Strategy
+
+| Layer | Technology | TTL | Purpose |
+|---|---|---|---|
+| L1 (in-process) | HybridCache | 5 min | Hot product data |
+| L2 (distributed) | Redis | 60 min | Cross-instance consistency |
+| Search | MeiliSearch | Event-driven | Full-text product search |
+
+Cache invalidation is event-driven: product changes publish domain events that trigger cache eviction handlers.
+
+## API Architecture
+
+### Endpoint Organization
+
+Endpoints are grouped by module in `src/Api/Endpoints/{Module}/` using the `IEndpoint` pattern:
+
+```
+src/Api/Endpoints/
+├── Catalog/
+│   ├── ProductEndpoints.cs      # /api/v{version}/products
+│   ├── CategoryEndpoints.cs     # /api/v{version}/categories
+│   └── SearchEndpoints.cs       # /api/v{version}/products/search
+├── Ordering/
+│   └── OrderEndpoints.cs        # /api/v{version}/orders
+├── Basket/
+│   └── BasketEndpoints.cs       # /api/v{version}/basket
+├── Inventory/
+│   └── InventoryEndpoints.cs    # /api/v{version}/inventory
+├── Media/
+│   └── MediaEndpoints.cs        # /api/v{version}/media
+├── Payments/
+│   └── PaymentWebhookEndpoints.cs  # /api/webhooks/stripe
+├── Auth/
+│   └── AuthEndpoints.cs         # /api/v{version}/auth
+└── Admin/
+    ├── AdminDlqEndpoints.cs           # /api/admin/dlq
+    ├── AdminFinanceEndpoints.cs       # /api/admin/finance
+    └── AdminOrderRecoveryEndpoints.cs # /api/admin/orders
+```
+
+### API Versioning
+
+URL-based versioning via `Asp.Versioning.Http`:
+
+```
+/api/v1/products
+/api/v1/orders
+```
+
+Admin endpoints are unversioned (`/api/admin/...`).
+
+### Middleware Pipeline
+
+The request pipeline processes in this order:
+
+1. Health check endpoints (`/health/ready`)
+2. Exception handler
+3. Status code pages
+4. Response compression (Brotli + Gzip)
+5. Correlation ID middleware
+6. OpenAPI (development only)
+7. Enterprise web host (Kestrel hardening)
+8. HTTPS redirection
+9. Rate limiter
+10. CORS
+11. Authentication
+12. Authorization
+13. Zero-trust token introspection middleware
+14. SignalR hub (`/api/messages`)
+15. Antiforgery
+16. Mapped endpoints (explicit + Wolverine.Http)
+
+## Native AOT
+
+The API project supports Native AOT compilation:
+
+- **Source-generated JSON** via `ApiJsonContext` (~80+ registered types)
+- **Wolverine TypeLoadMode.Static** — pre-generated handler code, no runtime reflection
+- **Trim analyzers** enabled — IL2026/IL3050 warnings monitored
+- **~80ms startup** and **~65MB container image** in production
+
+See [NATIVE_AOT_VERIFICATION.md](NATIVE_AOT_VERIFICATION.md) for the 5-checkpoint verification process.
+
+## Aspire Orchestration
+
+The `NetCommerce.AppHost` project defines all infrastructure as code:
 
 ```csharp
-opts.ConfigureKernelDefaults<OrderingDbContext>();
+var postgres = builder.AddPostgres("postgres")
+    .WithDataVolume()
+    .WithPgAdmin(c => c.WithHostPort(5050))
+    .WithLifetime(ContainerLifetime.Persistent);
 
-// Key settings:
-// - Transactional Outbox: Messages saved with domain changes
-// - Durable Inbox: At-least-once delivery guarantee
-// - Dead Letter Queue: 30-day retention for audit
-// - Message Identity: IdAndDestination (multi-handler safe)
+var catalogDb = postgres.AddDatabase("CatalogDb");
+var orderingDb = postgres.AddDatabase("OrderingDb");
+// ... per-module databases
+
+var redis = builder.AddRedis("redis")
+    .WithDataVolume()
+    .WithRedisInsight()
+    .WithLifetime(ContainerLifetime.Persistent);
 ```
 
-### Message Flow
+All connection strings, service endpoints, and configuration values are injected into the API project automatically.
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           PRODUCER (Ordering)                             │
-│                                                                          │
-│  1. Order.Create()                                                       │
-│  2. RaiseDomainEvent(OrderSubmittedDomainEvent)                         │
-│  3. SaveChangesAsync() ─────┐                                           │
-│                             │ SAME TRANSACTION                          │
-│                             ▼                                           │
-│  ┌─────────────────────────────────────────┐                            │
-│  │ OrderingDb                              │                            │
-│  │ ├── orders table (domain data)         │                            │
-│  │ └── wolverine_outgoing_envelopes       │◀── Integration Event       │
-│  │     (outbox)                           │                            │
-│  └─────────────────────────────────────────┘                            │
-└──────────────────────────────────────────────────────────────────────────┘
-                                │
-                                │ Wolverine Agent polls outbox
-                                ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                           CONSUMER (Inventory)                            │
-│                                                                          │
-│  ┌─────────────────────────────────────────┐                            │
-│  │ InventoryDb                             │                            │
-│  │ ├── wolverine_incoming_envelopes       │◀── Deduplication check     │
-│  │ │   (inbox)                            │                            │
-│  │ └── stock_reservations (domain data)   │◀── Handler processes       │
-│  └─────────────────────────────────────────┘                            │
-│                                                                          │
-│  ReserveStockHandler.Handle(OrderSubmittedIntegrationEvent)             │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+## Cross-Cutting Concerns
 
-### Saga Pattern (Order Fulfillment)
+| Concern | Implementation |
+|---|---|
+| **Observability** | OpenTelemetry (ASP.NET Core, HTTP, EF Core, Redis, runtime instrumentation) → Seq |
+| **Correlation** | `CorrelationIdMiddleware` propagates `X-Correlation-Id` across all requests |
+| **Resilience** | Polly (retry + circuit breaker) for Stripe, Keycloak, external HTTP |
+| **Rate Limiting** | Per-user and per-policy limits (`AuthStrict`, `AdminStrict`) |
+| **PII Protection** | Encrypted data at rest, blind indexes for lookup, PII vault isolation |
+| **Audit Trail** | `AuditMiddleware` tracks all state changes with before/after snapshots |
+| **Idempotency** | `X-Idempotency-Key` header on order creation, webhook deduplication |
 
-```
-                              ┌─────────────────┐
-                              │   NotStarted    │
-                              └────────┬────────┘
-                                       │ StartOrderFulfillmentCommand
-                                       ▼
-                              ┌─────────────────┐
-                              │   Reserving     │──── ReserveInventoryCommand
-                              │   Inventory     │
-                              └────────┬────────┘
-                                       │ InventoryReserved
-                                       ▼
-                              ┌─────────────────┐
-                              │   Processing    │──── ProcessPaymentCommand
-                              │   Payment       │
-                              └────────┬────────┘
-                          ┌────────────┴────────────┐
-                          │                         │
-                   PaymentSucceeded            PaymentFailed
-                          ▼                         ▼
-                 ┌─────────────────┐      ┌─────────────────┐
-                 │   Confirming    │      │   Compensating  │
-                 │   Inventory     │      │   (Release)     │
-                 └────────┬────────┘      └────────┬────────┘
-                          │                        │
-                 InventoryConfirmed         ResourcesReleased
-                          ▼                        ▼
-                 ┌─────────────────┐      ┌─────────────────┐
-                 │   Completed     │      │     Failed      │
-                 │ (Saga Deleted)  │      │ (With Reason)   │
-                 └─────────────────┘      └─────────────────┘
-```
+## Related Documentation
 
----
-
-## Security Architecture
-
-### Zero-Trust Identity Mesh
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         KEYCLOAK (Identity Provider)                     │
-│                                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                    │
-│  │  Customer   │  │   Vendor    │  │    Admin    │                    │
-│  │    Realm    │  │    Realm    │  │    Realm    │                    │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                    │
-│         │                │                │                            │
-│         └────────────────┼────────────────┘                            │
-│                          │                                             │
-│                   ┌──────▼──────┐                                      │
-│                   │   Tokens    │                                      │
-│                   │  (JWT/OIDC) │                                      │
-│                   └──────┬──────┘                                      │
-└──────────────────────────┼──────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         NetCommerce API                                  │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                    Security Pipeline                             │   │
-│  │                                                                  │   │
-│  │  1. Token Validation ──▶ 2. Token Introspection ──▶ 3. RBAC    │   │
-│  │     (JWT Signature)       (Revocation Check)        (Policies)  │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                         │
-│  Features:                                                              │
-│  • Token Exchange (RFC 8693) for service-to-service                    │
-│  • Instant revocation via introspection                                │
-│  • Fine-grained authorization policies                                 │
-│  • PII encryption at rest (AES-256-GCM)                               │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Authorization Policies
-
-```csharp
-// Role-based policies
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin"));
-    options.AddPolicy("VendorAccess", policy => policy.RequireRole("vendor", "admin"));
-    options.AddPolicy("CustomerAccess", policy => policy.RequireRole("customer", "admin"));
-});
-
-// Endpoint protection
-app.MapPost("/api/v1/products", CreateProduct)
-   .RequireAuthorization("VendorAccess");
-```
-
----
-
-## Observability Architecture
-
-### OpenTelemetry Integration
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Application Telemetry                            │
-│                                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                    │
-│  │   Traces    │  │   Metrics   │  │    Logs     │                    │
-│  │ (Requests,  │  │ (Counters,  │  │(Structured, │                    │
-│  │  Handlers)  │  │ Histograms) │  │ Contextual) │                    │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                    │
-│         │                │                │                            │
-│         └────────────────┼────────────────┘                            │
-│                          │                                             │
-│                   ┌──────▼──────┐                                      │
-│                   │   OTLP      │                                      │
-│                   │  Exporter   │                                      │
-│                   └──────┬──────┘                                      │
-└──────────────────────────┼──────────────────────────────────────────────┘
-                           │
-            ┌──────────────┼──────────────┐
-            ▼              ▼              ▼
-     ┌──────────┐  ┌──────────┐  ┌──────────┐
-     │   Seq    │  │  Aspire  │  │ Prometheus│
-     │(Logging) │  │Dashboard │  │ /Grafana │
-     └──────────┘  └──────────┘  └──────────┘
-```
-
-### Custom Metrics
-
-```csharp
-// Ordering module metrics
-public class OrderingMetrics
-{
-    private readonly Counter<long> _ordersCreated;
-    private readonly Histogram<double> _orderProcessingDuration;
-
-    public OrderingMetrics(IMeterFactory meterFactory)
-    {
-        var meter = meterFactory.Create("NetCommerce.Ordering");
-
-        _ordersCreated = meter.CreateCounter<long>(
-            "orders.created",
-            description: "Number of orders created");
-
-        _orderProcessingDuration = meter.CreateHistogram<double>(
-            "orders.processing.duration",
-            unit: "ms",
-            description: "Order processing duration");
-    }
-}
-```
-
----
-
-## Scalability Strategy
-
-### Phase 1: Modular Monolith (Current)
-
-- Single deployment unit
-- In-process communication
-- Shared PostgreSQL instance (separate schemas)
-- Vertical scaling
-
-### Phase 2: Async Messaging
-
-- Replace in-memory bus with RabbitMQ/Azure Service Bus
-- Enable horizontal scaling of API instances
-- Outbox pattern already supports this transition
-
-### Phase 3: Service Extraction
-
-When a module becomes a scaling bottleneck:
-
-```
-BEFORE (Monolith)                    AFTER (Extracted)
-┌────────────────────┐              ┌────────────────────┐
-│   NetCommerce.Api  │              │   NetCommerce.Api  │
-│  ┌──────────────┐  │              │  ┌──────────────┐  │
-│  │   Ordering   │  │              │  │   Ordering   │  │
-│  ├──────────────┤  │              │  │   (Proxy)    │  │
-│  │  Inventory   │──┼─ Extract ──▶ │  └──────────────┘  │
-│  │   (Hot)      │  │              └────────────────────┘
-│  ├──────────────┤  │                        │
-│  │   Payments   │  │                        │ gRPC/HTTP
-│  └──────────────┘  │                        ▼
-└────────────────────┘              ┌────────────────────┐
-                                    │  Inventory Service │
-                                    │   (Standalone)     │
-                                    └────────────────────┘
-```
-
-**Extraction Checklist:**
-- [ ] Module has own database schema (✅ already done)
-- [ ] Communication via events only (✅ integration events)
-- [ ] No shared mutable state (✅ Redis distributed)
-- [ ] Independent deployment pipeline
-
----
-
-## Appendix: Key Files Reference
-
-| Concept | Location |
-|---------|----------|
-| Aspire Orchestration | `src/NetCommerce.AppHost/Program.cs` |
-| Domain Primitives | `src/Kernel/NetCommerce.Kernel.Core/Domain/` |
-| Result Pattern | `src/Kernel/NetCommerce.Kernel.Core/Results/` |
-| Wolverine Config | `src/Kernel.Adapters/NetCommerce.Kernel.Wolverine/` |
-| Order Saga | `src/Ordering/Ordering.Application/Sagas/` |
-| API Endpoints | `src/Api/Endpoints/` |
-| Architecture Tests | `tests/NetCommerce.Architecture.Tests/` |
-
----
-
-**Document Version:** 1.0
-**Last Updated:** February 2026
-**Maintainer:** NetCommerce Architecture Team
+- [Architecture Diagrams](ARCHITECTURE_DIAGRAMS.md) — visual representations
+- [Domain Model](DOMAIN_MODEL.md) — aggregate and entity details
+- [Messaging Patterns](MESSAGING_PATTERNS.md) — events, sagas, outbox
+- [Security](SECURITY.md) — auth, PII, rate limiting
+- [API Reference](API_REFERENCE.md) — all endpoints
