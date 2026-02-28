@@ -4,6 +4,7 @@ using System.Diagnostics;
 using Asp.Versioning.Builder;
 using Microsoft.Extensions.Options;
 using NetCommerce.Domain.Shared.Events;
+using NetCommerce.Finance.Domain.Webhooks;
 using NetCommerce.Kernel.Stripe;
 using Stripe;
 using Wolverine;
@@ -69,6 +70,7 @@ public class PaymentWebhookEndpoints : IEndpoint
         HttpRequest request,
         IMessageBus bus,
         IOptions<StripeOptions> options,
+        IWebhookEventStore webhookStore,
         ILogger<PaymentWebhookEndpoints> logger)
     {
         StripeOptions stripeOptions = options.Value;
@@ -113,28 +115,67 @@ public class PaymentWebhookEndpoints : IEndpoint
                 stripeEvent.Id,
                 (stripeEvent.Data.Object as PaymentIntent)?.Id ?? "N/A");
 
-            // 4. Map Event to Wolverine Command using pattern matching
-            // This replaces the if-else chain with a more maintainable switch expression
-            object? commandToDispatch = stripeEvent.Type switch
-            {
-                "payment_intent.succeeded" => CreateSuccessCommand(stripeEvent, logger),
-                "payment_intent.payment_failed" => CreateFailureCommand(stripeEvent, logger),
-                "payment_intent.canceled" => CreateCancellationCommand(stripeEvent, logger),
-                _ => LogUnhandledEvent(stripeEvent.Type, logger)
-            };
+            // ═══════════════════════════════════════════════════════════════════════════
+            // 4. IDEMPOTENCY CHECK — Prevent duplicate processing
+            // ═══════════════════════════════════════════════════════════════════════════
+            // Uses PostgreSQL INSERT ... ON CONFLICT DO NOTHING for atomic claim-or-skip
+            var paymentIntentId = (stripeEvent.Data.Object as PaymentIntent)?.Id;
+            var claimed = await webhookStore.TryClaimEventAsync(
+                stripeEvent.Id,
+                stripeEvent.Type,
+                paymentIntentId);
 
-            // 5. Dispatch if matched
-            if (commandToDispatch != null)
+            if (!claimed)
             {
-                // Wolverine Transactional Outbox ensures exactly-once delivery
-                // Even if this process crashes after this call, the command will be delivered
-                await bus.InvokeAsync(commandToDispatch);
-                logger.LogInformation("Dispatched confirmation for event type: {Type}", stripeEvent.Type);
+                // Event already processed or being processed — return 200 immediately
+                logger.LogInformation(
+                    "Duplicate webhook event {EventId} detected, skipping processing",
+                    stripeEvent.Id);
+                return Results.Ok(new { status = "duplicate", eventId = stripeEvent.Id });
             }
 
-            // Always return 200 OK to Stripe if signature was valid
-            // Returning 4xx/5xx causes Stripe to retry (up to 72 hours)
-            return Results.Ok();
+            try
+            {
+                // ═══════════════════════════════════════════════════════════════════════════
+                // 5. Map Event to Wolverine Command using pattern matching
+                // ═══════════════════════════════════════════════════════════════════════════
+                object? commandToDispatch = stripeEvent.Type switch
+                {
+                    // Payment Intent events
+                    "payment_intent.succeeded" => CreateSuccessCommand(stripeEvent, logger),
+                    "payment_intent.payment_failed" => CreateFailureCommand(stripeEvent, logger),
+                    "payment_intent.canceled" => CreateCancellationCommand(stripeEvent, logger),
+
+                    // Refund events (partial or full refunds from Stripe dashboard/API)
+                    "charge.refunded" => CreateRefundCommand(stripeEvent, logger),
+
+                    // Dispute events (chargebacks — CRITICAL)
+                    "charge.dispute.created" => CreateDisputeCreatedCommand(stripeEvent, logger),
+                    "charge.dispute.updated" or "charge.dispute.closed" =>
+                        CreateDisputeUpdatedCommand(stripeEvent, logger),
+
+                    _ => LogUnhandledEvent(stripeEvent.Type, logger)
+                };
+
+                // 6. Dispatch if matched
+                if (commandToDispatch != null)
+                {
+                    // Wolverine Transactional Outbox ensures exactly-once delivery
+                    await bus.InvokeAsync(commandToDispatch);
+                    logger.LogInformation("Dispatched command for event type: {Type}", stripeEvent.Type);
+                }
+
+                // Mark event as successfully processed
+                await webhookStore.MarkProcessedAsync(stripeEvent.Id);
+
+                return Results.Ok(new { status = "processed", eventId = stripeEvent.Id });
+            }
+            catch (Exception ex)
+            {
+                // Mark as failed — Stripe will retry
+                await webhookStore.MarkFailedAsync(stripeEvent.Id, ex.Message);
+                throw; // Re-throw to trigger 500 response
+            }
         }
         catch (StripeException ex)
         {
@@ -220,5 +261,70 @@ public class PaymentWebhookEndpoints : IEndpoint
         // Log but ignore other event types (no command to dispatch)
         logger.LogDebug("Ignoring Stripe webhook event type: {EventType}", eventType);
         return null;
+    }
+
+    // ============================================================================
+    // Refund & Dispute Command Factory Methods
+    // ============================================================================
+
+    private static ProcessStripeRefundWebhook CreateRefundCommand(Event stripeEvent, ILogger logger)
+    {
+        var charge = (Charge)stripeEvent.Data.Object;
+        var refund = charge.Refunds?.Data?.FirstOrDefault();
+
+        logger.LogInformation(
+            "Refund webhook received: ChargeId={ChargeId}, AmountRefunded={Amount}, TotalRefundedSoFar={Total}",
+            charge.Id,
+            refund?.Amount / 100.0m ?? 0,
+            charge.AmountRefunded / 100.0m);
+
+        return new ProcessStripeRefundWebhook(
+            ChargeId: charge.Id,
+            RefundId: refund?.Id ?? "unknown",
+            AmountRefunded: refund?.Amount / 100.0m ?? charge.AmountRefunded / 100.0m,
+            TotalRefundedSoFar: charge.AmountRefunded / 100.0m,
+            Currency: charge.Currency.ToUpperInvariant(),
+            StripeEventId: stripeEvent.Id,
+            PaymentIntentId: charge.PaymentIntentId,
+            Reason: refund?.Reason);
+    }
+
+    private static ProcessStripeDisputeCreated CreateDisputeCreatedCommand(Event stripeEvent, ILogger logger)
+    {
+        var dispute = (Dispute)stripeEvent.Data.Object;
+
+        logger.LogCritical(
+            "🚨 DISPUTE CREATED: DisputeId={DisputeId}, ChargeId={ChargeId}, Amount={Amount}, Reason={Reason}",
+            dispute.Id,
+            dispute.ChargeId,
+            dispute.Amount / 100.0m,
+            dispute.Reason);
+
+        return new ProcessStripeDisputeCreated(
+            DisputeId: dispute.Id,
+            ChargeId: dispute.ChargeId,
+            Amount: dispute.Amount / 100.0m,
+            Currency: dispute.Currency.ToUpperInvariant(),
+            Reason: dispute.Reason,
+            Status: dispute.Status,
+            StripeEventId: stripeEvent.Id,
+            EvidenceDueBy: dispute.EvidenceDetails?.DueBy);
+    }
+
+    private static ProcessStripeDisputeUpdated CreateDisputeUpdatedCommand(Event stripeEvent, ILogger logger)
+    {
+        var dispute = (Dispute)stripeEvent.Data.Object;
+
+        logger.LogInformation(
+            "Dispute updated: DisputeId={DisputeId}, ChargeId={ChargeId}, Status={Status}",
+            dispute.Id,
+            dispute.ChargeId,
+            dispute.Status);
+
+        return new ProcessStripeDisputeUpdated(
+            DisputeId: dispute.Id,
+            ChargeId: dispute.ChargeId,
+            Status: dispute.Status,
+            StripeEventId: stripeEvent.Id);
     }
 }

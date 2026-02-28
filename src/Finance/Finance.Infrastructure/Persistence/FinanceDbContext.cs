@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using NetCommerce.Finance.Domain.Audit;
 using NetCommerce.Finance.Domain.Reconciliation;
+using NetCommerce.Finance.Domain.Webhooks;
 using NetCommerce.Finance.Infrastructure.Persistence.Configurations;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.EfCore.Persistence;
@@ -22,6 +24,8 @@ public class FinanceDbContext : BaseDbContext
 
     // Best Practice: Use expression body for DbSets
     public DbSet<ReconciliationSession> ReconciliationSessions => Set<ReconciliationSession>();
+    public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
+    public DbSet<FinancialAuditEntry> FinancialAuditLog => Set<FinancialAuditEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -38,5 +42,7 @@ public class FinanceDbContext : BaseDbContext
         modelBuilder.HasDefaultSchema(Schema);
 
         modelBuilder.ApplyConfiguration(new ReconciliationSessionConfiguration());
+        modelBuilder.ApplyConfiguration(new ProcessedWebhookEventConfiguration());
+        modelBuilder.ApplyConfiguration(new FinancialAuditEntryConfiguration());
     }
 }

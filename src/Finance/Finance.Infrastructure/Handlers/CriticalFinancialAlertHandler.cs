@@ -1,6 +1,10 @@
 #nullable enable
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Application.Services;
+using NetCommerce.Finance.Domain.Audit;
 using NetCommerce.Kernel.Application.Notifications;
 using Wolverine;
 using Wolverine.Attributes;
@@ -8,7 +12,7 @@ using Wolverine.Attributes;
 namespace NetCommerce.Finance.Infrastructure.Handlers;
 
 /// <summary>
-///     Handles CriticalFinancialAlert events (ghost charges, amount mismatches, etc.)
+///     Handles CriticalFinancialAlert events (ghost charges, amount mismatches, disputes, etc.)
 ///
 ///     <para>
 ///     <b>Go-Live Requirement:</b> "Will I know about a Ghost Charge before the customer calls support?"
@@ -17,9 +21,10 @@ namespace NetCommerce.Finance.Infrastructure.Handlers;
 ///
 ///     <para>
 ///     <b>Alert Channels:</b>
-///     - Email to finance-alerts distribution list
-///     - Logged at CRITICAL level for SIEM/alerting integration (PagerDuty, Datadog, etc.)
-///     - Structured logging enables Seq/Kibana dashboards
+///     1. PagerDuty — Real-time on-call alerting with escalation
+///     2. Email to finance-alerts distribution list
+///     3. CRITICAL log level for SIEM/alerting integration (Datadog, Seq, etc.)
+///     4. Audit log entry for compliance
 ///     </para>
 /// </summary>
 [WolverineHandler]
@@ -27,38 +32,157 @@ public static class CriticalFinancialAlertHandler
 {
     /// <summary>
     ///     Handles ghost charge and other critical financial alerts.
-    ///     Sends immediate notification to finance team and logs for monitoring systems.
+    ///     Sends immediate notification via multiple channels for redundancy.
     /// </summary>
     public static async Task Handle(
         CriticalFinancialAlert alert,
         IEmailProvider emailProvider,
+        IHttpClientFactory httpClientFactory,
+        IOptions<AlertingOptions> alertingOptions,
+        IFinancialAuditRepository auditRepository,
         ILogger logger,
         CancellationToken cancellationToken)
     {
+        var options = alertingOptions.Value;
+
         // ═══════════════════════════════════════════════════════════════════════════
-        // 1. CRITICAL LOG: SIEM/Monitoring Integration
+        // 1. AUDIT LOG: Immutable record for compliance
         // ═══════════════════════════════════════════════════════════════════════════
-        // This log entry should trigger PagerDuty/Datadog/Splunk alerts
+        var auditEntry = FinancialAuditEntry.Create(
+            FinancialAuditType.AlertTriggered,
+            "Alert",
+            alert.EventId.ToString(),
+            "System",
+            ActorType.System,
+            $"Critical financial alert: {alert.Reason}",
+            externalTransactionId: alert.ExternalTransactionId,
+            amount: alert.Amount);
+
+        await auditRepository.AppendAsync(auditEntry, cancellationToken);
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 2. CRITICAL LOG: SIEM/Monitoring Integration
+        // ═══════════════════════════════════════════════════════════════════════════
+        // This log entry should trigger PagerDuty/Datadog/Splunk alerts via log-based alerting
         using (logger.BeginScope(new Dictionary<string, object>
         {
-            ["alert_type"] = "GHOST_CHARGE",
+            ["alert_type"] = "CRITICAL_FINANCIAL",
             ["external_txn_id"] = alert.ExternalTransactionId,
             ["amount"] = alert.Amount,
             ["severity"] = "CRITICAL"
         }))
         {
             logger.LogCritical(
-                "🚨 CRITICAL FINANCIAL ALERT: Ghost charge detected! " +
-                "ExternalTxnId={ExternalTxnId}, Amount={Amount:C}, Reason={Reason}",
+                "🚨 CRITICAL FINANCIAL ALERT: {Reason}. " +
+                "ExternalTxnId={ExternalTxnId}, Amount={Amount:C}",
+                alert.Reason,
                 alert.ExternalTransactionId,
-                alert.Amount,
-                alert.Reason);
+                alert.Amount);
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
-        // 2. EMAIL NOTIFICATION: Finance Team Alert
+        // 3. PAGERDUTY: Real-time on-call alerting
         // ═══════════════════════════════════════════════════════════════════════════
-        var subject = $"🚨 CRITICAL: Ghost Charge Detected - ${alert.Amount:N2}";
+        if (!string.IsNullOrEmpty(options.PagerDutyRoutingKey))
+        {
+            await SendPagerDutyAlertAsync(
+                httpClientFactory,
+                options.PagerDutyRoutingKey,
+                alert,
+                logger,
+                cancellationToken);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 4. EMAIL NOTIFICATION: Finance Team Alert
+        // ═══════════════════════════════════════════════════════════════════════════
+        if (options.SendEmailAlerts)
+        {
+            await SendEmailAlertAsync(
+                emailProvider,
+                options.FinanceAlertEmail,
+                alert,
+                logger,
+                cancellationToken);
+        }
+    }
+
+    private static async Task SendPagerDutyAlertAsync(
+        IHttpClientFactory httpClientFactory,
+        string routingKey,
+        CriticalFinancialAlert alert,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        try
+        {
+            var client = httpClientFactory.CreateClient("PagerDuty");
+
+            // PagerDuty Events API v2 payload
+            // See: https://developer.pagerduty.com/docs/events-api-v2/trigger-events/
+            var payload = new
+            {
+                routing_key = routingKey,
+                event_action = "trigger",
+                dedup_key = $"netcommerce-finance-{alert.ExternalTransactionId}",
+                payload = new
+                {
+                    summary = $"Critical Financial Alert: {alert.Reason}",
+                    source = "NetCommerce Finance Module",
+                    severity = "critical",
+                    timestamp = alert.OccurredOn.ToString("o"),
+                    custom_details = new
+                    {
+                        external_transaction_id = alert.ExternalTransactionId,
+                        amount = alert.Amount,
+                        reason = alert.Reason,
+                        event_id = alert.EventId
+                    }
+                },
+                links = new[]
+                {
+                    new
+                    {
+                        href = $"https://dashboard.stripe.com/search?query={alert.ExternalTransactionId}",
+                        text = "View in Stripe Dashboard"
+                    }
+                }
+            };
+
+            var response = await client.PostAsJsonAsync("enqueue", payload, ct);
+
+            if (response.IsSuccessStatusCode)
+            {
+                logger.LogInformation(
+                    "PagerDuty alert sent successfully for {ExternalTxnId}",
+                    alert.ExternalTransactionId);
+            }
+            else
+            {
+                var responseBody = await response.Content.ReadAsStringAsync(ct);
+                logger.LogWarning(
+                    "PagerDuty alert failed: {StatusCode} - {Body}",
+                    response.StatusCode, responseBody);
+            }
+        }
+        catch (Exception ex)
+        {
+            // PagerDuty failure should NOT prevent other alert channels
+            logger.LogError(ex,
+                "Failed to send PagerDuty alert for {ExternalTxnId}. " +
+                "Alert was still logged at CRITICAL level and audit trail created.",
+                alert.ExternalTransactionId);
+        }
+    }
+
+    private static async Task SendEmailAlertAsync(
+        IEmailProvider emailProvider,
+        string recipientEmail,
+        CriticalFinancialAlert alert,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var subject = $"🚨 CRITICAL: Financial Alert - ${alert.Amount:N2}";
 
         var htmlBody = $"""
             <html>
@@ -68,7 +192,7 @@ public static class CriticalFinancialAlertHandler
                 </div>
 
                 <div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
-                    <h2 style="color: #333;">Ghost Charge Detected</h2>
+                    <h2 style="color: #333;">Financial Discrepancy Detected</h2>
 
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr>
@@ -110,25 +234,23 @@ public static class CriticalFinancialAlertHandler
 
         try
         {
-            // Send to finance alerts distribution list
-            // In production, configure via appsettings: Finance:AlertRecipients
             await emailProvider.SendEmailAsync(
-                to: "finance-alerts@company.com",
+                to: recipientEmail,
                 subject: subject,
                 htmlBody: htmlBody,
-                cancellationToken: cancellationToken);
+                cancellationToken: ct);
 
             logger.LogInformation(
-                "Finance alert email sent for ghost charge {ExternalTxnId}",
+                "Finance alert email sent to {Recipient} for {ExternalTxnId}",
+                recipientEmail,
                 alert.ExternalTransactionId);
         }
         catch (Exception ex)
         {
-            // Email failure should NOT prevent the alert from being logged
-            // The CRITICAL log above will still trigger monitoring systems
+            // Email failure should NOT prevent other alert channels
             logger.LogError(ex,
                 "Failed to send finance alert email for {ExternalTxnId}. " +
-                "Alert was still logged at CRITICAL level for monitoring systems.",
+                "PagerDuty and CRITICAL log alerts are independent.",
                 alert.ExternalTransactionId);
         }
     }

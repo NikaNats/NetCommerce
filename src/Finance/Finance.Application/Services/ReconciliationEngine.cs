@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Payments.Domain.Transactions;
@@ -8,6 +9,36 @@ using NetCommerce.Domain.Shared.Events;
 using Wolverine;
 
 namespace NetCommerce.Finance.Application.Services;
+
+/// <summary>
+///     Configuration options for financial alerting.
+///     Bound from configuration section "Finance:Alerting".
+/// </summary>
+public sealed class AlertingOptions
+{
+    public const string SectionName = "Finance:Alerting";
+
+    /// <summary>
+    ///     PagerDuty Events API routing key. Set to enable PagerDuty alerts.
+    /// </summary>
+    public string? PagerDutyRoutingKey { get; set; }
+
+    /// <summary>
+    ///     Threshold in currency amount above which discrepancies trigger alerts.
+    ///     Default: $100.00
+    /// </summary>
+    public decimal DiscrepancyAlertThreshold { get; set; } = 100.00m;
+
+    /// <summary>
+    ///     Whether to send email alerts in addition to PagerDuty.
+    /// </summary>
+    public bool SendEmailAlerts { get; set; } = true;
+
+    /// <summary>
+    ///     Email address for finance team alerts.
+    /// </summary>
+    public string FinanceAlertEmail { get; set; } = "finance-alerts@company.com";
+}
 
 /// <summary>
 ///     Core reconciliation engine implementing Double-Entry Ledger Verification.
@@ -21,6 +52,7 @@ public sealed class ReconciliationEngine
     private readonly IReconciliationSessionRepository _sessionRepo;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMessageBus _bus;
+    private readonly AlertingOptions _alertingOptions;
     private readonly ILogger<ReconciliationEngine> _logger;
 
     public ReconciliationEngine(
@@ -29,6 +61,7 @@ public sealed class ReconciliationEngine
         IReconciliationSessionRepository sessionRepo,
         IUnitOfWork unitOfWork,
         IMessageBus bus,
+        IOptions<AlertingOptions> alertingOptions,
         ILogger<ReconciliationEngine> logger)
     {
         _internalRepo = internalRepo;
@@ -36,6 +69,7 @@ public sealed class ReconciliationEngine
         _sessionRepo = sessionRepo;
         _unitOfWork = unitOfWork;
         _bus = bus;
+        _alertingOptions = alertingOptions.Value;
         _logger = logger;
     }
 
@@ -168,16 +202,67 @@ public sealed class ReconciliationEngine
 
     private async Task PublishCriticalAlertsAsync(ReconciliationSession session, CancellationToken ct)
     {
+        // 1. Always alert for ghost charges (money taken without order)
         var ghostCharges = session.Discrepancies
             .Where(d => d.Type == DiscrepancyType.MissingInternal)
             .ToList();
 
         foreach (var ghostCharge in ghostCharges)
         {
+            _logger.LogCritical(
+                "Publishing GHOST CHARGE alert: {ExternalId}, Amount={Amount}",
+                ghostCharge.ExternalTxnId, ghostCharge.Difference);
+
             await _bus.PublishAsync(new CriticalFinancialAlert(
                 ghostCharge.ExternalTxnId,
                 ghostCharge.Difference,
                 ghostCharge.Reason));
+        }
+
+        // 2. Alert for amount mismatches above threshold
+        var significantMismatches = session.Discrepancies
+            .Where(d => d.Type == DiscrepancyType.AmountMismatch &&
+                        Math.Abs(d.Difference) >= _alertingOptions.DiscrepancyAlertThreshold)
+            .ToList();
+
+        foreach (var mismatch in significantMismatches)
+        {
+            _logger.LogWarning(
+                "Publishing amount mismatch alert: {ExternalId}, Difference={Difference} (threshold: {Threshold})",
+                mismatch.ExternalTxnId, mismatch.Difference, _alertingOptions.DiscrepancyAlertThreshold);
+
+            await _bus.PublishAsync(new CriticalFinancialAlert(
+                mismatch.ExternalTxnId,
+                mismatch.Difference,
+                $"Amount mismatch exceeds ${_alertingOptions.DiscrepancyAlertThreshold:N2} threshold: {mismatch.Reason}"));
+        }
+
+        // 3. Alert for missing external records above threshold (possible failed captures)
+        var missingExternal = session.Discrepancies
+            .Where(d => d.Type == DiscrepancyType.MissingExternal &&
+                        Math.Abs(d.Difference) >= _alertingOptions.DiscrepancyAlertThreshold)
+            .ToList();
+
+        foreach (var missing in missingExternal)
+        {
+            _logger.LogWarning(
+                "Publishing missing PSP record alert: {ExternalId}, Amount={Amount}",
+                missing.ExternalTxnId, missing.Difference);
+
+            await _bus.PublishAsync(new CriticalFinancialAlert(
+                missing.ExternalTxnId,
+                missing.Difference,
+                $"Transaction marked completed but not in PSP ledger: {missing.Reason}"));
+        }
+
+        // 4. Log summary metrics
+        var alertCount = ghostCharges.Count + significantMismatches.Count + missingExternal.Count;
+        if (alertCount > 0)
+        {
+            _logger.LogWarning(
+                "Reconciliation completed with {AlertCount} alerts: {GhostCharges} ghost charges, " +
+                "{AmountMismatches} amount mismatches, {MissingExternal} missing PSP records",
+                alertCount, ghostCharges.Count, significantMismatches.Count, missingExternal.Count);
         }
     }
 }

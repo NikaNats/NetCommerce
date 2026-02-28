@@ -2,8 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Finance.Application.Services;
+using NetCommerce.Finance.Domain.Audit;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
+using NetCommerce.Finance.Domain.Webhooks;
 using NetCommerce.Finance.Infrastructure.Gateways;
 using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Finance.Infrastructure.Persistence.Repositories;
@@ -22,11 +24,22 @@ public static class FinanceModule
 {
     public static IServiceCollection AddFinanceModule(this IServiceCollection services, IConfiguration configuration)
     {
+        // ============================================================================
         // Domain Services
+        // ============================================================================
         services.AddScoped<ReconciliationEngine>();
 
+        // ============================================================================
         // Repositories
+        // ============================================================================
         services.AddScoped<IReconciliationSessionRepository, ReconciliationSessionRepository>();
+        services.AddScoped<IWebhookEventStore, WebhookEventStore>();
+        services.AddScoped<IFinancialAuditRepository, FinancialAuditRepository>();
+
+        // ============================================================================
+        // Alerting Configuration
+        // ============================================================================
+        services.Configure<AlertingOptions>(configuration.GetSection("Finance:Alerting"));
 
         // ============================================================================
         // Shared Stripe Infrastructure (from NetCommerce.Kernel.Stripe)
@@ -39,6 +52,15 @@ public static class FinanceModule
         // ============================================================================
         // Uses StripeClientFactory for proper connection pooling and resilience
         services.AddScoped<IPaymentGateway, StripeReconciliationGateway>();
+
+        // ============================================================================
+        // HTTP Client for PagerDuty/External Alerting
+        // ============================================================================
+        services.AddHttpClient("PagerDuty", client =>
+        {
+            client.BaseAddress = new Uri("https://events.pagerduty.com/v2/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
 
         // Database - uses AddKernelEfCore for interceptor-based audit & tenant isolation
         var connectionString = configuration.GetConnectionString("FinanceDb")

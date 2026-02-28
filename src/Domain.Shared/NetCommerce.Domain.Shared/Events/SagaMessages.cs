@@ -275,3 +275,83 @@ public sealed record ShipmentDeliveredIntegrationEvent(
     DateTime DeliveredAt) : IntegrationEvent;
 
 #endregion
+
+#region Stripe Webhook Events - Partial Refunds and Disputes
+
+/// <summary>
+///     Command dispatched when Stripe sends a charge.refunded webhook.
+///     Handles both full and partial refunds initiated from Stripe dashboard or API.
+/// </summary>
+public sealed record ProcessStripeRefundWebhook(
+    string ChargeId,
+    string RefundId,
+    decimal AmountRefunded,
+    decimal TotalRefundedSoFar,
+    string Currency,
+    string StripeEventId,
+    string? PaymentIntentId,
+    string? Reason) : ICommand;
+
+/// <summary>
+///     Command dispatched when Stripe sends a charge.dispute.created webhook.
+///     Disputes (chargebacks) require immediate attention — customer's bank initiated reversal.
+/// </summary>
+public sealed record ProcessStripeDisputeCreated(
+    string DisputeId,
+    string ChargeId,
+    decimal Amount,
+    string Currency,
+    string Reason,
+    string Status,
+    string StripeEventId,
+    DateTime? EvidenceDueBy) : ICommand;
+
+/// <summary>
+///     Command dispatched when Stripe sends charge.dispute.updated webhook.
+///     Tracks dispute lifecycle: needs_response → under_review → won/lost.
+/// </summary>
+public sealed record ProcessStripeDisputeUpdated(
+    string DisputeId,
+    string ChargeId,
+    string Status,
+    string StripeEventId) : ICommand;
+
+/// <summary>
+///     Event published when a partial refund is successfully processed.
+///     Saga may need to update order state or notify customer.
+/// </summary>
+public sealed record PartialRefundProcessed(
+    [property: SagaIdentity] Guid OrderId,
+    string RefundId,
+    decimal AmountRefunded,
+    decimal TotalRefundedSoFar,
+    decimal OriginalAmount) : IntegrationEvent;
+
+/// <summary>
+///     Event published when a dispute is created against an order.
+///     Finance team must respond with evidence before deadline.
+/// </summary>
+public sealed record DisputeCreatedForOrder(
+    [property: SagaIdentity] Guid OrderId,
+    string DisputeId,
+    decimal Amount,
+    string Reason,
+    DateTime? EvidenceDueBy) : IntegrationEvent;
+
+/// <summary>
+///     Event published when dispute outcome is determined.
+/// </summary>
+public sealed record DisputeResolved(
+    [property: SagaIdentity] Guid OrderId,
+    string DisputeId,
+    DisputeOutcome Outcome) : IntegrationEvent;
+
+public enum DisputeOutcome
+{
+    Won = 0,
+    Lost = 1,
+    ChargeRefunded = 2,
+    WarningClosed = 3
+}
+
+#endregion

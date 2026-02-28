@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
@@ -320,6 +321,7 @@ public class GhostChargeRecoveryTests : IntegrationTestBase
             services.GetRequiredService<IReconciliationSessionRepository>(),
             services.GetRequiredService<IUnitOfWork>(),
             services.GetRequiredService<IMessageBus>(),
+            services.GetRequiredService<IOptions<AlertingOptions>>(),
             services.GetRequiredService<ILogger<ReconciliationEngine>>());
     }
 

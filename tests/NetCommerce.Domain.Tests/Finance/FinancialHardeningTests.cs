@@ -2,6 +2,7 @@
 #pragma warning disable CA5394 // Random is not cryptographically secure - acceptable for deterministic test data
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
@@ -46,6 +47,7 @@ public class FinancialHardeningTests
     private readonly IReconciliationSessionRepository _sessionRepo;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMessageBus _bus;
+    private readonly IOptions<AlertingOptions> _alertingOptions;
     private readonly ILogger<ReconciliationEngine> _logger;
     private readonly ReconciliationEngine _engine;
 
@@ -56,6 +58,7 @@ public class FinancialHardeningTests
         _sessionRepo = Substitute.For<IReconciliationSessionRepository>();
         _unitOfWork = Substitute.For<IUnitOfWork>();
         _bus = Substitute.For<IMessageBus>();
+        _alertingOptions = Options.Create(new AlertingOptions { DiscrepancyAlertThreshold = 100m });
         _logger = Substitute.For<ILogger<ReconciliationEngine>>();
 
         _engine = new ReconciliationEngine(
@@ -64,6 +67,7 @@ public class FinancialHardeningTests
             _sessionRepo,
             _unitOfWork,
             _bus,
+            _alertingOptions,
             _logger);
     }
 

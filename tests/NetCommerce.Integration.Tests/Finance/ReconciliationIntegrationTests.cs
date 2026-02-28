@@ -3,6 +3,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
@@ -263,6 +264,7 @@ public class ReconciliationIntegrationTests : IntegrationTestBase
             services.GetRequiredService<IReconciliationSessionRepository>(),
             services.GetRequiredService<NetCommerce.Kernel.Application.IUnitOfWork>(),
             services.GetRequiredService<IMessageBus>(),
+            services.GetRequiredService<IOptions<AlertingOptions>>(),
             services.GetRequiredService<ILogger<ReconciliationEngine>>());
     }
 
