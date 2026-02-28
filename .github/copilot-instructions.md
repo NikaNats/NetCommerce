@@ -99,17 +99,6 @@ The `Directory.Build.props` enforces **TreatWarningsAsErrors** in Release/CI bui
 4. **Idempotency**: Critical endpoints require `X-Idempotency-Key` header; use `IdempotencyFilter`
 5. **Soft Reservations**: Inventory is reserved (not deducted) during checkout; confirmed on payment success
 
-## ⚠️ Phase 5: Serialization Risk
-
-**CRITICAL:** Wolverine saga state and outbox messages are persisted with fully qualified type names. After Phase 5 migration:
-- Use `NetCommerce.Domain.Shared.Money` (NOT `NetCommerce.SharedKernel.Domain.Money`)
-- Use `NetCommerce.Domain.Shared.Events.*` (NOT `NetCommerce.SharedKernel.Events.*`)
-
-**For Development:** Clear Wolverine tables before deploying Phase 5 changes
-**For Production:** See [docs/PHASE_5_SERIALIZATION_MIGRATION.md](../docs/PHASE_5_SERIALIZATION_MIGRATION.md)
-
-Legacy types are marked `[Obsolete]` to guide migration. The saga at `src/Ordering/Ordering.Application/Sagas/OrderFulfillmentSaga.cs` contains serialized `Money` instances.
-
 ## Test Categories
 
 | Test Project | Purpose |

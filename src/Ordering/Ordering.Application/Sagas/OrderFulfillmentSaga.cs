@@ -22,11 +22,9 @@ namespace NetCommerce.Ordering.Application.Sagas;
 ///
 ///     Architecture: Saga as Process Manager in the Ordering module (bounded context owner).
 ///
-///     ⚠️ SERIALIZATION NOTE: This saga state is persisted to PostgreSQL by Wolverine.
-///     The fully qualified type names are stored in the JSON. After Phase 5 migration,
-///     saga state uses NetCommerce.Domain.Shared.Money (canonical) instead of the legacy
-///     NetCommerce.SharedKernel.Domain.Money. For production deployments, see:
-///     docs/PHASE_5_SERIALIZATION_MIGRATION.md
+///     SERIALIZATION NOTE: This saga state is persisted to PostgreSQL by Wolverine.
+///     The fully qualified type names are stored in the JSON.
+///     Saga state uses NetCommerce.Domain.Shared.Money (canonical).
 /// </summary>
 public sealed class OrderFulfillmentSaga : Saga
 {
