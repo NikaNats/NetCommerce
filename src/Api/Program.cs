@@ -153,7 +153,14 @@ builder.AddZeroTrustAuthentication();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", policy => policy.RequireRole("admin"))
     .AddPolicy("VendorOnly", policy => policy.RequireRole("admin", "vendor"))
-    .AddPolicy("CustomerOnly", policy => policy.RequireRole("customer"));
+    .AddPolicy("CustomerOnly", policy => policy.RequireRole("customer"))
+    .AddPolicy("OwnerOnly", policy =>
+        policy.Requirements.Add(new NetCommerce.Kernel.Security.Authorization.ResourceOwnerRequirement()))
+    .AddPolicy("AdminElevated", policy =>
+    {
+        policy.RequireRole("admin", "Admin");
+        policy.Requirements.Add(new NetCommerce.Kernel.Security.Authorization.AdminElevatedRequirement());
+    });
 
 // ============================================================================
 // Response Compression (Brotli + Gzip)

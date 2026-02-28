@@ -23,7 +23,8 @@ public class OrderEndpoints : IEndpointGroup
             .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
             .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Orders")
-            .WithDescription("Submit and manage orders");
+            .WithDescription("Submit and manage orders")
+            .RequireRateLimiting("PerUser");
 
         group.MapPost("/", CreateOrder)
             .WithName("CreateOrder")

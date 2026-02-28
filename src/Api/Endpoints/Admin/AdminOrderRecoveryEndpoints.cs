@@ -21,7 +21,8 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
             .WithApiVersionSet(versionSet)
             .HasApiVersion(1.0)
             .WithTags("Admin Order Recovery")
-            .RequireAuthorization(policy => policy.RequireRole("Admin", "SupportEngineer"));
+            .RequireAuthorization("AdminElevated")
+            .RequireRateLimiting("AdminStrict");
 
         group.MapPost("{orderId:guid}/force-complete", ForceCompleteSaga)
             .WithName("ForceCompleteSaga")
@@ -58,7 +59,8 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
             .WithApiVersionSet(versionSet)
             .HasApiVersion(1.0)
             .WithTags("Admin Order Recovery")
-            .RequireAuthorization(policy => policy.RequireRole("Admin"));
+            .RequireAuthorization("AdminElevated")
+            .RequireRateLimiting("AdminStrict");
 
         bulkGroup.MapPost("bulk-retry-stuck", BulkRetryStuckOrders)
             .WithName("BulkRetryStuckOrders")

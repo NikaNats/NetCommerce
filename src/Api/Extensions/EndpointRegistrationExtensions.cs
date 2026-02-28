@@ -2,6 +2,7 @@
 
 using Asp.Versioning.Builder;
 using NetCommerce.Api.Endpoints.Admin;
+using NetCommerce.Api.Endpoints.Auth;
 using NetCommerce.Api.Endpoints.Basket;
 using NetCommerce.Api.Endpoints.Catalog;
 using NetCommerce.Api.Endpoints.Inventory;
@@ -47,6 +48,9 @@ public static class EndpointRegistrationExtensions
 
         // Payments - Uses IEndpoint (static abstract) instead of IEndpointGroup
         PaymentWebhookEndpoints.Map(app, versionSet);
+
+        // Authentication - Token management, refresh rotation, session info
+        new AuthEndpoints().MapEndpoints(app, versionSet);
 
         // Admin - Operational Recovery and Finance Management
         new AdminFinanceEndpoints().MapEndpoints(app, versionSet);

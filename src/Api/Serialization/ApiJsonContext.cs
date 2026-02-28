@@ -18,6 +18,7 @@ using NetCommerce.Api.Endpoints.Ordering;
 using NetCommerce.Api.Endpoints.Basket;
 using NetCommerce.Api.Endpoints.Inventory;
 using NetCommerce.Api.Endpoints.Admin;
+using NetCommerce.Api.Endpoints.Auth;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Finance.Application.Commands;
 
@@ -127,6 +128,15 @@ namespace NetCommerce.Api.Serialization;
 // Admin - Finance
 [JsonSerializable(typeof(TriggerReconciliationRequest))]
 [JsonSerializable(typeof(ResolveDiscrepancyRequest))]
+
+// Auth - BFF Keycloak proxy (token exchange, refresh, revoke, logout, session)
+[JsonSerializable(typeof(TokenRequest))]
+[JsonSerializable(typeof(RefreshRequest))]
+[JsonSerializable(typeof(RevokeRequest))]
+[JsonSerializable(typeof(LogoutRequest))]
+[JsonSerializable(typeof(TokenResponse))]
+[JsonSerializable(typeof(SessionInfoResponse))]
+[JsonSerializable(typeof(AuthErrorResponse))]
 
 // Common response types
 [JsonSerializable(typeof(HealthResponse))]

@@ -18,7 +18,8 @@ public class AdminFinanceEndpoints : IEndpointGroup
             .WithApiVersionSet(versionSet)
             .HasApiVersion(1.0)
             .WithTags("Admin Finance")
-            .RequireAuthorization(policy => policy.RequireRole("Admin", "Finance"));
+            .RequireAuthorization("AdminElevated")
+            .RequireRateLimiting("AdminStrict");
 
         group.MapGet("/reconciliation-sessions", GetReconciliationSessions)
             .WithName("GetReconciliationSessions")

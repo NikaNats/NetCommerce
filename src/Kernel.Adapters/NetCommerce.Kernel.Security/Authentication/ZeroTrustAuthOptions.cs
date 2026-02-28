@@ -90,4 +90,27 @@ public sealed class ZeroTrustAuthOptions
     public string IntrospectionEndpoint => string.IsNullOrEmpty(RealmUrl)
         ? string.Empty
         : $"{RealmUrl}/protocol/openid-connect/token/introspect";
+
+    /// <summary>
+    ///     Gets the token revocation endpoint URL (RFC 7009).
+    ///     Used by the BFF proxy to revoke refresh tokens at Keycloak.
+    /// </summary>
+    public string RevocationEndpoint => string.IsNullOrEmpty(RealmUrl)
+        ? string.Empty
+        : $"{RealmUrl}/protocol/openid-connect/revoke";
+
+    /// <summary>
+    ///     Gets the end-session (logout) endpoint URL (OIDC RP-Initiated Logout).
+    ///     Used by the BFF proxy to terminate Keycloak sessions.
+    /// </summary>
+    public string EndSessionEndpoint => string.IsNullOrEmpty(RealmUrl)
+        ? string.Empty
+        : $"{RealmUrl}/protocol/openid-connect/logout";
+
+    /// <summary>
+    ///     Gets or sets the default client ID used for BFF token proxy operations.
+    ///     This is the public client that the SPA uses for the Authorization Code flow.
+    ///     Default: "netcommerce-web".
+    /// </summary>
+    public string BffClientId { get; set; } = "netcommerce-web";
 }

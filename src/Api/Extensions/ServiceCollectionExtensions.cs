@@ -92,6 +92,46 @@ public static partial class ServiceCollectionExtensions
                         QueueLimit = 100
                     }));
 
+            // Per-user token bucket policy: Authenticated users get higher limits but are
+            // individually tracked. Falls back to IP partitioning for anonymous requests.
+            // Token bucket allows bursts while maintaining average rate.
+            options.AddPolicy("PerUser", httpContext =>
+            {
+                var userId = httpContext.User.FindFirst("sub")?.Value
+                             ?? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                var partitionKey = !string.IsNullOrEmpty(userId)
+                    ? $"user:{userId}"
+                    : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
+                return System.Threading.RateLimiting.RateLimitPartition.GetTokenBucketLimiter(
+                    partitionKey,
+                    _ => new System.Threading.RateLimiting.TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = 60,                                          // Max burst capacity
+                        ReplenishmentPeriod = TimeSpan.FromSeconds(10),           // Refill interval
+                        TokensPerPeriod = 10,                                     // Tokens added per interval
+                        QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 5,
+                        AutoReplenishment = true
+                    });
+            });
+
+            // Admin-specific strict rate limit: Lower limits for destructive admin operations
+            options.AddPolicy("AdminStrict", httpContext =>
+            {
+                var userId = httpContext.User.FindFirst("sub")?.Value ?? "unknown-admin";
+                return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                    $"admin:{userId}",
+                    _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 2
+                    });
+            });
+
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
             {

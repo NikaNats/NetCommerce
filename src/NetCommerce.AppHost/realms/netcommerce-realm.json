@@ -31,6 +31,8 @@
   "accessCodeLifespanLogin": 1800,
   "actionTokenGeneratedByAdminLifespan": 43200,
   "actionTokenGeneratedByUserLifespan": 300,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
   "attributes": {
     "tokenExchangeStandardFlowEnabled": "true"
   },
@@ -129,7 +131,7 @@
       "consentRequired": false,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "publicClient": false,
       "frontchannelLogout": false,
@@ -139,7 +141,10 @@
         "oidc.ciba.grant.enabled": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
-        "backchannel.logout.revoke.offline.tokens": "false"
+        "backchannel.logout.revoke.offline.tokens": "true",
+        "revoke.refresh.token": "true",
+        "refresh.token.max.reuse": "0",
+        "pkce.code.challenge.method": "S256"
       },
       "authorizationSettings": {
         "allowRemoteResourceManagement": true,
@@ -178,7 +183,7 @@
     {
       "clientId": "netcommerce-web",
       "name": "NetCommerce Web Application",
-      "description": "Frontend SPA/Web Client",
+      "description": "Frontend SPA/Web Client - Authorization Code + PKCE only",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
@@ -204,7 +209,9 @@
       "protocol": "openid-connect",
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*",
+        "revoke.refresh.token": "true",
+        "refresh.token.max.reuse": "0"
       },
       "fullScopeAllowed": true,
       "defaultClientScopes": [
@@ -282,6 +289,37 @@
         "access.token.lifespan": "300"
       },
       "fullScopeAllowed": false,
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email",
+        "netcommerce.api"
+      ]
+    },
+    {
+      "clientId": "netcommerce-test",
+      "name": "NetCommerce Test Client",
+      "description": "Integration test client — ROPC enabled for automated testing only. Do NOT deploy to production.",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "test-secret-only-for-dev",
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "revoke.refresh.token": "true",
+        "refresh.token.max.reuse": "0"
+      },
+      "fullScopeAllowed": true,
       "defaultClientScopes": [
         "web-origins",
         "acr",

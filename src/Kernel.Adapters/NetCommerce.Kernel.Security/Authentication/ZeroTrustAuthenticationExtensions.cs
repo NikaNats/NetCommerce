@@ -1,6 +1,7 @@
 #nullable enable
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Security.Authorization;
 
 namespace NetCommerce.Kernel.Security.Authentication;
 
@@ -118,6 +120,22 @@ public static class ZeroTrustAuthenticationExtensions
 
         // 9. Register HttpTenantContext as ITenantContext (required by BaseDbContext multi-tenancy filters)
         services.AddScoped<ITenantContext, HttpTenantContext>();
+
+        // 10. Register Keycloak BFF Token Proxy (typed HttpClient)
+        // All token lifecycle management is delegated to Keycloak via this proxy.
+        services.AddHttpClient<KeycloakTokenProxy>()
+            .ConfigureHttpClient((_, client) =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(10);
+            });
+
+        // 11. Register Admin API Key options
+        services.AddOptions<AdminApiKeyOptions>()
+            .Bind(configuration.GetSection(AdminApiKeyOptions.SectionName));
+
+        // 12. Register Authorization Handlers
+        services.AddSingleton<IAuthorizationHandler, ResourceOwnerAuthorizationHandler>();
+        services.AddSingleton<IAuthorizationHandler, AdminElevatedAuthorizationHandler>();
 
         return builder;
     }

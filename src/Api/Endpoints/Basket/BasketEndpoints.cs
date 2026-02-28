@@ -13,7 +13,8 @@ public class BasketEndpoints : IEndpointGroup
             .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
             .HasApiVersion(1.0)            // Specify which versions this group supports
             .WithTags("Basket")
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .RequireRateLimiting("PerUser");
 
         group.MapGet("/", GetBasket)
             .WithName("GetBasket")
