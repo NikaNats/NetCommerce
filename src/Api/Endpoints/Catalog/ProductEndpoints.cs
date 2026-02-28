@@ -9,7 +9,6 @@ using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Kernel.Application;
-using NetCommerce.Kernel.Core.Application;
 using NetCommerce.Kernel.Core.Results;
 using Wolverine;
 

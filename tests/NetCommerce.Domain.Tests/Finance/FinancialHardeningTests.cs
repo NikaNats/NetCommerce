@@ -6,9 +6,6 @@ using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
-using NetCommerce.Ordering.Application.Orders.Services;
-using NetCommerce.Ordering.Infrastructure.Services;
-using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.Application;
 using NSubstitute;
@@ -19,7 +16,6 @@ using Xunit;
 
 // Resolve ambiguous references
 using FinanceIPaymentGateway = NetCommerce.Finance.Domain.Gateways.IPaymentGateway;
-using DomainPaymentProvider = NetCommerce.Payments.Domain.Transactions.PaymentProvider;
 
 namespace NetCommerce.Domain.Tests.Finance;
 
@@ -42,7 +38,7 @@ namespace NetCommerce.Domain.Tests.Finance;
 [Trait("Category", "Critical")]
 public class FinancialHardeningTests
 {
-    private readonly IPaymentTransactionRepository _internalRepo;
+    private readonly IPaymentTransactionReadService _internalRepo;
     private readonly FinanceIPaymentGateway _pspGateway;
     private readonly IReconciliationSessionRepository _sessionRepo;
     private readonly IUnitOfWork _unitOfWork;
@@ -53,7 +49,7 @@ public class FinancialHardeningTests
 
     public FinancialHardeningTests()
     {
-        _internalRepo = Substitute.For<IPaymentTransactionRepository>();
+        _internalRepo = Substitute.For<IPaymentTransactionReadService>();
         _pspGateway = Substitute.For<FinanceIPaymentGateway>();
         _sessionRepo = Substitute.For<IReconciliationSessionRepository>();
         _unitOfWork = Substitute.For<IUnitOfWork>();
@@ -93,7 +89,7 @@ public class FinancialHardeningTests
         var date = DateTime.Today.AddDays(-1);
 
         // Internal Reality: Empty ledger (crash killed the transaction)
-        var internalTxns = new List<PaymentTransaction>();
+        var internalTxns = new List<PaymentTransactionSummary>();
 
         // External Reality: PSP successfully charged customer $299.99
         var ghostChargeId = "pi_ghost_" + Guid.NewGuid().ToString("N")[..8];
@@ -146,7 +142,7 @@ public class FinancialHardeningTests
     {
         // Arrange - Mass crash scenario
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>();
+        var internalTxns = new List<PaymentTransactionSummary>();
 
         var ghostCharges = new List<ExternalTransaction>
         {
@@ -187,7 +183,7 @@ public class FinancialHardeningTests
         var date = DateTime.Today.AddDays(-1);
 
         // Internal: 3 successful orders
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "pi_saved_001", 100m),
             CreatePaymentTransaction(Guid.NewGuid(), "pi_saved_002", 200m),
@@ -413,7 +409,7 @@ public class FinancialHardeningTests
         var date = DateTime.Today.AddDays(-1);
 
         // Internal: Order in GEL
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "pi_currency_test", 100m, "GEL")
         };
@@ -477,7 +473,7 @@ public class FinancialHardeningTests
         var date = DateTime.Today.AddDays(-1);
 
         // Internal: We think we charged $100
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "pi_mismatch", 100m)
         };
@@ -515,7 +511,7 @@ public class FinancialHardeningTests
         // Arrange
         var date = DateTime.Today.AddDays(-1);
 
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "pi_cent_diff", 100.00m)
         };
@@ -562,7 +558,7 @@ public class FinancialHardeningTests
         var date = DateTime.Today.AddDays(-1);
 
         // Internal: We have a completed payment record
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "pi_orphan_001", 250m),
             CreatePaymentTransaction(Guid.NewGuid(), "pi_exists_002", 150m),
@@ -603,7 +599,7 @@ public class FinancialHardeningTests
         var date = DateTime.Today.AddDays(-1);
 
         // Internal: Completed payment with NO external transaction ID
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransactionWithoutExternalId(Guid.NewGuid(), 500m),
         };
@@ -637,7 +633,7 @@ public class FinancialHardeningTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "pi_perfect_001", 100m),
             CreatePaymentTransaction(Guid.NewGuid(), "pi_perfect_002", 200m),
@@ -694,38 +690,28 @@ public class FinancialHardeningTests
 
     #region Helper Methods
 
-    private static PaymentTransaction CreatePaymentTransaction(
+    private static PaymentTransactionSummary CreatePaymentTransaction(
         Guid orderId,
         string externalId,
         decimal amount,
         string currency = "USD")
     {
-        var payment = PaymentTransaction.Create(
+        return new PaymentTransactionSummary(
+            Guid.NewGuid(),
             orderId,
             Money.Create(amount, currency),
-            DomainPaymentProvider.Stripe,
-            $"idempotency-{orderId}");
-
-        // Simulate completed payment
-        payment.MarkAsCompleted(externalId);
-
-        return payment;
+            externalId);
     }
 
-    private static PaymentTransaction CreatePaymentTransactionWithoutExternalId(
+    private static PaymentTransactionSummary CreatePaymentTransactionWithoutExternalId(
         Guid orderId,
         decimal amount)
     {
-        var payment = PaymentTransaction.Create(
+        return new PaymentTransactionSummary(
+            Guid.NewGuid(),
             orderId,
             Money.Create(amount, "USD"),
-            DomainPaymentProvider.Stripe,
-            $"idempotency-{orderId}");
-
-        // CRITICAL: Mark as completed WITHOUT external ID (system error simulation)
-        payment.MarkAsCompleted(null!); // Null external ID
-
-        return payment;
+            null); // Null external ID — simulates system error
     }
 
     #endregion

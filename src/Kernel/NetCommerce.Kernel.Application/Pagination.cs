@@ -1,5 +1,5 @@
 #nullable enable
-namespace NetCommerce.Kernel.Core.Application;
+namespace NetCommerce.Kernel.Application;
 
 /// <summary>
 ///     Pagination parameters for list queries.

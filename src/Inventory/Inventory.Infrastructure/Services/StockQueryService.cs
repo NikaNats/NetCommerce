@@ -1,7 +1,7 @@
 #nullable enable
 
 using Microsoft.EntityFrameworkCore;
-using NetCommerce.Inventory.Application.Stock.Queries;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Inventory.Infrastructure.Persistence;
 
 namespace NetCommerce.Inventory.Infrastructure.Services;

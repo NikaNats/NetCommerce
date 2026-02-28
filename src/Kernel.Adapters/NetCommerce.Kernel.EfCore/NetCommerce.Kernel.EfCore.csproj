@@ -12,14 +12,13 @@
     <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
     <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj"/>
     <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
-    <ProjectReference Include="..\NetCommerce.Kernel.Wolverine\NetCommerce.Kernel.Wolverine.csproj"/>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore"/>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
-    <PackageReference Include="WolverineFx"/>
+    <PackageReference Include="WolverineFx.EntityFrameworkCore"/>
   </ItemGroup>
 
 </Project>

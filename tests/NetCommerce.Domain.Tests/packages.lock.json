@@ -1316,14 +1316,12 @@
           "Catalog.Application": "[1.0.0, )",
           "Catalog.Domain": "[1.0.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
-          "Inventory.Application": "[1.0.0, )",
           "MeiliSearch": "[0.18.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.2, )",
           "Microsoft.Extensions.Caching.Hybrid": "[10.1.0, )",
           "NetCommerce.Domain.Shared": "[1.0.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
-          "Ordering.Domain": "[1.0.0, )",
           "WolverineFx": "[5.13.0, )"
         }
       },
@@ -1333,7 +1331,6 @@
           "Finance.Domain": "[1.0.0, )",
           "NetCommerce.Domain.Shared": "[1.0.0, )",
           "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "Payments.Domain": "[1.0.0, )",
           "WolverineFx": "[5.13.0, )"
         }
       },
@@ -1353,9 +1350,6 @@
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "NetCommerce.Kernel.EfCore": "[1.0.0, )",
           "NetCommerce.Kernel.Stripe": "[1.0.0, )",
-          "Ordering.Application": "[1.0.0, )",
-          "Payments.Domain": "[1.0.0, )",
-          "Payments.Infrastructure": "[1.0.0, )",
           "Stripe.net": "[50.4.0-beta.1, )",
           "WolverineFx.EntityFrameworkCore": "[5.13.0, )"
         }
@@ -1419,9 +1413,8 @@
           "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Compliance": "[1.0.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "NetCommerce.Kernel.Wolverine": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
-          "WolverineFx": "[5.13.0, )"
+          "WolverineFx.EntityFrameworkCore": "[5.13.0, )"
         }
       },
       "netcommerce.kernel.security": {
@@ -1447,7 +1440,6 @@
         "dependencies": {
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.1, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.2, )",
-          "NetCommerce.Domain.Shared": "[1.0.0, )",
           "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Compliance": "[1.0.0, )",
           "Npgsql": "[10.0.1, )",

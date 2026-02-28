@@ -1,10 +1,10 @@
 #nullable enable
 
-namespace NetCommerce.Inventory.Application.Stock.Queries;
+namespace NetCommerce.Domain.Shared;
 
 /// <summary>
-///     Service interface for querying stock information.
-///     Used by other modules (like Catalog) to get stock data without coupling to Inventory domain.
+///     Cross-module contract: Service interface for querying stock information.
+///     Defined in Domain.Shared because it's consumed by Catalog and implemented by Inventory.
 /// </summary>
 public interface IStockQueryService
 {

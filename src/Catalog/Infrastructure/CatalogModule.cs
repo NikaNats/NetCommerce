@@ -12,7 +12,7 @@ using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
-using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.EfCore;
 
 namespace NetCommerce.Catalog.Infrastructure;

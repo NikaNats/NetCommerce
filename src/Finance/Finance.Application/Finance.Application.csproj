@@ -6,7 +6,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Finance.Domain\Finance.Domain.csproj"/>
-    <ProjectReference Include="..\..\Payments\Payments.Domain\Payments.Domain.csproj"/>
     <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
     <ProjectReference Include="..\..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
   </ItemGroup>

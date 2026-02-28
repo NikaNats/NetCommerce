@@ -15,7 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Media.Application\Media.Application.csproj"/>
-    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Application\NetCommerce.Kernel.Application.csproj"/>
   </ItemGroup>
 
 </Project>

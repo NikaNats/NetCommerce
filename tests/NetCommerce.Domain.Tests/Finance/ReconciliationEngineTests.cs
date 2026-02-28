@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
-using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.Application;
 using NSubstitute;
@@ -17,7 +16,7 @@ namespace NetCommerce.Domain.Tests.Finance;
 /// </summary>
 public class ReconciliationEngineTests
 {
-    private readonly IPaymentTransactionRepository _internalRepo;
+    private readonly IPaymentTransactionReadService _internalRepo;
     private readonly IPaymentGateway _pspGateway;
     private readonly IReconciliationSessionRepository _sessionRepo;
     private readonly IUnitOfWork _unitOfWork;
@@ -28,7 +27,7 @@ public class ReconciliationEngineTests
 
     public ReconciliationEngineTests()
     {
-        _internalRepo = Substitute.For<IPaymentTransactionRepository>();
+        _internalRepo = Substitute.For<IPaymentTransactionReadService>();
         _pspGateway = Substitute.For<IPaymentGateway>();
         _sessionRepo = Substitute.For<IReconciliationSessionRepository>();
         _unitOfWork = Substitute.For<IUnitOfWork>();
@@ -51,7 +50,7 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "ch_123", 99.99m), // Matches external GROSS
             CreatePaymentTransaction(Guid.NewGuid(), "ch_456", 149.99m) // Matches external GROSS
@@ -84,7 +83,7 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "ch_123", 99.99m) // Matches external GROSS
         };
@@ -121,7 +120,7 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "ch_123", 99.99m),
             CreatePaymentTransaction(Guid.NewGuid(), "ch_missing", 75.00m)
@@ -154,7 +153,7 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "ch_123", 100.00m)
         };
@@ -186,7 +185,7 @@ public class ReconciliationEngineTests
     {
         // Arrange (0.009 difference - within 1 cent tolerance)
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>
+        var internalTxns = new List<PaymentTransactionSummary>
         {
             CreatePaymentTransaction(Guid.NewGuid(), "ch_123", 100.000m)
         };
@@ -216,7 +215,7 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>();
+        var internalTxns = new List<PaymentTransactionSummary>();
         var externalTxns = new List<ExternalTransaction>();
 
         _internalRepo.GetCompletedByDateAsync(date, Arg.Any<CancellationToken>())
@@ -242,7 +241,7 @@ public class ReconciliationEngineTests
         // Arrange
         var date = DateTime.Today.AddDays(-1);
         _internalRepo.GetCompletedByDateAsync(date, Arg.Any<CancellationToken>())
-            .Returns(new List<PaymentTransaction>());
+            .Returns(new List<PaymentTransactionSummary>());
         _pspGateway.GetExternalLedgerAsync(date, Arg.Any<CancellationToken>())
             .Returns(Task.FromException<IReadOnlyList<ExternalTransaction>>(new HttpRequestException("API connection failed")));
 
@@ -261,15 +260,13 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var txnWithoutExternalId = PaymentTransaction.Create(
+        var txnWithoutExternalId = new PaymentTransactionSummary(
+            Guid.NewGuid(),
             Guid.NewGuid(),
             new Money(100m, "USD"),
-            PaymentProvider.Stripe,
-            "idempotency-missing-external");
-        // Complete it without external ID
-        txnWithoutExternalId.MarkAsCompleted(null);
+            null); // No external ID — simulates system error
 
-        var internalTxns = new List<PaymentTransaction> { txnWithoutExternalId };
+        var internalTxns = new List<PaymentTransactionSummary> { txnWithoutExternalId };
         var externalTxns = new List<ExternalTransaction>();
 
         _internalRepo.GetCompletedByDateAsync(date, Arg.Any<CancellationToken>())
@@ -294,7 +291,7 @@ public class ReconciliationEngineTests
     {
         // Arrange
         var date = DateTime.Today.AddDays(-1);
-        var internalTxns = new List<PaymentTransaction>();
+        var internalTxns = new List<PaymentTransactionSummary>();
         var externalTxns = new List<ExternalTransaction>
         {
             new ExternalTransaction("ch_ghost_1", 100.00m, 97.00m, 3.00m, "USD", DateTime.UtcNow, "Ghost 1"),
@@ -319,14 +316,12 @@ public class ReconciliationEngineTests
             Arg.Any<CancellationToken>());
     }
 
-    private PaymentTransaction CreatePaymentTransaction(Guid orderId, string externalId, decimal amount)
+    private PaymentTransactionSummary CreatePaymentTransaction(Guid orderId, string externalId, decimal amount)
     {
-        var txn = PaymentTransaction.Create(
+        return new PaymentTransactionSummary(
+            Guid.NewGuid(),
             orderId,
             new Money(amount, "USD"),
-            PaymentProvider.Stripe,
-            $"idempotency-{orderId}");
-        txn.MarkAsCompleted(externalId);
-        return txn;
+            externalId);
     }
 }

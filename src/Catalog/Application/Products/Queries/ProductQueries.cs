@@ -1,7 +1,6 @@
 #nullable enable
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Kernel.Application;
-using NetCommerce.Kernel.Core.Application;
 
 namespace NetCommerce.Catalog.Application.Products.Queries;
 

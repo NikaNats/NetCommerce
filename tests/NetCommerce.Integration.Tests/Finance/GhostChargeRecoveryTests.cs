@@ -316,7 +316,7 @@ public class GhostChargeRecoveryTests : IntegrationTestBase
         IPaymentGateway mockGateway)
     {
         return new ReconciliationEngine(
-            services.GetRequiredService<IPaymentTransactionRepository>(),
+            services.GetRequiredService<IPaymentTransactionReadService>(),
             mockGateway,
             services.GetRequiredService<IReconciliationSessionRepository>(),
             services.GetRequiredService<IUnitOfWork>(),

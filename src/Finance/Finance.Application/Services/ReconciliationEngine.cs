@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
-using NetCommerce.Payments.Domain.Transactions;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Domain.Shared.Events;
@@ -47,7 +47,7 @@ public sealed class AlertingOptions
 /// </summary>
 public sealed class ReconciliationEngine
 {
-    private readonly IPaymentTransactionRepository _internalRepo;
+    private readonly IPaymentTransactionReadService _internalRepo;
     private readonly IPaymentGateway _pspGateway;
     private readonly IReconciliationSessionRepository _sessionRepo;
     private readonly IUnitOfWork _unitOfWork;
@@ -56,7 +56,7 @@ public sealed class ReconciliationEngine
     private readonly ILogger<ReconciliationEngine> _logger;
 
     public ReconciliationEngine(
-        IPaymentTransactionRepository internalRepo,
+        IPaymentTransactionReadService internalRepo,
         IPaymentGateway pspGateway,
         IReconciliationSessionRepository sessionRepo,
         IUnitOfWork unitOfWork,
@@ -129,7 +129,7 @@ public sealed class ReconciliationEngine
     }
 
     private async Task PerformInternalToExternalComparisonAsync(
-        IReadOnlyList<PaymentTransaction> internalTxns,
+        IReadOnlyList<PaymentTransactionSummary> internalTxns,
         IReadOnlyList<ExternalTransaction> externalTxns,
         ReconciliationSession session,
         CancellationToken ct)
@@ -174,7 +174,7 @@ public sealed class ReconciliationEngine
     }
 
     private async Task PerformExternalToInternalComparisonAsync(
-        IReadOnlyList<PaymentTransaction> internalTxns,
+        IReadOnlyList<PaymentTransactionSummary> internalTxns,
         IReadOnlyList<ExternalTransaction> externalTxns,
         ReconciliationSession session,
         CancellationToken ct)

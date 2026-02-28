@@ -1,9 +1,9 @@
 #nullable enable
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Finance.Domain.Audit;
-using NetCommerce.Payments.Domain.Transactions;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -32,7 +32,7 @@ public static class StripeRefundWebhookHandler
 {
     public static async Task<object?> Handle(
         ProcessStripeRefundWebhook command,
-        IPaymentTransactionRepository transactionRepo,
+        IPaymentTransactionReadService transactionRepo,
         IFinancialAuditRepository auditRepo,
         ILogger logger,
         CancellationToken ct)

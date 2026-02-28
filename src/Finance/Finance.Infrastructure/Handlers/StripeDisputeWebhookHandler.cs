@@ -1,10 +1,10 @@
 #nullable enable
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Audit;
-using NetCommerce.Payments.Domain.Transactions;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -38,7 +38,7 @@ public static class StripeDisputeWebhookHandler
     /// </summary>
     public static async Task<object[]> Handle(
         ProcessStripeDisputeCreated command,
-        IPaymentTransactionRepository transactionRepo,
+        IPaymentTransactionReadService transactionRepo,
         IFinancialAuditRepository auditRepo,
         ILogger logger,
         CancellationToken ct)
@@ -111,7 +111,7 @@ public static class StripeDisputeWebhookHandler
     /// </summary>
     public static async Task<object?> Handle(
         ProcessStripeDisputeUpdated command,
-        IPaymentTransactionRepository transactionRepo,
+        IPaymentTransactionReadService transactionRepo,
         IFinancialAuditRepository auditRepo,
         ILogger logger,
         CancellationToken ct)

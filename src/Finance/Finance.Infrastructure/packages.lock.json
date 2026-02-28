@@ -589,11 +589,6 @@
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.1"
         }
       },
-      "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": {
-        "type": "Transitive",
-        "resolved": "10.0.1",
-        "contentHash": "cebN2lQD6S7XCQ7DFKnXcBHxSfqWr38H9YliEluJIDRTJ99Q9V6gBMXBYx03kh6YJAzfN3JoEcsikpEWnC6VwA=="
-      },
       "Microsoft.Extensions.Features": {
         "type": "Transitive",
         "resolved": "9.0.8",
@@ -1032,7 +1027,6 @@
           "Finance.Domain": "[1.0.0, )",
           "NetCommerce.Domain.Shared": "[1.0.0, )",
           "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "Payments.Domain": "[1.0.0, )",
           "WolverineFx": "[5.13.0, )"
         }
       },
@@ -1076,9 +1070,8 @@
           "NetCommerce.Kernel.Application": "[1.0.0, )",
           "NetCommerce.Kernel.Compliance": "[1.0.0, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "NetCommerce.Kernel.Wolverine": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
-          "WolverineFx": "[5.13.0, )"
+          "WolverineFx.EntityFrameworkCore": "[5.13.0, )"
         }
       },
       "netcommerce.kernel.stripe": {
@@ -1089,61 +1082,6 @@
           "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.2, )",
           "NetCommerce.Kernel.Core": "[1.0.0, )",
-          "Stripe.net": "[50.4.0-beta.1, )"
-        }
-      },
-      "netcommerce.kernel.wolverine": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.1, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.2, )",
-          "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
-          "Npgsql": "[10.0.1, )",
-          "WolverineFx": "[5.13.0, )",
-          "WolverineFx.EntityFrameworkCore": "[5.13.0, )"
-        }
-      },
-      "ordering.application": {
-        "type": "Project",
-        "dependencies": {
-          "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "NetCommerce.Kernel.Compliance": "[1.0.0, )",
-          "Ordering.Domain": "[1.0.0, )"
-        }
-      },
-      "ordering.domain": {
-        "type": "Project",
-        "dependencies": {
-          "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Core": "[1.0.0, )"
-        }
-      },
-      "payments.application": {
-        "type": "Project",
-        "dependencies": {
-          "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Application": "[1.0.0, )",
-          "Payments.Domain": "[1.0.0, )"
-        }
-      },
-      "payments.domain": {
-        "type": "Project",
-        "dependencies": {
-          "NetCommerce.Domain.Shared": "[1.0.0, )",
-          "NetCommerce.Kernel.Core": "[1.0.0, )"
-        }
-      },
-      "payments.infrastructure": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.Extensions.Http.Resilience": "[10.1.0, )",
-          "NetCommerce.Kernel.EfCore": "[1.0.0, )",
-          "NetCommerce.Kernel.Stripe": "[1.0.0, )",
-          "Payments.Application": "[1.0.0, )",
-          "Polly": "[8.6.5, )",
           "Stripe.net": "[50.4.0-beta.1, )"
         }
       },
@@ -1190,18 +1128,6 @@
         "resolved": "10.0.2",
         "contentHash": "zOIurr59+kUf9vNcsUkCvKWZv+fPosUZXURZesYkJCvl0EzTc9F7maAO4Cd2WEV7ZJJ0AZrFQvuH6Npph9wdBw=="
       },
-      "Microsoft.Extensions.Diagnostics.HealthChecks": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.1, )",
-        "resolved": "10.0.1",
-        "contentHash": "LMQ1mW8YvfupNwoWXk+IOtjYTUllUIrETrWslKOsV66RvD96WaePcCcuF7SmB6fcTOuJFsSu/zILIUJGM+fM/Q==",
-        "dependencies": {
-          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.1",
-          "Microsoft.Extensions.Hosting.Abstractions": "10.0.1",
-          "Microsoft.Extensions.Logging.Abstractions": "10.0.1",
-          "Microsoft.Extensions.Options": "10.0.1"
-        }
-      },
       "Microsoft.Extensions.Hosting.Abstractions": {
         "type": "CentralTransitive",
         "requested": "[10.0.1, )",
@@ -1242,15 +1168,6 @@
           "Microsoft.EntityFrameworkCore": "[10.0.0, 11.0.0)",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.0, 11.0.0)",
           "Npgsql": "10.0.0"
-        }
-      },
-      "Polly": {
-        "type": "CentralTransitive",
-        "requested": "[8.6.5, )",
-        "resolved": "8.6.5",
-        "contentHash": "VqtW2ZE/ALvQMAH1cQY3qZ2cF2OXa3oe/HKMdOv6Q02HCoEW0rsFNfcBONXlHBe1TnjWW1vdRxBEkPeq0/2FHA==",
-        "dependencies": {
-          "Polly.Core": "8.6.5"
         }
       },
       "Polly.Extensions": {

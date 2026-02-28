@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;

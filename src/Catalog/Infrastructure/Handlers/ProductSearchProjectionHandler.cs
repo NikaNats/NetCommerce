@@ -4,7 +4,7 @@ using Meilisearch;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Catalog.Domain.Products;
 using NetCommerce.Catalog.Infrastructure.Models;
-using NetCommerce.Inventory.Application.Stock.Queries;
+using NetCommerce.Domain.Shared;
 using Index = Meilisearch.Index;
 
 #endregion

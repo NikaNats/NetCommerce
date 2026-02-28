@@ -34,7 +34,7 @@ public static class InventoryModule
         services.AddScoped<IStockRepository, StockRepository>();
 
         // Query services for cross-module communication
-        services.AddScoped<NetCommerce.Inventory.Application.Stock.Queries.IStockQueryService, NetCommerce.Inventory.Infrastructure.Services.StockQueryService>();
+        services.AddScoped<NetCommerce.Domain.Shared.IStockQueryService, NetCommerce.Inventory.Infrastructure.Services.StockQueryService>();
 
         // Mappers (DRY/KISS - centralized mapping logic)
         services.AddSingleton<IStockMapper, StockMapper>();

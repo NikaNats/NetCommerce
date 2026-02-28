@@ -68,23 +68,6 @@ public record ShipOrderCommand(
 public record DeliverOrderCommand(Guid OrderId) : ICommand;
 
 /// <summary>
-///     Command to create a shadow order during financial reconciliation.
-///     Shadow orders account for "ghost charges" - payments that exist in the PSP
-///     but have no corresponding internal order record.
-///     2025 Elite: Implements IAuditableCommand for immutable business event logging.
-/// </summary>
-public record CreateShadowOrderCommand(
-    string ExternalTransactionId,
-    decimal Amount,
-    string Currency,
-    string ResolvedBy,
-    string Reason) : ICommand<Guid>, IAuditableCommand
-{
-    public string GetResourceId() => ExternalTransactionId;
-    public string Module => "Ordering";
-}
-
-/// <summary>
 ///     Order item intent (price is resolved server-side; <see cref="ExpectedPrice"/> is only for guard checks).
 /// </summary>
 public record OrderItemRequest(

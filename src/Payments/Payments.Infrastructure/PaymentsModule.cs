@@ -42,6 +42,10 @@ public static class PaymentsModule
         // Repositories
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
 
+        // Cross-module read service (used by Finance for reconciliation)
+        services.AddScoped<NetCommerce.Domain.Shared.IPaymentTransactionReadService,
+            NetCommerce.Payments.Infrastructure.Services.PaymentTransactionReadService>();
+
         // ============================================================================
         // Shared Stripe Infrastructure (from NetCommerce.Kernel.Stripe)
         // ============================================================================

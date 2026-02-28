@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
-using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Domain.Shared.Events;
 using Wolverine;
 using Wolverine.Attributes;
 

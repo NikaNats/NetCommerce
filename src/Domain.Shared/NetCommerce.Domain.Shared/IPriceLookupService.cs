@@ -1,13 +1,10 @@
-#region
+#nullable enable
 
-using NetCommerce.Domain.Shared;
-
-#endregion
-
-namespace NetCommerce.Ordering.Domain.Orders;
+namespace NetCommerce.Domain.Shared;
 
 /// <summary>
-///     Resolves the latest catalog metadata for the requested products.
+///     Cross-module contract: Resolves the latest catalog metadata for the requested products.
+///     Defined in Domain.Shared because it's consumed by Ordering and implemented by Catalog.
 /// </summary>
 public interface IPriceLookupService
 {

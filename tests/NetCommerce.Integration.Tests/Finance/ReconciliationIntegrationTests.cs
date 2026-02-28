@@ -259,7 +259,7 @@ public class ReconciliationIntegrationTests : IntegrationTestBase
         IPaymentGateway mockGateway)
     {
         return new ReconciliationEngine(
-            services.GetRequiredService<IPaymentTransactionRepository>(),
+            services.GetRequiredService<IPaymentTransactionReadService>(),
             mockGateway,
             services.GetRequiredService<IReconciliationSessionRepository>(),
             services.GetRequiredService<NetCommerce.Kernel.Application.IUnitOfWork>(),

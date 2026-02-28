@@ -3,7 +3,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Catalog.Infrastructure.Persistence;
-using NetCommerce.Ordering.Domain.Orders;
+using NetCommerce.Domain.Shared;
 
 #endregion
 

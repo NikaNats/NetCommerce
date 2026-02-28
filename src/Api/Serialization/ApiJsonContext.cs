@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using NetCommerce.Kernel.Core.Results;
-using NetCommerce.Kernel.Core.Application;
+using NetCommerce.Kernel.Application;
 using NetCommerce.Api.Endpoints.Common;
 
 // Modules

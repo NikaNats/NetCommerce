@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.Kernel.EfCore.Persistence;
-using NetCommerce.Kernel.Wolverine;
 
 namespace NetCommerce.Kernel.EfCore;
 
