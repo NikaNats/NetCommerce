@@ -66,7 +66,7 @@ public class PaymentWebhookEndpoints : IEndpoint
     ///     - Dependencies injected by Minimal API binder at compile-time
     ///     - Trim-safe (no reflection in user code)
     /// </summary>
-    private static async Task<IResult> HandleStripeWebhook(
+    internal static async Task<IResult> HandleStripeWebhook(
         HttpRequest request,
         IMessageBus bus,
         IOptions<StripeOptions> options,

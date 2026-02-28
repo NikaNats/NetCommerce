@@ -58,9 +58,11 @@ public static class ReserveStockHandler
         CancellationToken cancellationToken)
     {
         // Use pessimistic locking (SELECT FOR UPDATE) via raw SQL
+        // CRITICAL: Explicitly include xmin (PostgreSQL system column used for optimistic concurrency)
+        // SELECT * does NOT return system columns — omitting xmin causes EF Core tracking failures
         var stock = await db.Stocks
             .FromSqlInterpolated(
-                $"SELECT * FROM inventory.stocks WHERE product_id = {command.ProductId} FOR UPDATE")
+                $"SELECT *, xmin FROM inventory.stocks WHERE product_id = {command.ProductId} FOR UPDATE")
             .Include(s => s.Reservations)
             .FirstOrDefaultAsync(cancellationToken);
 

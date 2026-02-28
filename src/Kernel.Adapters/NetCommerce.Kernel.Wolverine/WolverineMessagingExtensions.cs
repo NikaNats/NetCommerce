@@ -17,6 +17,7 @@ public static class WolverineMessagingExtensions
     public static IHostBuilder UseWolverineMessaging(
         this IHostBuilder hostBuilder,
         IConfiguration configuration,
+        Action<WolverineOptions>? additionalConfig,
         params Type[] handlerAssemblyMarkerTypes)
     {
         var connectionString = configuration.GetConnectionString("postgres")
@@ -31,7 +32,8 @@ public static class WolverineMessagingExtensions
                 opts.Discovery.IncludeAssembly(markerType.Assembly);
             }
 
-            // All other configuration should be done via ConfigureKernelDefaults in Program.cs
+            // Apply additional configuration (AOT, code generation, etc.)
+            additionalConfig?.Invoke(opts);
         });
     }
 }

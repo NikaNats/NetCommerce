@@ -68,7 +68,9 @@ public static class SagaPaymentHandlers
                 var errorMessage = result.Error?.Description ?? "Payment gateway error";
 
                 paymentTransaction.MarkAsFailed(errorMessage);
-                repository.Update(paymentTransaction);
+                // Note: No repository.Update() needed — entity is already tracked via AddAsync().
+                // Calling Update() would override state from Added to Modified, causing
+                // DbUpdateConcurrencyException with xmin concurrency tokens.
 
                 logger.LogError(
                     "Payment gateway error for Order {OrderId}. Error: {Error}",
@@ -87,7 +89,7 @@ public static class SagaPaymentHandlers
             if (paymentResult.Status == PaymentResultStatus.Failed)
             {
                 paymentTransaction.MarkAsFailed(paymentResult.ErrorMessage ?? "Payment declined");
-                repository.Update(paymentTransaction);
+                // Note: No repository.Update() needed — entity is already tracked via AddAsync().
 
                 logger.LogWarning(
                     "Payment declined for Order {OrderId}. Reason: {Reason}",
@@ -102,7 +104,7 @@ public static class SagaPaymentHandlers
 
             // 4. Store ExternalTransactionId
             paymentTransaction.SetExternalTransactionId(paymentResult.TransactionId);
-            repository.Update(paymentTransaction);
+            // Note: No repository.Update() needed — entity is already tracked via AddAsync().
 
             logger.LogInformation(
                 "Payment initiated for Order {OrderId}. " +

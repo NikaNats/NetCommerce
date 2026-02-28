@@ -214,6 +214,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 services.AddScoped<IPriceLookupService, OrderingPriceLookup>();
                 services.AddScoped<NetCommerce.Finance.Domain.Reconciliation.IReconciliationSessionRepository, NetCommerce.Finance.Infrastructure.Persistence.Repositories.ReconciliationSessionRepository>();
                 services.AddScoped<NetCommerce.Payments.Domain.Transactions.IPaymentTransactionRepository, NetCommerce.Payments.Infrastructure.Persistence.Repositories.PaymentTransactionRepository>();
+                services.AddScoped<NetCommerce.Ordering.Domain.Orders.IOrderRepository, NetCommerce.Ordering.Infrastructure.Persistence.Repositories.OrderRepository>();
                 services.AddScoped<NetCommerce.Kernel.Application.IUnitOfWork>(sp => sp.GetRequiredService<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>());
                 services.AddScoped<ReconciliationEngine>();
                 services.AddSingleton<IPaymentGateway, TestPaymentGateway>();

@@ -63,33 +63,33 @@ builder.Services.AddSignalR();
 // ============================================================================
 builder.Host.UseWolverineMessaging(
     builder.Configuration,
+    opts =>
+    {
+        // ============================================================================
+        // NATIVE AOT CONFIGURATION (Phase 4)
+        // ============================================================================
+
+        // 1. Tell Wolverine: "Use ONLY pre-generated types - fail if missing"
+        // "Static" means: Strictly require source-generated code. No runtime fallback.
+        // This ensures AOT compliance and prevents silent runtime failures.
+        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+
+        // 2. Tell Wolverine where to write the generated code
+        // This allows us to inspect it and commit it to source control if needed.
+        opts.CodeGeneration.GeneratedCodeOutputPath =
+            Path.Combine(Directory.GetCurrentDirectory(), "Internal", "Generated");
+
+        // 3. Ensure DbContext integration is configured
+        // (This matches the configuration below but is applied to Wolverine's internal pipeline)
+        opts.ConfigureKernelDefaults<BaseDbContext>();
+    },
     // Handler discovery assemblies (all modules)
     typeof(CreateProductCommand),          // Catalog
     typeof(ReserveStockCommand),           // Inventory
     typeof(CreateOrderCommand),            // Ordering
     typeof(RefundPaymentTransactionCommand), // Payments
     typeof(CheckDailyReconciliation)       // Finance
-)
-.UseWolverine(opts =>
-{
-    // ============================================================================
-    // NATIVE AOT CONFIGURATION (Phase 4)
-    // ============================================================================
-
-    // 1. Tell Wolverine: "Use ONLY pre-generated types - fail if missing"
-    // "Static" means: Strictly require source-generated code. No runtime fallback.
-    // This ensures AOT compliance and prevents silent runtime failures.
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
-
-    // 2. Tell Wolverine where to write the generated code
-    // This allows us to inspect it and commit it to source control if needed.
-    opts.CodeGeneration.GeneratedCodeOutputPath =
-        Path.Combine(Directory.GetCurrentDirectory(), "Internal", "Generated");
-
-    // 3. Ensure DbContext integration is configured
-    // (This matches the configuration below but is applied to Wolverine's internal pipeline)
-    opts.ConfigureKernelDefaults<BaseDbContext>();
-});
+);
 
 // Configure Wolverine options
 builder.Services.Configure<WolverineOptions>(opts => opts.ConfigureKernelDefaults<BaseDbContext>());

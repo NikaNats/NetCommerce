@@ -11,7 +11,10 @@ public static class MultiTenancyExtensions
 {
     // MethodInfo cache for performance optimization
     private static readonly MethodInfo ConfigureTenantFilterMethod = typeof(MultiTenancyExtensions)
-        .GetMethod(nameof(ConfigureTenantFilter), BindingFlags.NonPublic | BindingFlags.Static)
+        .GetMethod(nameof(ConfigureTenantFilter), BindingFlags.NonPublic | BindingFlags.Static,
+            binder: null,
+            types: [typeof(ModelBuilder), typeof(BaseDbContext)],
+            modifiers: null)
         ?? throw new InvalidOperationException("Could not find ConfigureTenantFilter method.");
 
     /// <summary>
@@ -37,22 +40,24 @@ public static class MultiTenancyExtensions
                 // We must use reflection to call the generic method because
                 // HasQueryFilter<T> requires the generic type argument.
                 var genericMethod = ConfigureTenantFilterMethod.MakeGenericMethod(clrType);
-                genericMethod.Invoke(null, [modelBuilder]);
+                genericMethod.Invoke(null, [modelBuilder, context]);
             }
         }
     }
 
     /// <summary>
     ///     This method is called via Reflection for each IMultiTenant entity.
+    ///     The <paramref name="context"/> is captured in the closure so EF Core can
+    ///     evaluate <see cref="BaseDbContext.CurrentTenantId"/> at query time.
     /// </summary>
-    private static void ConfigureTenantFilter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(ModelBuilder builder)
+    private static void ConfigureTenantFilter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
+        ModelBuilder builder, BaseDbContext context)
         where TEntity : class, IMultiTenant
     {
         builder.Entity<TEntity>().HasQueryFilter(e =>
-            // EF Core captures 'EF.Property' to allow dynamic resolution
-            EF.Property<string>(e, nameof(IMultiTenant.TenantId)) ==
-            // It accesses the property on the DbContext instance
-            EF.Property<string?>(EF.Property<BaseDbContext>(e, "Context"), nameof(BaseDbContext.CurrentTenantId))
+            // EF Core parameterizes the closure-captured context.CurrentTenantId
+            // so the filter value is evaluated fresh on each query execution.
+            EF.Property<string>(e, nameof(IMultiTenant.TenantId)) == context.CurrentTenantId
         );
 
         // OPTIONAL: Add Index for performance

@@ -69,6 +69,7 @@ public class FinancialAuditEntryConfiguration : IEntityTypeConfiguration<Financi
             .IsRequired();
 
         builder.Property(e => e.ExternalTransactionId)
+            .HasColumnName("external_transaction_id")
             .HasMaxLength(100);
 
         builder.Property(e => e.Currency)
@@ -83,6 +84,7 @@ public class FinancialAuditEntryConfiguration : IEntityTypeConfiguration<Financi
             .IsRequired();
 
         builder.Property(e => e.CorrelationId)
+            .HasColumnName("correlation_id")
             .HasMaxLength(100);
 
         // JSON columns for state snapshots (use PostgreSQL jsonb for efficiency)

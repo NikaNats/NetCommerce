@@ -72,14 +72,13 @@ public class ReserveInventoryHandler
                 UnavailableProductIds: missingIds);
         }
 
+        // ── Pass 1: Validate all items have sufficient stock ──────────────
+        // We must validate BEFORE modifying any entities, because Wolverine's
+        // [Transactional] middleware commits SaveChanges after the handler
+        // returns — even when returning InventoryReservationFailed.
+        // This ensures true atomic all-or-nothing reservation semantics.
         foreach (var item in command.Items)
         {
-            logger.LogDebug(
-                "Processing reservation for Product {ProductId}, Quantity {Quantity}, Order {OrderId}",
-                item.ProductId,
-                item.Quantity,
-                command.OrderId);
-
             var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
 
             if (stock is null)
@@ -93,41 +92,23 @@ public class ReserveInventoryHandler
                 continue;
             }
 
-            try
-            {
-                var reservation = stock.Reserve(command.OrderId, item.Quantity);
-
-                reservedItems.Add(new ReservedItem(
-                    item.ProductId,
-                    reservation.Id,
-                    reservation.Quantity));
-
-                logger.LogInformation(
-                    "Reserved {Quantity} units of Product {ProductId} for Order {OrderId}. " +
-                    "ReservationId: {ReservationId}, Remaining Available: {Available}",
-                    item.Quantity,
-                    item.ProductId,
-                    command.OrderId,
-                    reservation.Id,
-                    stock.AvailableQuantity);
-            }
-            catch (InvalidOperationException ex)
+            if (stock.GetAvailableQuantity() < item.Quantity)
             {
                 logger.LogWarning(
-                    "Reservation failed for Product {ProductId}, Order {OrderId}: {Message}",
+                    "Insufficient stock for Product {ProductId}, Order {OrderId}: " +
+                    "Requested {Requested}, Available {Available}",
                     item.ProductId,
                     command.OrderId,
-                    ex.Message);
+                    item.Quantity,
+                    stock.GetAvailableQuantity());
 
                 unavailableProducts.Add(item.ProductId);
             }
         }
 
-        // If any items couldn't be reserved, fail the entire reservation
+        // Fail early — no entities were modified, nothing to roll back
         if (unavailableProducts.Count > 0)
         {
-            // Rollback any partial reservations
-            // Since we're in a transaction, the changes won't be committed
             logger.LogWarning(
                 "Inventory reservation failed for Order {OrderId}. " +
                 "Unavailable products: {Products}",
@@ -138,6 +119,28 @@ public class ReserveInventoryHandler
                 command.OrderId,
                 $"Insufficient stock for {unavailableProducts.Count} product(s)",
                 unavailableProducts);
+        }
+
+        // ── Pass 2: Reserve all items (all validated as available) ────────
+        foreach (var item in command.Items)
+        {
+            var stock = stocks.First(s => s.ProductId == item.ProductId);
+
+            var reservation = stock.Reserve(command.OrderId, item.Quantity);
+
+            reservedItems.Add(new ReservedItem(
+                item.ProductId,
+                reservation.Id,
+                reservation.Quantity));
+
+            logger.LogInformation(
+                "Reserved {Quantity} units of Product {ProductId} for Order {OrderId}. " +
+                "ReservationId: {ReservationId}, Remaining Available: {Available}",
+                item.Quantity,
+                item.ProductId,
+                command.OrderId,
+                reservation.Id,
+                stock.AvailableQuantity);
         }
 
         logger.LogInformation(
