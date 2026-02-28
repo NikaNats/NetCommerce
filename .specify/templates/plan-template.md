@@ -17,14 +17,14 @@
   the iteration process.
 -->
 
-**Language/Version**: C# 13 / .NET 10 (Native AOT, `PublishAot=true`)  
-**Primary Dependencies**: EF Core 10, Wolverine (outbox), Keycloak 26 (BFF), HybridCache (Redis), Aspire 13.1  
-**Storage**: PostgreSQL — per-module schema (`HasDefaultSchema`); Redis for HybridCache + introspection  
-**Testing**: xUnit 2.9 + Shouldly + NSubstitute + Bogus (unit); Testcontainers + Respawn (integration); NetArchTest (architecture)  
-**Target Platform**: Linux container / .NET Aspire local dev; Native AOT Linux x64 for production  
-**Project Type**: Modular monolith web-service (Clean Architecture, DDD, bounded context per module)  
-**Performance Goals**: &lt;100 ms p95 reads; &lt;250 ms p95 writes; idempotent retries for all cross-module events  
-**Constraints**: AOT-safe serialization only (no reflection); `Result<T>` for business errors (no exceptions); no cross-module DB joins  
+**Language/Version**: C# 13 / .NET 10 (Native AOT, `PublishAot=true`)
+**Primary Dependencies**: EF Core 10, Wolverine (outbox), Keycloak 26 (BFF), HybridCache (Redis), Aspire 13.1
+**Storage**: PostgreSQL — per-module schema (`HasDefaultSchema`); Redis for HybridCache + introspection
+**Testing**: xUnit 2.9 + Shouldly + NSubstitute + Bogus (unit); Testcontainers + Respawn (integration); NetArchTest (architecture)
+**Target Platform**: Linux container / .NET Aspire local dev; Native AOT Linux x64 for production
+**Project Type**: Modular monolith web-service (Clean Architecture, DDD, bounded context per module)
+**Performance Goals**: &lt;100 ms p95 reads; &lt;250 ms p95 writes; idempotent retries for all cross-module events
+**Constraints**: AOT-safe serialization only (no reflection); `Result<T>` for business errors (no exceptions); no cross-module DB joins
 **Scale/Scope**: Single deployment unit; 8 bounded contexts; event-driven cross-module coordination via Wolverine outbox
 
 ## Constitution Check

@@ -80,9 +80,9 @@ dotnet publish src/Api/NetCommerce.Api.csproj -c Release
 
 ## Code Style
 
-**Language**: C# 13 · `#nullable enable` · `<Nullable>enable</Nullable>` in every project  
-**Formatting**: 4-space indent · braces on new lines · no trailing whitespace  
-**Modern C#**: Primary constructors for services/handlers · `record` for DTOs/value objects · `file` modifier for local test helpers  
+**Language**: C# 13 · `#nullable enable` · `<Nullable>enable</Nullable>` in every project
+**Formatting**: 4-space indent · braces on new lines · no trailing whitespace
+**Modern C#**: Primary constructors for services/handlers · `record` for DTOs/value objects · `file` modifier for local test helpers
 
 ### Naming Conventions
 - Commands: `VerbNounCommand` / Queries: `GetNounQuery` · `ListNounsQuery`
