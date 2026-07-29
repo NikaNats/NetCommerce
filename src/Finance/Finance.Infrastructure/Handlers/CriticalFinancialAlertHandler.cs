@@ -1,11 +1,12 @@
 #nullable enable
-using System.Net.Http.Json;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Audit;
+using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Kernel.Application.Notifications;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -27,7 +28,7 @@ namespace NetCommerce.Finance.Infrastructure.Handlers;
 ///     4. Audit log entry for compliance
 ///     </para>
 /// </summary>
-[WolverineHandler]
+[Transactional(typeof(FinanceDbContext))]
 public static class CriticalFinancialAlertHandler
 {
     /// <summary>

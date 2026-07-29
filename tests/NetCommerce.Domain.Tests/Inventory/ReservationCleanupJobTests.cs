@@ -214,7 +214,7 @@ public class ReservationCleanupJobTests : IDisposable
         {
             Enabled = true,
             BatchSize = 3,
-            IntervalMs = 5000
+            IntervalMs = 10 // Fast interval for testing
         });
 
         var job = new ReservationCleanupJob(
@@ -271,8 +271,8 @@ public class ReservationCleanupJobTests : IDisposable
         // Advance to T=30 (All expired)
         _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
-        // Batch Size = 1
-        var options = Options.Create(new ReservationCleanupOptions { Enabled = true, BatchSize = 1 });
+        // Batch Size = 1, IntervalMs = 10 to trigger ticks immediately
+        var options = Options.Create(new ReservationCleanupOptions { Enabled = true, BatchSize = 1, IntervalMs = 10 });
         var job = new ReservationCleanupJob(
             provider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
@@ -283,7 +283,13 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act - Run once
         await job.StartAsync(cts.Token);
-        await Task.Delay(100);
+
+        // 1. Advance fake time provider to trigger any mock timer ticks
+        _timeProvider.Advance(TimeSpan.FromMilliseconds(50));
+
+        // 2. Generous delay to prevent thread-scheduling races on slow CI environments
+        await Task.Delay(500);
+
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -296,9 +302,6 @@ public class ReservationCleanupJobTests : IDisposable
                 .ToListAsync();
 
             released.Count.ShouldBe(1);
-            // The oldest one should be the one released
-            // Note: Since we didn't track IDs, we rely on logic that the oldest was picked.
-            // In a real test we would verify IDs, but checking count is decent proxy here.
         }
     }
 
@@ -425,8 +428,6 @@ public class ReservationCleanupJobTests : IDisposable
         await job.StopAsync(CancellationToken.None);
 
         // Assert - Job should have stopped gracefully without throwing
-        // We can't easily verify partial processing, but no exceptions should occur
-        // The job may or may not log cleanup depending on timing, but should not crash
         _logger.Received().Log(
             LogLevel.Information,
             Arg.Any<EventId>(),
@@ -477,7 +478,7 @@ public class ReservationCleanupJobTests : IDisposable
         return new ReservationCleanupJob(
             provider.GetRequiredService<IServiceScopeFactory>(),
             _logger,
-            Options.Create(new ReservationCleanupOptions { Enabled = true, BatchSize = 100 }),
+            Options.Create(new ReservationCleanupOptions { Enabled = true, BatchSize = 100, IntervalMs = 10 }),
             _timeProvider);
     }
 

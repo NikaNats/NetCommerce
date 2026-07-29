@@ -4,25 +4,6 @@ using NetCommerce.Kernel.Wolverine.DeadLetters;
 
 namespace NetCommerce.Api.Endpoints.Admin;
 
-/// <summary>
-///     Admin endpoints for inspecting, replaying, and dismissing Wolverine dead-lettered messages.
-///
-///     <para>
-///     <b>Replay strategy:</b> marking a message as replayable causes Wolverine's built-in
-///     durability agent to re-enqueue it on its next scan — no manual re-publish required.
-///     </para>
-///
-///     <para>
-///     <b>When to use:</b>
-///     - Saga compensation commands that failed permanently and landed in the DLQ
-///       (e.g., ReleaseInventoryReservationCommand rejected by inventory service during an outage)
-///     - Integration events that could not be delivered after all retries are exhausted
-///     </para>
-///
-///     <para>
-///     <b>Authorization:</b> AdminElevated + AdminStrict rate limit (same as AdminOrderRecovery).
-///     </para>
-/// </summary>
 public class AdminDlqEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
@@ -53,7 +34,7 @@ public class AdminDlqEndpoints : IEndpointGroup
 
         group.MapPost("bulk-replay", BulkReplayDeadLetters)
             .WithName("BulkReplayDeadLetters")
-            .WithSummary("Mark multiple dead-lettered messages as replayable (optionally filtered by type)")
+            .WithSummary("Mark multiple dead-lettered messages as replayable")
             .Produces<BulkReplayResponse>(StatusCodes.Status202Accepted);
     }
 
@@ -61,7 +42,7 @@ public class AdminDlqEndpoints : IEndpointGroup
         [FromQuery] int limit,
         [FromQuery] int offset,
         [FromQuery] string? type,
-        DeadLetterEnvelopeRepository repository,
+        [FromServices] DeadLetterEnvelopeRepository repository, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminDlqEndpoints> logger,
         CancellationToken cancellationToken)
@@ -90,7 +71,7 @@ public class AdminDlqEndpoints : IEndpointGroup
 
     private static async Task<IResult> ReplayDeadLetter(
         Guid id,
-        DeadLetterEnvelopeRepository repository,
+        [FromServices] DeadLetterEnvelopeRepository repository, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminDlqEndpoints> logger,
         CancellationToken cancellationToken)
@@ -119,7 +100,7 @@ public class AdminDlqEndpoints : IEndpointGroup
 
     private static async Task<IResult> DismissDeadLetter(
         Guid id,
-        DeadLetterEnvelopeRepository repository,
+        [FromServices] DeadLetterEnvelopeRepository repository, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminDlqEndpoints> logger,
         CancellationToken cancellationToken)
@@ -143,7 +124,7 @@ public class AdminDlqEndpoints : IEndpointGroup
 
     private static async Task<IResult> BulkReplayDeadLetters(
         BulkReplayDlqRequest request,
-        DeadLetterEnvelopeRepository repository,
+        [FromServices] DeadLetterEnvelopeRepository repository, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminDlqEndpoints> logger,
         CancellationToken cancellationToken)
@@ -152,8 +133,7 @@ public class AdminDlqEndpoints : IEndpointGroup
         var batchLimit = request.Limit is > 0 and <= 500 ? request.Limit : 200;
 
         logger.LogWarning(
-            "BULK MANUAL INTERVENTION: Marking up to {Limit} DLQ messages as replayable. " +
-            "TypeFilter={TypeFilter}. User: {User}",
+            "BULK MANUAL INTERVENTION: Marking up to {Limit} DLQ messages as replayable. TypeFilter={TypeFilter}. User: {User}",
             batchLimit, request.MessageTypeFilter ?? "(all)", userName);
 
         var count = await repository.BulkMarkAsReplayableAsync(
@@ -169,18 +149,12 @@ public class AdminDlqEndpoints : IEndpointGroup
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Request / Response DTOs
-// ═══════════════════════════════════════════════════════════════
-
-/// <summary>Paged list response for DLQ inspection.</summary>
 public sealed record DlqListResponse(
     IReadOnlyList<DlqEnvelopeDto> Items,
     long Total,
     int Limit,
     int Offset);
 
-/// <summary>Projection of a single dead-lettered envelope.</summary>
 public sealed record DlqEnvelopeDto(
     Guid Id,
     string MessageType,
@@ -188,14 +162,10 @@ public sealed record DlqEnvelopeDto(
     DateTime Timestamp,
     bool IsReplayable);
 
-/// <summary>Request body for bulk-replay.</summary>
 public sealed record BulkReplayDlqRequest(
-    /// <summary>Optional message type sub-string filter (case-insensitive).</summary>
     string? MessageTypeFilter,
-    /// <summary>Maximum number of messages to mark. Default: 200, max: 500.</summary>
     int Limit = 200);
 
-/// <summary>Response for the bulk-replay operation.</summary>
 public sealed record BulkReplayResponse(
     int MarkedCount,
     string? Filter,

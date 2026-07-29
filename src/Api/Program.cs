@@ -1,4 +1,5 @@
-using System.IO.Compression;
+using JasperFx.CodeGeneration;
+using JasperFx.MultiTenancy;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Caching.Hybrid;
 using NetCommerce.Api.Endpoints;
@@ -10,22 +11,25 @@ using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Kernel.AspNetCore;
+using NetCommerce.Kernel.EfCore.Persistence;
+using NetCommerce.Kernel.Security;
+using NetCommerce.Kernel.Security.Authentication;
+using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Ordering.Application.Orders.Commands;
+using NetCommerce.Ordering.Application.Sagas;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Shipping.Infrastructure.Persistence;
-using NetCommerce.Kernel.Wolverine;
-using NetCommerce.Kernel.Security;
-using NetCommerce.Kernel.Security.Authentication;
-using NetCommerce.Kernel.AspNetCore;
-using Wolverine;
-using Wolverine.Runtime;
-using NetCommerce.Kernel.EfCore.Persistence;
-using Wolverine.Http;
-using Wolverine.SignalR;
-using JasperFx.CodeGeneration;
 using Oakton;
+using System.IO.Compression;
+using Wolverine;
+using Wolverine.Http;
+using Wolverine.Postgresql;
+using Wolverine.RDBMS;
+using Wolverine.Runtime;
+using Wolverine.SignalR;
 
 // ============================================================================
 // CRITICAL: Npgsql 6.0+ Strict UTC Enforcement
@@ -61,34 +65,29 @@ builder.Services.AddSignalR();
 // Wolverine Message Bus with Transactional Outbox
 // Replaces MediatR with durable, at-least-once message delivery
 // ============================================================================
+var connectionString = builder.Configuration.GetConnectionString("OrderingDb")
+                    ?? builder.Configuration.GetConnectionString("postgres");
 builder.Host.UseWolverineMessaging(
     builder.Configuration,
     opts =>
     {
-        // ============================================================================
-        // NATIVE AOT CONFIGURATION (Phase 4)
-        // ============================================================================
-
-        // 1. Tell Wolverine: "Use ONLY pre-generated types - fail if missing"
-        // "Static" means: Strictly require source-generated code. No runtime fallback.
-        // This ensures AOT compliance and prevents silent runtime failures.
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
-
-        // 2. Tell Wolverine where to write the generated code
-        // This allows us to inspect it and commit it to source control if needed.
         opts.CodeGeneration.GeneratedCodeOutputPath =
             Path.Combine(Directory.GetCurrentDirectory(), "Internal", "Generated");
 
-        // 3. Ensure DbContext integration is configured
-        // (This matches the configuration below but is applied to Wolverine's internal pipeline)
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+        }
+
+        opts.AddSagaType<OrderFulfillmentSaga>();
         opts.ConfigureKernelDefaults<BaseDbContext>();
     },
-    // Handler discovery assemblies (all modules)
-    typeof(CreateProductCommand),          // Catalog
-    typeof(ReserveStockCommand),           // Inventory
-    typeof(CreateOrderCommand),            // Ordering
-    typeof(RefundPaymentTransactionCommand), // Payments
-    typeof(CheckDailyReconciliation)       // Finance
+    typeof(CreateProductCommand),
+    typeof(ReserveStockCommand),
+    typeof(CreateOrderCommand),
+    typeof(RefundPaymentTransactionCommand),
+    typeof(CheckDailyReconciliation)
 );
 
 // Configure Wolverine options

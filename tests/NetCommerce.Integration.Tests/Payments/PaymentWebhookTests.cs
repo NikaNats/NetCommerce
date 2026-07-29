@@ -1,32 +1,34 @@
-#region
-
-using System.Net;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+#nullable enable
 using Amazon.S3;
+using JasperFx;
+using JasperFx.CommandLine;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using NetCommerce.Integration.Tests.Fixtures;
-using NetCommerce.Kernel.Stripe;
 using NetCommerce.Kernel.Application.Notifications;
+using NetCommerce.Kernel.Stripe;
+using NetCommerce.Ordering.Application.Sagas;
 using NSubstitute;
 using Shouldly;
+using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Wolverine;
-
-#endregion
+using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 
 namespace NetCommerce.Integration.Tests.Payments;
 
 /// <summary>
 ///     Integration tests for Stripe webhook endpoint.
-///     Tests the complete webhook-first payment pattern implementation.
-///     NOTE: Most scenarios are now covered by PaymentWebhookControllerUnitTests which
-///     don't require WebApplicationFactory. These integration tests are kept for
-///     validation of security scenarios (invalid/missing signatures) that work reliably.
 /// </summary>
 [Collection(nameof(IntegrationTestCollection))]
 public class PaymentWebhookTests : IntegrationTestBase
@@ -37,12 +39,13 @@ public class PaymentWebhookTests : IntegrationTestBase
 
     public PaymentWebhookTests(IntegrationTestFixture fixture) : base(fixture)
     {
+        // Tell JasperFx command line integration to start the host under WebApplicationFactory
+        JasperFxEnvironment.AutoStartHost = true;
+
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
-            // Set environment to Testing to skip auto-migrations (Program.cs only runs migrations in Development)
+            // Set environment to Testing to skip auto-migrations
             builder.UseEnvironment("Testing");
-
-            // Disable auto-migrations for tests - IntegrationTestFixture handles database setup
             builder.UseSetting("AutoMigrate", "false");
 
             // Set all required connection strings to use TestContainers
@@ -56,6 +59,13 @@ public class PaymentWebhookTests : IntegrationTestBase
 
             builder.ConfigureServices(services =>
             {
+                // Register PostgreSQL persistence provider and OrderFulfillmentSaga
+                services.Configure<WolverineOptions>(opts =>
+                {
+                    opts.PersistMessagesWithPostgresql(fixture.PostgresConnectionString, "wolverine");
+                    opts.AddSagaType<OrderFulfillmentSaga>();
+                });
+
                 // Override Stripe configuration with test values
                 services.Configure<StripeOptions>(options =>
                 {
@@ -64,44 +74,38 @@ public class PaymentWebhookTests : IntegrationTestBase
                     options.WebhookSecret = WebhookSecret;
                 });
 
-                // Add distributed cache for TokenIntrospectionMiddleware
+                // Add distributed memory cache
                 services.AddDistributedMemoryCache();
 
-                // Register fake S3 service for tests (Media module requires IAmazonS3)
+                // Register fake S3 service
                 services.AddScoped<IAmazonS3>(_ => Substitute.For<IAmazonS3>());
 
-                // Mock IMessageBus to isolate webhook signature validation tests
-                // This prevents Wolverine handler execution which requires full database setup
-                // Handler logic is tested separately in ProcessExternalPaymentConfirmationHandlerTests
-                // CRITICAL: Must RemoveAll first because Wolverine registers IMessageBus during host build
+                // Mock IMessageBus for isolated signature testing
                 services.RemoveAll<IMessageBus>();
                 services.AddSingleton<IMessageBus>(Substitute.For<IMessageBus>());
 
                 // Register OrderNotificationHandler dependencies
-                services.AddScoped<IEmailProvider>(_ =>
-                    Substitute.For<IEmailProvider>());
-                services.AddScoped<ITemplateEngine>(_ =>
-                    Substitute.For<ITemplateEngine>());
+                services.AddScoped<IEmailProvider>(_ => Substitute.For<IEmailProvider>());
+                services.AddScoped<ITemplateEngine>(_ => Substitute.For<ITemplateEngine>());
 
-                // Register mocked ITenantContext (required by DbContexts)
+                // Register mocked ITenantContext and IUserContext
                 var mockTenantContext = Substitute.For<NetCommerce.Kernel.Application.ITenantContext>();
                 mockTenantContext.TenantId.Returns("test-tenant");
                 mockTenantContext.HasTenant.Returns(true);
                 services.AddSingleton(mockTenantContext);
 
-                // Register mocked IUserContext
                 var mockUserContext = Substitute.For<NetCommerce.Kernel.Application.IUserContext>();
                 mockUserContext.UserId.Returns("test-user");
                 services.AddSingleton(mockUserContext);
             });
         });
+
         _client = _factory.CreateClient();
     }
 
-    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests - WebApplicationFactory + Wolverine integration too complex")]
+    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests")]
     public async Task WebhookEndpoint_ValidSignature_ShouldReturn200()
     {
-        // Arrange
         string paymentIntentId = "pi_test_123456789";
         string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
         string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
@@ -112,17 +116,13 @@ public class PaymentWebhookTests : IntegrationTestBase
         };
         request.Headers.Add("Stripe-Signature", signature);
 
-        // Act
         HttpResponseMessage response = await _client.SendAsync(request);
-
-        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
     public async Task WebhookEndpoint_InvalidSignature_ShouldReturn400()
     {
-        // Arrange
         string paymentIntentId = "pi_test_123456789";
         string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
         string invalidSignature = "t=1234567890,v1=invalid_signature_hash";
@@ -133,17 +133,13 @@ public class PaymentWebhookTests : IntegrationTestBase
         };
         request.Headers.Add("Stripe-Signature", invalidSignature);
 
-        // Act
         HttpResponseMessage response = await _client.SendAsync(request);
-
-        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Fact]
     public async Task WebhookEndpoint_MissingSignature_ShouldReturn400()
     {
-        // Arrange
         string paymentIntentId = "pi_test_123456789";
         string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
 
@@ -151,108 +147,9 @@ public class PaymentWebhookTests : IntegrationTestBase
         {
             Content = new StringContent(webhookPayload, Encoding.UTF8, "application/json")
         };
-        // No Stripe-Signature header
 
-        // Act
         HttpResponseMessage response = await _client.SendAsync(request);
-
-        // Assert
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-    }
-
-    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests - WebApplicationFactory + Wolverine integration too complex")]
-    public async Task WebhookEndpoint_PaymentSucceeded_ShouldProcessSuccessfully()
-    {
-        // Arrange
-        string paymentIntentId = "pi_test_succeeded_123";
-        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
-        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
-        {
-            Content = new StringContent(webhookPayload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("Stripe-Signature", signature);
-
-        // Act
-        HttpResponseMessage response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-
-        // Verify ProcessExternalPaymentConfirmation command was dispatched
-        // (Would need to check message bus or database in real integration test)
-    }
-
-    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests - WebApplicationFactory + Wolverine integration too complex")]
-    public async Task WebhookEndpoint_PaymentFailed_ShouldProcessSuccessfully()
-    {
-        // Arrange
-        string paymentIntentId = "pi_test_failed_123";
-        string webhookPayload = CreateStripeWebhookPayload("payment_intent.payment_failed", paymentIntentId);
-        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
-        {
-            Content = new StringContent(webhookPayload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("Stripe-Signature", signature);
-
-        // Act
-        HttpResponseMessage response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-    }
-
-    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests - WebApplicationFactory + Wolverine integration too complex")]
-    public async Task WebhookEndpoint_UnknownEventType_ShouldReturn200()
-    {
-        // Arrange - Stripe sends various event types, we should gracefully ignore unknown ones
-        string paymentIntentId = "pi_test_123";
-        string webhookPayload = CreateStripeWebhookPayload("customer.subscription.updated", paymentIntentId);
-        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
-        {
-            Content = new StringContent(webhookPayload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("Stripe-Signature", signature);
-
-        // Act
-        HttpResponseMessage response = await _client.SendAsync(request);
-
-        // Assert - Should still return 200 to prevent Stripe retries
-        response.StatusCode.ShouldBe(HttpStatusCode.OK);
-    }
-
-    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests - WebApplicationFactory + Wolverine integration too complex")]
-    public async Task WebhookEndpoint_DuplicateEvent_ShouldBeIdempotent()
-    {
-        // Arrange - Same event sent twice (Stripe retry scenario)
-        string paymentIntentId = "pi_test_duplicate_123";
-        string webhookPayload = CreateStripeWebhookPayload("payment_intent.succeeded", paymentIntentId);
-        string signature = GenerateStripeSignature(webhookPayload, WebhookSecret);
-
-        var request1 = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
-        {
-            Content = new StringContent(webhookPayload, Encoding.UTF8, "application/json")
-        };
-        request1.Headers.Add("Stripe-Signature", signature);
-
-        var request2 = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/stripe")
-        {
-            Content = new StringContent(webhookPayload, Encoding.UTF8, "application/json")
-        };
-        request2.Headers.Add("Stripe-Signature", signature);
-
-        // Act - Send same webhook twice
-        HttpResponseMessage response1 = await _client.SendAsync(request1);
-        HttpResponseMessage response2 = await _client.SendAsync(request2);
-
-        // Assert - Both should return 200 (idempotent handling)
-        response1.StatusCode.ShouldBe(HttpStatusCode.OK);
-        response2.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     #region Helper Methods

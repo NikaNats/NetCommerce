@@ -18,7 +18,6 @@ RUN apt-get update \
 COPY global.json Directory.Build.props Directory.Packages.props NetCommerce.slnx ./
 
 # Copy all project files to enable 'dotnet restore'
-# Note: Using simplified approach - copy everything for restore context
 COPY src/ ./src/
 COPY tests/ ./tests/
 COPY tools/ ./tools/
@@ -27,33 +26,31 @@ COPY tools/ ./tools/
 # This layer is cached until project files or package versions change
 RUN dotnet restore NetCommerce.slnx
 
-# Set working directory to the API project for publish
+# Set working directory to the API project for codegen and publish
 WORKDIR /src/src/Api
 
-# CRITICAL: Generate Wolverine Source Code
-# Wolverine's AOT support requires pre-generated handlers
-# This must run before compilation or the generated types won't exist
-#
-# Design-Time Isolation: Provide dummy env vars to prevent service startup failures.
-# Wolverine codegen analyzes code structure but should NOT connect to real services.
-ENV ConnectionStrings__NetCommerce="Host=dummy;Database=dummy;Username=dummy;Password=dummy" \
+# CRITICAL: Design-Time Isolation for Wolverine Source Code Generation
+# Wolverine's AOT support requires pre-generated handlers (TypeLoadMode.Static).
+# These dummy env vars prevent service startup/connection failures during 'codegen write'.
+ENV ConnectionStrings__OrderingDb="Host=dummy;Database=dummy;Username=dummy;Password=dummy" \
+    ConnectionStrings__postgres="Host=dummy;Database=dummy;Username=dummy;Password=dummy" \
+    ConnectionStrings__NetCommerce="Host=dummy;Database=dummy;Username=dummy;Password=dummy" \
     ConnectionStrings__Redis="dummy:6379" \
     Keycloak__Authority="http://dummy" \
     Keycloak__ClientId="dummy" \
     Keycloak__ClientSecret="dummy" \
     ASPNETCORE_ENVIRONMENT="Development"
 
+# Generate Wolverine static C# handler code into Internal/Generated/
+# In Debug/Dev mode, WolverineFx.RuntimeCompilation is available to execute this step.
 RUN dotnet run -- codegen write || echo "WARNING: Wolverine codegen failed - TypeLoadMode.Static will enforce failure at runtime"
 
-# Publish with Native AOT
-# -c Release: Optimized release build with all trimming/AOT optimizations
-# -o /app/publish: Output directory for published artifacts
-# -r linux-x64: Runtime identifier for Linux x64 (container target)
-# --self-contained true: Include all dependencies (no shared framework)
-# /p:PublishAot=true: Enable Native AOT compilation via ILC
-# /p:StripSymbols=true: Remove debug symbols for smaller binary size (~40% reduction)
-# /p:IlcOptimizationPreference=Speed: Optimize for execution speed over size
-# /p:IlcGenerateStackTraceData=false: Disable stack trace metadata (reduces size)
+# Publish with Native AOT (Release Mode)
+# -c Release: Excludes WolverineFx.RuntimeCompilation (Roslyn) and optimizes binary size
+# -r linux-x64: Target Linux x64 native binary
+# /p:PublishAot=true: Ahead-of-Time compilation via ILC
+# /p:StripSymbols=true: Strip symbols for ~40% smaller binary size
+# /p:IlcOptimizationPreference=Speed: Maximize runtime execution speed
 RUN dotnet publish -c Release -o /app/publish \
     -r linux-x64 \
     --self-contained true \
@@ -68,35 +65,22 @@ RUN dotnet publish -c Release -o /app/publish \
 # 'chiseled' images have:
 # - No shell (/bin/sh, bash) - Prevents interactive exploitation
 # - No package manager (apt, apk) - Prevents post-exploitation tooling
-# - No root user - Runs as 'app' user (UID 1654) by default
-# - Minimal attack surface - Only glibc, openssl, ICU for .NET requirements
-# Image size: ~20MB base + ~50MB app = ~70MB total (vs. ~220MB aspnet image)
+# - Non-root user - Runs as 'app' user (UID 1654) by default
+# - Minimal attack surface - Minimal dependencies (~70MB total container size)
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-preview-chiseled
 WORKDIR /app
 
-# Copy the native binary and runtime configuration
-# The build stage produces a single native executable (NetCommerce.Api)
-# No .dll files, no .NET runtime - just the native binary
+# Copy the compiled native executable and config
 COPY --from=build /app/publish .
 
-# Expose HTTP port
-# Chiseled images run as non-root 'app' user, so we use 8080 (not 80)
+# Expose non-root HTTP port
 EXPOSE 8080
 
-# Environment Configuration
-# ASPNETCORE_URLS: Listen on all interfaces on port 8080
-# DOTNET_EnableDiagnostics=0: Disable diagnostic ports for security and performance
-#   - Prevents dotnet-trace/dotnet-dump attachment
-#   - Reduces memory overhead
-#   - Hardens container against diagnostic-based attacks
+# Environment Hardening
+# ASPNETCORE_URLS: Listen on port 8080
+# DOTNET_EnableDiagnostics=0: Disable diagnostic ports for performance & security
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_EnableDiagnostics=0
 
-# Health check (optional - requires curl in chiseled-extra variant)
-# For production, use Kubernetes liveness/readiness probes instead
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-#     CMD ["/app/NetCommerce.Api", "health"]
-
 # Entrypoint: Execute the native binary directly
-# No "dotnet NetCommerce.Api.dll" - this is a native executable
 ENTRYPOINT ["./NetCommerce.Api"]

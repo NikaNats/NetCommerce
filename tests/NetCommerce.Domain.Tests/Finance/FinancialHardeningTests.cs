@@ -116,6 +116,7 @@ public class FinancialHardeningTests
         // Assert - Ghost charge MUST be detected
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(session =>
+                session != null &&
                 session.Status == ReconciliationStatus.Mismatched &&
                 session.Discrepancies.Any(d =>
                     d.Type == DiscrepancyType.MissingInternal &&
@@ -126,6 +127,7 @@ public class FinancialHardeningTests
         // CRITICAL: Alert must be published for manual intervention
         await _bus.Received(1).PublishAsync(
             Arg.Is<CriticalFinancialAlert>(alert =>
+                alert != null &&
                 alert.ExternalTransactionId == ghostChargeId &&
                 alert.Amount == 299.99m &&
                 alert.Reason.Contains("CRITICAL")));
@@ -162,12 +164,13 @@ public class FinancialHardeningTests
         // Assert - ALL ghost charges detected
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Discrepancies.Count(d => d.Type == DiscrepancyType.MissingInternal) == 3),
             Arg.Any<CancellationToken>());
 
         // Assert - Alert published for EACH ghost charge
         await _bus.Received(3).PublishAsync(
-            Arg.Is<CriticalFinancialAlert>(a => a.Reason.Contains("CRITICAL")));
+            Arg.Is<CriticalFinancialAlert>(a => a != null && a.Reason.Contains("CRITICAL")));
     }
 
     /// <summary>
@@ -211,6 +214,7 @@ public class FinancialHardeningTests
         // Assert - Only 2 ghost charges detected
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Discrepancies.Count(d => d.Type == DiscrepancyType.MissingInternal) == 2 &&
                 s.Discrepancies.Any(d => d.ExternalTxnId == "pi_ghost_004") &&
                 s.Discrepancies.Any(d => d.ExternalTxnId == "pi_ghost_005")),
@@ -431,7 +435,7 @@ public class FinancialHardeningTests
         // Assert - Amount matches (100 = 100) but this hides a currency drift issue
         // This test documents the NEED for currency validation in reconciliation
         await _sessionRepo.Received(1).AddAsync(
-            Arg.Is<ReconciliationSession>(s => s.Status != ReconciliationStatus.Failed),
+            Arg.Is<ReconciliationSession>(s => s != null && s.Status != ReconciliationStatus.Failed),
             Arg.Any<CancellationToken>());
 
         // NOTE: Current implementation doesn't validate currency mismatch
@@ -495,6 +499,7 @@ public class FinancialHardeningTests
         // Assert - Amount mismatch should be detected (difference > 1 cent tolerance)
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Status == ReconciliationStatus.Mismatched &&
                 s.Discrepancies.Any(d =>
                     d.Type == DiscrepancyType.AmountMismatch &&
@@ -533,6 +538,7 @@ public class FinancialHardeningTests
         // Assert - Should match (1 cent tolerance)
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 !s.Discrepancies.Any(d =>
                     d.Type == DiscrepancyType.AmountMismatch &&
                     d.ExternalTxnId == "pi_cent_diff")),
@@ -581,6 +587,7 @@ public class FinancialHardeningTests
         // Assert - Orphan should be detected
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Discrepancies.Any(d =>
                     d.Type == DiscrepancyType.MissingExternal &&
                     d.ExternalTxnId == "pi_orphan_001")),
@@ -615,6 +622,7 @@ public class FinancialHardeningTests
         // Assert - System error flagged
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Discrepancies.Any(d =>
                     d.Type == DiscrepancyType.MissingExternal &&
                     d.Reason.Contains("no external ID"))),
@@ -655,6 +663,7 @@ public class FinancialHardeningTests
         // Assert
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Status == ReconciliationStatus.Matched &&
                 s.Discrepancies.Count == 0),
             Arg.Any<CancellationToken>());
@@ -682,6 +691,7 @@ public class FinancialHardeningTests
         // Assert - Session saved with Failed status
         await _sessionRepo.Received(1).AddAsync(
             Arg.Is<ReconciliationSession>(s =>
+                s != null &&
                 s.Status == ReconciliationStatus.Failed),
             Arg.Any<CancellationToken>());
     }

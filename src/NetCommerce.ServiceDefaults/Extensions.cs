@@ -86,7 +86,7 @@ public static class Extensions
                         };
                     })
                     .AddHttpClientInstrumentation()
-                    .AddEntityFrameworkCoreInstrumentation(o => o.SetDbStatementForText = true)
+                    .AddEntityFrameworkCoreInstrumentation()
                     .AddOtlpExporter();
             });
 

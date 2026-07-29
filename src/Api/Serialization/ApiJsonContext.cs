@@ -3,8 +3,9 @@ using NetCommerce.Kernel.Core.Results;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Api.Endpoints.Common;
 
-// Modules
+// Modules & Endpoints
 using NetCommerce.Catalog.Application.Categories.DTOs;
+using NetCommerce.Catalog.Application.Categories.Commands;
 using NetCommerce.Catalog.Application.Products.DTOs;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Ordering.Application.Orders.Commands;
@@ -14,6 +15,7 @@ using NetCommerce.Basket.Application;
 using NetCommerce.Inventory.Application.Stock.Queries;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Media.Application.Services;
+using NetCommerce.Api.Endpoints.Catalog;
 using NetCommerce.Api.Endpoints.Ordering;
 using NetCommerce.Api.Endpoints.Basket;
 using NetCommerce.Api.Endpoints.Inventory;
@@ -46,7 +48,6 @@ namespace NetCommerce.Api.Serialization;
 // ============================================================================
 // GENERIC WRAPPERS (CRITICAL FOR AOT)
 // ============================================================================
-// You MUST register the specific generic variants you return.
 [JsonSerializable(typeof(Result<Guid>))]
 [JsonSerializable(typeof(Result<string>))]
 [JsonSerializable(typeof(Result<bool>))]
@@ -74,12 +75,16 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(List<StuckSagaDto>))]
 
 // ============================================================================
-// DOMAIN DTOS
+// DOMAIN DTOS & ENDPOINT REQUESTS
 // ============================================================================
 
 // Catalog
 [JsonSerializable(typeof(CreateProductCommand))]
 [JsonSerializable(typeof(UpdateProductCommand))]
+[JsonSerializable(typeof(UpdateProductPriceRequest))]
+[JsonSerializable(typeof(AddProductImageRequest))]
+[JsonSerializable(typeof(CreateCategoryCommand))]
+[JsonSerializable(typeof(UpdateCategoryCommand))]
 [JsonSerializable(typeof(ProductDto))]
 [JsonSerializable(typeof(ProductImageDto))]
 [JsonSerializable(typeof(ProductAttributeDto))]
@@ -98,9 +103,11 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(AddressDto))]
 [JsonSerializable(typeof(StuckSagasResponse))]
 [JsonSerializable(typeof(StuckSagaDto))]
-[JsonSerializable(typeof(OrderFulfillmentSaga))] // For Wolverine saga serialization
+[JsonSerializable(typeof(OrderFulfillmentSaga))]
 
 // Inventory
+[JsonSerializable(typeof(CreateStockCommand))]
+[JsonSerializable(typeof(ReserveStockCommand))]
 [JsonSerializable(typeof(StockDto))]
 [JsonSerializable(typeof(UpdateStockQuantityRequest))]
 
@@ -113,7 +120,17 @@ namespace NetCommerce.Api.Serialization;
 // Finance
 [JsonSerializable(typeof(CheckDailyReconciliation))]
 
-// Admin - Order Recovery
+// Admin DLQ Endpoints
+[JsonSerializable(typeof(BulkReplayDlqRequest))]
+[JsonSerializable(typeof(DlqListResponse))]
+[JsonSerializable(typeof(DlqEnvelopeDto))]
+[JsonSerializable(typeof(BulkReplayResponse))]
+
+// Admin Finance Endpoints
+[JsonSerializable(typeof(TriggerReconciliationRequest))]
+[JsonSerializable(typeof(ResolveDiscrepancyRequest))]
+
+// Admin Order Recovery Endpoints
 [JsonSerializable(typeof(ForceCompleteSagaRequest))]
 [JsonSerializable(typeof(OverridePaymentStatusRequest))]
 [JsonSerializable(typeof(ForceCancelOrderRequest))]
@@ -125,11 +142,7 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(RetrySagaStepCommand))]
 [JsonSerializable(typeof(BulkRetrySagasCommand))]
 
-// Admin - Finance
-[JsonSerializable(typeof(TriggerReconciliationRequest))]
-[JsonSerializable(typeof(ResolveDiscrepancyRequest))]
-
-// Auth - BFF Keycloak proxy (token exchange, refresh, revoke, logout, session)
+// Auth - BFF Keycloak proxy
 [JsonSerializable(typeof(TokenRequest))]
 [JsonSerializable(typeof(RefreshRequest))]
 [JsonSerializable(typeof(RevokeRequest))]
@@ -145,7 +158,7 @@ namespace NetCommerce.Api.Serialization;
 // Rate limiting
 [JsonSerializable(typeof(RateLimitResponse))]
 
-// Exception handling (ProblemDetails already registered above)
+// Exception handling
 [JsonSerializable(typeof(Microsoft.AspNetCore.Mvc.ValidationProblemDetails))]
 
 [JsonSourceGenerationOptions(

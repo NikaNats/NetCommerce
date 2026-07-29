@@ -28,6 +28,11 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# NuGet Package Lock Files
+packages.lock.json
+package.lock.json
+*.lock.json
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 

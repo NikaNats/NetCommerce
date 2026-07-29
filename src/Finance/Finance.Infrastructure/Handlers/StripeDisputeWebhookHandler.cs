@@ -1,10 +1,11 @@
 #nullable enable
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Finance.Domain.Audit;
+using NetCommerce.Finance.Infrastructure.Persistence;
+using System.Diagnostics;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -30,7 +31,7 @@ namespace NetCommerce.Finance.Infrastructure.Handlers;
 ///     - warning_closed: Inquiry closed without chargeback
 ///     </para>
 /// </summary>
-[WolverineHandler]
+[Transactional(typeof(FinanceDbContext))]
 public static class StripeDisputeWebhookHandler
 {
     /// <summary>

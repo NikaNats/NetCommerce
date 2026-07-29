@@ -1,42 +1,45 @@
 #nullable enable
-using System;
+using JasperFx.CodeGeneration.Model;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetCommerce.Catalog.Application.Products.Commands;
 using NetCommerce.Catalog.Infrastructure.Handlers;
-using NetCommerce.Catalog.Infrastructure.Services;
 using NetCommerce.Catalog.Infrastructure.Persistence;
+using NetCommerce.Catalog.Infrastructure.Services;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Finance.Application.Services;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Infrastructure.Handlers;
 using NetCommerce.Inventory.Infrastructure.Persistence;
+using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Core.Results;
+using NetCommerce.Kernel.EfCore;
+using NetCommerce.Kernel.Wolverine;
 using NetCommerce.Ordering.Application.Orders.Commands;
-using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.Domain.Shared;
 using NetCommerce.Ordering.Application.Sagas;
+using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Handlers;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Application.Transactions.Commands;
 using NetCommerce.Payments.Infrastructure.Handlers;
 using NetCommerce.Payments.Infrastructure.Persistence;
-using NetCommerce.Kernel.Wolverine;
-using NetCommerce.Kernel.Core.Results;
-using NetCommerce.Kernel.Application;
-using NetCommerce.Kernel.EfCore;
 using Npgsql;
 using NSubstitute;
 using Respawn;
 using Respawn.Graph;
+using System;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.Tracking;
 
 namespace NetCommerce.Integration.Tests.Fixtures;
@@ -85,32 +88,21 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         await InitializeDatabaseAsync();
 
         // Initialize Respawner for database cleanup
-        // Explicitly include wolverine schema to ensure outbox envelopes are cleared between tests
         await using var connection = new NpgsqlConnection(PostgresConnectionString);
         await connection.OpenAsync();
 
         _respawner = await Respawner.CreateAsync(connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.Postgres,
-            // Include wolverine schema for outbox tables (wolverine_incoming_envelopes, wolverine_outgoing_envelopes)
-            // This prevents test contamination from messages persisted during previous test runs
+            // Include all schemas to ensure true database cleanup and isolation
             SchemasToInclude = ["catalog", "inventory", "ordering", "payments", "finance", "wolverine", "public"],
             // Never truncate migration history
-            TablesToIgnore = ["__EFMigrationsHistory"],
-            // Explicitly include wolverine envelope tables to prevent outbox leakage
-            TablesToInclude =
-            [
-                new Table("wolverine", "wolverine_incoming_envelopes"),
-                new Table("wolverine", "wolverine_outgoing_envelopes"),
-                new Table("wolverine", "wolverine_dead_letters")
-            ]
+            TablesToIgnore = ["__EFMigrationsHistory"]
         });
     }
 
     private static bool IsDockerUnavailable(Exception ex)
     {
-        // Testcontainers ultimately talks to the Docker Engine API.
-        // When Docker isn't installed/running, we prefer skipping rather than failing the entire test suite.
         var message = ex.ToString();
         return message.Contains("Docker", StringComparison.OrdinalIgnoreCase)
                || message.Contains("npipe://", StringComparison.OrdinalIgnoreCase)
@@ -138,7 +130,6 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         var builder = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .ConfigureLogging(logging =>
             {
-                // Keep test output lean to avoid VS Code freezing on large log volumes.
                 logging.ClearProviders();
                 logging.AddSimpleConsole(options =>
                 {
@@ -156,11 +147,6 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             })
             .ConfigureServices((hostContext, services) =>
             {
-                // CRITICAL: ConfigureServices instead of UseWolverine to avoid double registration
-                // The main Program.cs already calls UseWolverine(), this merges settings
-                // Register test-specific services BEFORE Wolverine initializes
-
-                // 1. Mocks for Interceptors (MUST be registered before DbContexts)
                 var mockTenantContext = Substitute.For<ITenantContext>();
                 mockTenantContext.TenantId.Returns("test-tenant");
                 mockTenantContext.HasTenant.Returns(true);
@@ -172,6 +158,16 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             })
             .UseWolverine(opts =>
             {
+                // CRITICAL FOR WOLVERINE 6.0: Allow service location for factory-registered dependencies
+                opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;
+
+                // Enable Roslyn runtime compilation for integration tests (Fixes missing IAssemblyGenerator exception)
+                opts.UseRuntimeCompilation();
+                opts.CodeGeneration.TypeLoadMode = JasperFx.CodeGeneration.TypeLoadMode.Auto;
+
+                // Register Saga for PostgreSQL storage (Fixes InvalidSagaException)
+                opts.AddSagaType<NetCommerce.Ordering.Application.Sagas.OrderFulfillmentSaga>();
+
                 // Configure Wolverine for testing - include Application assemblies for commands/queries
                 opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
@@ -181,7 +177,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Payments.Application.Transactions.Commands.RefundPaymentTransactionCommand).Assembly);
 
-                // CRITICAL: Include Infrastructure assemblies where Wolverine handlers live
+                // Include Infrastructure assemblies where Wolverine handlers live
                 opts.Discovery.IncludeAssembly(typeof(CreateProductHandler).Assembly); // Catalog.Infrastructure
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderHandler).Assembly); // Ordering.Infrastructure
                 opts.Discovery.IncludeAssembly(typeof(CreateStockHandler).Assembly); // Inventory.Infrastructure
@@ -191,7 +187,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // Use PostgreSQL persistence with outbox
                 opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
 
-                // CRITICAL: Enable EF Core integration for transactional outbox
+                // Enable EF Core integration for transactional outbox
                 opts.UseEntityFrameworkCoreTransactions();
 
                 // Auto-apply transactions for handlers
@@ -203,17 +199,29 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             })
             .ConfigureServices(services =>
             {
+                // Register HttpClientFactory for handlers requiring IHttpClientFactory (e.g. CriticalFinancialAlertHandler)
+                services.AddHttpClient();
+
+                // Register Finance Alerting Options
+                services.Configure<AlertingOptions>(options =>
+                {
+                    options.DiscrepancyAlertThreshold = 100.00m;
+                    options.SendEmailAlerts = false;
+                    options.FinanceAlertEmail = "finance-alerts@test.com";
+                });
+
                 // Register DbContexts using KERNEL EXTENSIONS (Wires up Interceptors)
-                // Note: ITenantContext and IUserContext already registered above
                 services.AddKernelEfCore<CatalogDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
                 services.AddKernelEfCore<InventoryDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
                 services.AddKernelEfCore<OrderingDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
                 services.AddKernelEfCore<PaymentsDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
                 services.AddKernelEfCore<NetCommerce.Finance.Infrastructure.Persistence.FinanceDbContext>(opts => opts.UseNpgsql(PostgresConnectionString));
 
-                // 3. Domain Services & Repositories
+                // Domain Services & Repositories
                 services.AddScoped<IPriceLookupService, OrderingPriceLookup>();
                 services.AddScoped<NetCommerce.Finance.Domain.Reconciliation.IReconciliationSessionRepository, NetCommerce.Finance.Infrastructure.Persistence.Repositories.ReconciliationSessionRepository>();
+                services.AddScoped<NetCommerce.Finance.Domain.Audit.IFinancialAuditRepository, NetCommerce.Finance.Infrastructure.Persistence.Repositories.FinancialAuditRepository>();
+                services.AddScoped<NetCommerce.Finance.Domain.Webhooks.IWebhookEventStore, NetCommerce.Finance.Infrastructure.Persistence.Repositories.WebhookEventStore>();
                 services.AddScoped<NetCommerce.Payments.Domain.Transactions.IPaymentTransactionRepository, NetCommerce.Payments.Infrastructure.Persistence.Repositories.PaymentTransactionRepository>();
                 services.AddScoped<IPaymentTransactionReadService, NetCommerce.Payments.Infrastructure.Services.PaymentTransactionReadService>();
                 services.AddScoped<NetCommerce.Ordering.Domain.Orders.IOrderRepository, NetCommerce.Ordering.Infrastructure.Persistence.Repositories.OrderRepository>();
@@ -243,7 +251,6 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         return new ScopedDbContext<T>(context, scope);
     }
 
-    // DbContext factories for backward compatibility - return from DI with interceptors
     public CatalogDbContext CreateCatalogDbContext()
     {
         var scope = Host.Services.CreateScope();
@@ -368,7 +375,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         await Fixture.ResetDatabaseAsync();
         TestPaymentGateway.Reset();
 
-        // Create a fresh scope for this test execution
         _scope = Fixture.Host.Services.CreateScope();
     }
 
@@ -380,31 +386,15 @@ public abstract class IntegrationTestBase : IAsyncLifetime
             _scope.Dispose();
     }
 
-    // Helper to get services from the current test scope
     protected T GetService<T>() where T : notnull
         => Services.GetRequiredService<T>();
 }
 
-/// <summary>
-///     Configurable test payment gateway for integration tests.
-///     Supports simulating failures for specific order IDs or amounts.
-/// </summary>
 internal sealed class TestPaymentGateway : IPaymentGateway
 {
-    /// <summary>
-    ///     Order IDs that should fail payment processing.
-    /// </summary>
     public static HashSet<Guid> FailingOrderIds { get; } = [];
-
-    /// <summary>
-    ///     Payment amounts (decimal values) that should fail (useful for testing specific scenarios).
-    ///     Example: 666.00m could trigger a failure.
-    /// </summary>
     public static HashSet<decimal> FailingAmounts { get; } = [];
 
-    /// <summary>
-    ///     Resets the failure configuration (call in test cleanup).
-    /// </summary>
     public static void Reset()
     {
         FailingOrderIds.Clear();
@@ -417,14 +407,12 @@ internal sealed class TestPaymentGateway : IPaymentGateway
         PaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        // Check if this order should fail
         if (FailingOrderIds.Contains(request.OrderId))
         {
             return Task.FromResult(Result.Failure<PaymentResult>(
                 Error.Failure("Payment.Failed", "Simulated payment failure for testing")));
         }
 
-        // Check if this amount should fail (compare the decimal value from Money)
         if (FailingAmounts.Contains(request.Amount.Amount))
         {
             return Task.FromResult(Result.Failure<PaymentResult>(
@@ -453,7 +441,6 @@ internal sealed class TestPaymentGateway : IPaymentGateway
         string externalTransactionId,
         CancellationToken cancellationToken = default)
     {
-        // For testing, return succeeded status
         var result = new PaymentResult(
             TransactionId: externalTransactionId,
             Status: PaymentResultStatus.Succeeded);

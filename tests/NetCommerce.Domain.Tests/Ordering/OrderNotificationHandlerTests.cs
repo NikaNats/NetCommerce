@@ -81,13 +81,12 @@ public class OrderNotificationHandlerTests
     public async Task Handle_EmailProviderThrows_ShouldLogErrorAndRethrow()
     {
         // Arrange
-        IEmailProvider? emailProvider = Substitute.For<IEmailProvider>();
-        emailProvider.SendEmailAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
-                Arg.Any<CancellationToken>())
+        IEmailProvider emailProvider = Substitute.For<IEmailProvider>();
+        emailProvider.SendEmailAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("SendGrid API failure"));
 
         var templateEngine = new SimpleTemplateEngine();
-        ILogger<OrderNotificationHandler>? logger = Substitute.For<ILogger<OrderNotificationHandler>>();
+        ILogger<OrderNotificationHandler> logger = Substitute.For<ILogger<OrderNotificationHandler>>();
         var handler = new OrderNotificationHandler(emailProvider, templateEngine, logger);
 
         var orderEvent = new OrderPlacedIntegrationEvent(
@@ -97,11 +96,10 @@ public class OrderNotificationHandlerTests
         await Should.ThrowAsync<InvalidOperationException>(() =>
             handler.Handle(orderEvent, CancellationToken.None));
 
-        // Verify error was logged
         logger.Received(1).Log(
             LogLevel.Error,
             Arg.Any<EventId>(),
-            Arg.Is<object>(o => o.ToString()!.Contains("Failed to send order confirmation email")),
+            Arg.Is<object>(o => o != null && o.ToString()!.Contains("Failed to send order confirmation email")),
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception?, string>>());
     }

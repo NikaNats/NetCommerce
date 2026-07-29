@@ -1,11 +1,12 @@
 #nullable enable
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Inventory.Domain.Stock;
 using Shouldly;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using Wolverine;
 using Wolverine.Tracking;
 
 namespace NetCommerce.Integration.Tests.EdgeCases;
@@ -82,7 +83,7 @@ public class PartitionSkewToasterGuardTests : IntegrationTestBase
 
         const int hotKeyStock = 100;
         const int coldKeyStock = 50;
-        const int hotKeyRequestCount = 50; // Scaled for integration test
+        const int hotKeyRequestCount = 50;
         const int coldKeyRequestCount = 5;
 
         await using var inventoryDb = Fixture.CreateInventoryDbContext();
@@ -96,20 +97,11 @@ public class PartitionSkewToasterGuardTests : IntegrationTestBase
         Console.WriteLine("╠════════════════════════════════════════════════════════════════════╣");
         Console.WriteLine($"║ Hot Product (PS5):    {hotKeyStock,5} stock, {hotKeyRequestCount,4} requests           ║");
         Console.WriteLine($"║ Cold Product (Toaster): {coldKeyStock,3} stock, {coldKeyRequestCount,4} requests             ║");
-        Console.WriteLine($"║ Partition Count:      {DefaultPartitionCount,5} slots                            ║");
         Console.WriteLine("╠════════════════════════════════════════════════════════════════════╣");
         Console.WriteLine("║ Test: Cold product should NOT starve during hot-key flood         ║");
         Console.WriteLine("╚════════════════════════════════════════════════════════════════════╝");
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Launch mixed load (hot key flood + cold key requests)
-        // Process in batches to respect Wolverine's sequential processing per-partition
-        // ═══════════════════════════════════════════════════════════════════════
-        var hotKeyLatencies = new ConcurrentBag<double>();
-        var coldKeyLatencies = new ConcurrentBag<double>();
-
         // Process hot-key and cold-key requests in interleaved fashion
-        // This simulates real-world arrival patterns more accurately
         var allRequests = new List<(bool IsHot, Guid ProductId, string Sku)>();
         for (var i = 0; i < hotKeyRequestCount; i++)
             allRequests.Add((true, hotProductId, "SKU-PS5-001"));
@@ -119,42 +111,45 @@ public class PartitionSkewToasterGuardTests : IntegrationTestBase
         // Shuffle to simulate real arrival patterns
         var shuffled = allRequests.OrderBy(_ => Guid.NewGuid()).ToList();
 
+        var hotKeyLatencies = new ConcurrentBag<double>();
+        var coldKeyLatencies = new ConcurrentBag<double>();
         var results = new ConcurrentBag<(int Index, bool Success, bool IsHot, double Latency)>();
 
-        // Process in small parallel batches to test fairness without overwhelming
-        const int batchSize = 10;
-        for (var batch = 0; batch < shuffled.Count; batch += batchSize)
+        // ═══════════════════════════════════════════════════════════════════════
+        // ACT: Single TrackedSession for all requests (Fixes 3-min bottleneck & CS0121)
+        // ═══════════════════════════════════════════════════════════════════════
+        Func<IMessageContext, Task> action = async bus =>
         {
-            var batchTasks = shuffled
-                .Skip(batch)
-                .Take(batchSize)
-                .Select(async (req, idx) =>
+            var tasks = shuffled.Select(async (req, idx) =>
+            {
+                var orderId = Guid.NewGuid();
+                var command = new ReserveInventoryCommand(
+                    orderId,
+                    [new OrderItemReservation(req.ProductId, 1, req.Sku)]);
+
+                var sw = Stopwatch.StartNew();
+                try
                 {
-                    var orderId = Guid.NewGuid();
-                    var command = new ReserveInventoryCommand(
-                        orderId,
-                        [new OrderItemReservation(req.ProductId, 1, req.Sku)]);
+                    await bus.InvokeAsync(command);
+                    sw.Stop();
+                    if (req.IsHot) hotKeyLatencies.Add(sw.Elapsed.TotalMilliseconds);
+                    else coldKeyLatencies.Add(sw.Elapsed.TotalMilliseconds);
+                    results.Add((idx, true, req.IsHot, sw.Elapsed.TotalMilliseconds));
+                }
+                catch
+                {
+                    sw.Stop();
+                    results.Add((idx, false, req.IsHot, sw.Elapsed.TotalMilliseconds));
+                }
+            });
 
-                    var sw = Stopwatch.StartNew();
-                    try
-                    {
-                        await Fixture.Host.TrackActivity()
-                            .Timeout(TimeSpan.FromSeconds(30))
-                            .InvokeMessageAndWaitAsync(command);
-                        sw.Stop();
-                        if (req.IsHot) hotKeyLatencies.Add(sw.Elapsed.TotalMilliseconds);
-                        else coldKeyLatencies.Add(sw.Elapsed.TotalMilliseconds);
-                        results.Add((batch + idx, true, req.IsHot, sw.Elapsed.TotalMilliseconds));
-                    }
-                    catch
-                    {
-                        sw.Stop();
-                        results.Add((batch + idx, false, req.IsHot, sw.Elapsed.TotalMilliseconds));
-                    }
-                });
+            await Task.WhenAll(tasks);
+        };
 
-            await Task.WhenAll(batchTasks);
-        }
+        await Fixture.Host.TrackActivity()
+            .Timeout(TimeSpan.FromSeconds(15))
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(action);
 
         // ═══════════════════════════════════════════════════════════════════════
         // ASSERT: Analyze results
@@ -177,7 +172,6 @@ public class PartitionSkewToasterGuardTests : IntegrationTestBase
         Console.WriteLine($"║   Avg Latency:     {coldAvgLatency,6:F1}ms                                  ║");
         Console.WriteLine($"║   Max Latency:     {coldMaxLatency,6:F1}ms                                  ║");
 
-        // Check for starvation (cold key should have successes)
         if (coldSuccesses == 0)
         {
             Console.WriteLine("╠════════════════════════════════════════════════════════════════════╣");
@@ -212,13 +206,7 @@ public class PartitionSkewToasterGuardTests : IntegrationTestBase
         coldReserved.ShouldBeLessThanOrEqualTo(coldKeyStock,
             $"Cold key should not be oversold. Reserved: {coldReserved}, Stock: {coldKeyStock}");
 
-        // Note: Success count may not match reserved quantity because:
-        // 1. The handler returns InventoryReserved/InventoryReservationFailed (no exceptions)
-        // 2. Some reservations succeed at DB level even if tracking shows failures
-        // The primary invariant is NO OVERSELLING - verified above
-
         // Starvation check: Cold key should get at least some reservations
-        // (given sufficient stock and fair processing)
         coldReserved.ShouldBeGreaterThan(0,
             "TOASTER STARVATION: Cold key got zero reservations despite having available stock");
     }

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <RootNamespace>NetCommerce.Api</RootNamespace>
@@ -76,6 +76,15 @@
     <PackageReference Include="WolverineFx.SignalR"/>
   </ItemGroup>
 
+  <!-- Wolverine Runtime Compilation (Debug/Dev mode only - Roslyn excluded from Native AOT Release builds) -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <PackageReference Include="WolverineFx.RuntimeCompilation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Internal\Generated\**\*.cs" Watch="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Service Defaults (Aspire) -->
     <ProjectReference Include="..\NetCommerce.ServiceDefaults\NetCommerce.ServiceDefaults.csproj"/>
@@ -113,6 +122,7 @@
     <ProjectReference Include="..\Media\Media.Infrastructure\Media.Infrastructure.csproj"/>
 
     <!-- Finance Module -->
+    <ProjectReference Include="..\Finance\Finance.Domain\Finance.Domain.csproj"/>
     <ProjectReference Include="..\Finance\Finance.Application\Finance.Application.csproj"/>
     <ProjectReference Include="..\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj"/>
 

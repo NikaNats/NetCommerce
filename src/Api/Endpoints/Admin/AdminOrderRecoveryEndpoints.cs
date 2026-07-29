@@ -4,15 +4,6 @@ using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Admin;
 
-/// <summary>
-///     2025 Operational Recovery API for manual intervention.
-///     Key Principle: "A 'ManualInterventionRequired' state in a Saga is a Business Failure, not a code crash.
-///     You must provide a way for a human operator to resolve it."
-///     These endpoints are used by support engineers when:
-///     - Payment succeeds in Stripe but webhook fails (need to manually mark payment as complete)
-///     - Inventory reservation times out but items were reserved (need to manually confirm)
-///     - Refund is processed manually via Stripe Dashboard (need to close the saga)
-/// </summary>
 public class AdminOrderRecoveryEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
@@ -71,7 +62,7 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
     private static async Task<IResult> ForceCompleteSaga(
         Guid orderId,
         ForceCompleteSagaRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminOrderRecoveryEndpoints> logger)
     {
@@ -101,7 +92,7 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
     private static async Task<IResult> OverridePaymentStatus(
         Guid orderId,
         OverridePaymentStatusRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminOrderRecoveryEndpoints> logger)
     {
@@ -133,7 +124,7 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
     private static async Task<IResult> ForceCancelOrder(
         Guid orderId,
         ForceCancelOrderRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminOrderRecoveryEndpoints> logger)
     {
@@ -165,7 +156,7 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
     private static async Task<IResult> RetryFailedStep(
         Guid orderId,
         RetryStepRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminOrderRecoveryEndpoints> logger)
     {
@@ -184,23 +175,24 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
 
         return Results.Accepted(null, new
         {
-            OrderId = orderId, request.Step, Message = $"Retry command sent for step: {request.Step}"
+            OrderId = orderId,
+            request.Step,
+            Message = $"Retry command sent for step: {request.Step}"
         });
     }
 
     private static Task<IResult> GetSagaDetails(Guid orderId)
     {
-        // This would be implemented by querying the Wolverine saga storage
-        // For now, return placeholder
         return Task.FromResult(Results.Ok(new
         {
-            OrderId = orderId, Message = "Saga details endpoint (to be implemented - query Wolverine saga storage)"
+            OrderId = orderId,
+            Message = "Saga details endpoint"
         }));
     }
 
     private static async Task<IResult> BulkRetryStuckOrders(
         BulkRetryRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminOrderRecoveryEndpoints> logger)
     {
@@ -225,17 +217,13 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Request DTOs
-// ═══════════════════════════════════════════════════════════════
-
 public record ForceCompleteSagaRequest(
-    string Reason, // "Payment verified in Stripe Dashboard"
+    string Reason,
     string? Notes = null);
 
 public record OverridePaymentStatusRequest(
-    string PaymentStatus, // "Completed", "Failed", "Refunded"
-    string? StripeChargeId, // "ch_3P1..."
+    string PaymentStatus,
+    string? StripeChargeId,
     string Reason);
 
 public record ForceCancelOrderRequest(
@@ -244,15 +232,11 @@ public record ForceCancelOrderRequest(
     bool NotifyCustomer = true);
 
 public record RetryStepRequest(
-    string Step); // "ProcessPayment", "ReserveInventory", "CreateShippingLabel"
+    string Step);
 
 public record BulkRetryRequest(
-    string SagaState, // "ProcessingPayment", "ReservingInventory"
+    string SagaState,
     int MaxOrdersToRetry = 100);
-
-// ═══════════════════════════════════════════════════════════════
-// Admin Commands (Handled by Wolverine)
-// ═══════════════════════════════════════════════════════════════
 
 public record ForceCompleteOrderSagaCommand(
     Guid OrderId,

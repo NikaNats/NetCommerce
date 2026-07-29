@@ -6,10 +6,6 @@ using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Admin;
 
-/// <summary>
-///     Admin endpoints for Financial Reconciliation management.
-///     Human-in-the-loop corrections for discrepancies.
-/// </summary>
 public class AdminFinanceEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
@@ -56,10 +52,9 @@ public class AdminFinanceEndpoints : IEndpointGroup
         [FromQuery] ReconciliationStatus? status,
         [FromQuery] int page,
         [FromQuery] int pageSize,
-        IReconciliationSessionRepository sessionRepo,
+        [FromServices] IReconciliationSessionRepository sessionRepo, // 👈 Explicit FromServices
         HttpContext httpContext)
     {
-        // Set defaults
         page = page < 1 ? 1 : page;
         pageSize = pageSize < 1 ? 50 : pageSize;
 
@@ -67,7 +62,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
             startDate ?? DateTime.UtcNow.AddDays(-30),
             endDate ?? DateTime.UtcNow);
 
-        var filtered = sessions.AsEnumerable(); // Use IEnumerable instead of IQueryable for AOT
+        var filtered = sessions.AsEnumerable();
 
         if (status.HasValue)
         {
@@ -85,7 +80,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
 
     private static async Task<IResult> GetReconciliationSession(
         Guid sessionId,
-        IReconciliationSessionRepository sessionRepo)
+        [FromServices] IReconciliationSessionRepository sessionRepo) // 👈 Explicit FromServices
     {
         var session = await sessionRepo.GetByIdAsync(sessionId);
         if (session == null)
@@ -98,7 +93,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
 
     private static async Task<IResult> TriggerReconciliation(
         TriggerReconciliationRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminFinanceEndpoints> logger)
     {
@@ -120,7 +115,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
 
     private static async Task<IResult> ResolveDiscrepancy(
         ResolveDiscrepancyRequest request,
-        IMessageBus bus,
+        [FromServices] IMessageBus bus, // 👈 Explicit FromServices
         HttpContext httpContext,
         ILogger<AdminFinanceEndpoints> logger)
     {
@@ -150,7 +145,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
 
     private static async Task<IResult> GetMismatchedSessions(
         [FromQuery] DateTime? since,
-        IReconciliationSessionRepository sessionRepo)
+        [FromServices] IReconciliationSessionRepository sessionRepo) // 👈 Explicit FromServices
     {
         var sessions = await sessionRepo.GetMismatchedSessionsAsync(
             since ?? DateTime.UtcNow.AddDays(-7));
@@ -159,17 +154,10 @@ public class AdminFinanceEndpoints : IEndpointGroup
     }
 }
 
-/// <summary>
-///     Request model for triggering reconciliation.
-/// </summary>
 public record TriggerReconciliationRequest(DateTime Date);
 
-/// <summary>
-///     Request model for resolving discrepancies.
-/// </summary>
 public record ResolveDiscrepancyRequest(
     Guid SessionId,
     string ExternalTxnId,
     DiscrepancyResolutionAction Action,
     string Reason);
-

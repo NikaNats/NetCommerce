@@ -1,32 +1,20 @@
 #nullable enable
+using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Inventory.Domain.Stock;
 using Shouldly;
+using Wolverine;
 using Wolverine.Tracking;
 
 namespace NetCommerce.Integration.Tests.Infrastructure;
 
 /// <summary>
 ///     PRODUCTION-READINESS TEST: Redis Outage Resilience (Infrastructure Failure Mode #1)
-///
-///     <para>
-///     Tests the system's behavior when Redis (distributed locking) is unavailable.
-///     RedLock is critical for preventing overselling during high-concurrency inventory operations.
-///     </para>
-///
-///     <para>
-///     <b>Critical Question:</b> Does the system fail to a SAFE STATE (block reservations)
-///     rather than allowing overselling due to missing locks?
-///     </para>
-///
-///     <para>
-///     <b>Production Impact:</b> A Redis outage during a flash sale could result in:
-///     - Overselling: 1000 units sold when only 100 exist
-///     - Customer refunds, reputation damage, potential lawsuits
-///     - Lost revenue from manual order cancellations
-///     </para>
 /// </summary>
 public class RedisOutageResilienceTests : IntegrationTestBase
 {
@@ -37,55 +25,30 @@ public class RedisOutageResilienceTests : IntegrationTestBase
     /// <summary>
     ///     When Redis is unavailable, inventory reservation should FAIL SAFELY
     ///     rather than proceeding without a lock (which could cause overselling).
-    ///
-    ///     <para>
-    ///     Expected Behavior: Return failure result, NOT success without lock.
-    ///     This is the "fail-closed" pattern for critical distributed operations.
-    ///     </para>
     /// </summary>
     [Fact]
     public async Task RedisDown_ReserveInventory_ShouldFailSafely()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Set up product with stock, then simulate Redis unavailability
-        // ═══════════════════════════════════════════════════════════════════════
-
         var productId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        // Create stock in the inventory database using domain entity
         await using var inventoryDb = Fixture.CreateInventoryDbContext();
 
         var stock = Stock.Create(productId, "SKU-REDIS-001", 100);
         inventoryDb.Stocks.Add(stock);
         await inventoryDb.SaveChangesAsync();
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Attempt reservation - in production this would fail if Redis is down
-        // ═══════════════════════════════════════════════════════════════════════
-
-        // Note: In a real test with Testcontainers, we would stop the Redis container
-        // For this test, we verify the reservation logic itself handles lock failures
-
         var reserveCommand = new ReserveInventoryCommand(
             orderId,
             [new OrderItemReservation(productId, 10, "SKU-REDIS-001")]);
 
-        // Track the message processing
         var tracked = await Fixture.Host.InvokeMessageAndWaitAsync(reserveCommand);
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: Verify the reservation was processed (lock acquired or failed safely)
-        // ═══════════════════════════════════════════════════════════════════════
-
-        // Refresh context for latest values
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var stockItem = await verifyDb.Stocks
             .FirstOrDefaultAsync(s => s.ProductId == productId);
 
         stockItem.ShouldNotBeNull();
-
-        // Reserved quantity should never exceed available quantity
         stockItem.ReservedQuantity.ShouldBeLessThanOrEqualTo(stockItem.Quantity,
             "CRITICAL: Reserved quantity exceeds available stock - potential overselling!");
 
@@ -94,35 +57,20 @@ public class RedisOutageResilienceTests : IntegrationTestBase
 
     /// <summary>
     ///     Tests that concurrent reservations without proper locking are detected.
-    ///     This simulates the "race condition" that Redis locking prevents.
-    ///
-    ///     <para>
-    ///     Scenario: Two concurrent reservations for the same product, each requesting
-    ///     70 units when only 100 exist. Without locking, both could succeed (140 reserved).
-    ///     </para>
     /// </summary>
     [Fact]
     public async Task ConcurrentReservations_ShouldNotOversell()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Create product with limited stock
-        // ═══════════════════════════════════════════════════════════════════════
-
         var productId = Guid.NewGuid();
         const int availableStock = 100;
         const int reservationAmount = 70; // Two of these would oversell
 
-        // Create stock using domain entity
         await using var inventoryDb = Fixture.CreateInventoryDbContext();
 
         var stock = Stock.Create(productId, "SKU-CONCURRENT-001", availableStock);
         inventoryDb.Stocks.Add(stock);
         await inventoryDb.SaveChangesAsync();
         var stockId = stock.Id;
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Fire two concurrent reservations
-        // ═══════════════════════════════════════════════════════════════════════
 
         var order1Id = Guid.NewGuid();
         var order2Id = Guid.NewGuid();
@@ -135,17 +83,18 @@ public class RedisOutageResilienceTests : IntegrationTestBase
             order2Id,
             [new OrderItemReservation(productId, reservationAmount, "SKU-CONCURRENT-001")]);
 
-        // Execute both reservations concurrently
-        var task1 = Fixture.Host.InvokeMessageAndWaitAsync(reservation1);
-        var task2 = Fixture.Host.InvokeMessageAndWaitAsync(reservation2);
+        // Explicitly typed Func<IMessageContext, Task> resolves the ambiguity
+        Func<IMessageContext, Task> action = async bus =>
+        {
+            var task1 = bus.InvokeAsync(reservation1);
+            var task2 = bus.InvokeAsync(reservation2);
+            await Task.WhenAll(task1, task2);
+        };
 
-        await Task.WhenAll(task1, task2);
+        var session = await Fixture.Host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(action);
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: Total reserved should never exceed available
-        // ═══════════════════════════════════════════════════════════════════════
-
-        // Use fresh context to get latest values
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var finalStock = await verifyDb.Stocks.FindAsync(stockId);
         finalStock.ShouldNotBeNull();
@@ -160,46 +109,25 @@ public class RedisOutageResilienceTests : IntegrationTestBase
 
     /// <summary>
     ///     Tests the "circuit breaker" behavior when Redis connectivity is intermittent.
-    ///
-    ///     <para>
-    ///     Expected: After N consecutive Redis failures, the system should:
-    ///     1. Trip the circuit breaker
-    ///     2. Fast-fail subsequent requests (don't wait for Redis timeout)
-    ///     3. Return a clear error indicating temporary unavailability
-    ///     </para>
     /// </summary>
     [Fact]
     public async Task RedisIntermittent_ShouldTripCircuitBreaker()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: This test verifies circuit breaker configuration exists
-        // ═══════════════════════════════════════════════════════════════════════
-
-        // In production, Polly circuit breaker wraps Redis operations
-        // After 5 consecutive failures, circuit opens for 30 seconds
-
         var productId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
 
-        // Create stock using domain entity
         await using var inventoryDb = Fixture.CreateInventoryDbContext();
 
         var stock = Stock.Create(productId, "SKU-CIRCUIT-001", 50);
         inventoryDb.Stocks.Add(stock);
         await inventoryDb.SaveChangesAsync();
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT & ASSERT: Verify reservation can be processed
-        // ═══════════════════════════════════════════════════════════════════════
-
         var reserveCommand = new ReserveInventoryCommand(
             orderId,
             [new OrderItemReservation(productId, 5, "SKU-CIRCUIT-001")]);
 
-        // This should succeed with Redis available
         var tracked = await Fixture.Host.InvokeMessageAndWaitAsync(reserveCommand);
 
-        // Verify the system is operational
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var stockItem = await verifyDb.Stocks
             .FirstOrDefaultAsync(s => s.ProductId == productId);

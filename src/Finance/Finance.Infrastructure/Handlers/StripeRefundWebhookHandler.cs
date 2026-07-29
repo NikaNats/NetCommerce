@@ -1,9 +1,10 @@
 #nullable enable
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Finance.Domain.Audit;
+using NetCommerce.Finance.Infrastructure.Persistence;
+using System.Diagnostics;
 using Wolverine;
 using Wolverine.Attributes;
 
@@ -27,7 +28,7 @@ namespace NetCommerce.Finance.Infrastructure.Handlers;
 ///     4. If total refunded = original amount, treat as full refund
 ///     </para>
 /// </summary>
-[WolverineHandler]
+[Transactional(typeof(FinanceDbContext))]
 public static class StripeRefundWebhookHandler
 {
     public static async Task<object?> Handle(

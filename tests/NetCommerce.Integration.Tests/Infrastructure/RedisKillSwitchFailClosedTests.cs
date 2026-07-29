@@ -1,45 +1,23 @@
 #nullable enable
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Integration.Tests.Fixtures;
+using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Inventory.Domain.Stock;
 using Shouldly;
+using Wolverine;
 using Wolverine.Tracking;
 
 namespace NetCommerce.Integration.Tests.Infrastructure;
 
 /// <summary>
 ///     ADVERSARIAL INFRASTRUCTURE TEST: Redis Kill-Switch (Fail-Closed Drill)
-///
-///     <para>
-///     <b>TOP PRIORITY TEST</b> - This validates the most critical invariant in a distributed e-commerce system:
-///     "If the lock provider fails, the system MUST fail-closed to prevent overselling."
-///     </para>
-///
-///     <para>
-///     <b>Attack Surface:</b>
-///     - Redis flap (30 second outage during flash sale)
-///     - Redis partition (network split between API servers and Redis)
-///     - Redis memory exhaustion (evictions during spike load)
-///     </para>
-///
-///     <para>
-///     <b>CRITICAL INVARIANT:</b>
-///     During Redis unavailability with 100 concurrent reservation attempts:
-///     - EITHER: All 100 fail safely (Circuit Breaker pattern)
-///     - OR: Some succeed with PostgreSQL FOR UPDATE fallback lock
-///     - NEVER: All 100 succeed without ANY locking (overselling disaster)
-///     </para>
-///
-///     <para>
-///     <b>Production Impact of Fail-Open:</b>
-///     - Flash sale: 1000 PS5s sold when only 100 in stock
-///     - Manual order cancellations, angry customers, reputation damage
-///     - Potential lawsuits for false advertising
-///     - "Your business logic invariants (No Overselling) are effectively deleted"
-///     </para>
 /// </summary>
 [Collection(nameof(IntegrationTestCollection))]
 [Trait("Category", "Adversarial")]
@@ -53,34 +31,13 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
     #region Test 1: Redis Unavailable - System Must Fail-Closed
 
-    /// <summary>
-    ///     FAIL-CLOSED DRILL: When Redis is completely unavailable, the system
-    ///     should reject inventory reservations rather than proceed without locks.
-    ///
-    ///     <para>
-    ///     This test simulates a Redis outage scenario. In production:
-    ///     1. Redis goes down (flap, partition, or memory exhaustion)
-    ///     2. 100 concurrent orders attempt to reserve the same limited stock
-    ///     3. WITHOUT distributed locks, all could succeed → OVERSELLING
-    ///     </para>
-    ///
-    ///     <para>
-    ///     <b>Expected Behavior:</b>
-    ///     - PostgreSQL FOR UPDATE locks provide fallback protection
-    ///     - Stock invariant (Available + Reserved = Total) is NEVER violated
-    ///     - No overselling regardless of Redis state
-    ///     </para>
-    /// </summary>
     [Fact]
     public async Task RedisUnavailable_ConcurrentReservations_ShouldNeverOversell()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Create extremely limited stock (force contention)
-        // ═══════════════════════════════════════════════════════════════════════
         var productId = Guid.NewGuid();
-        const int availableStock = 10; // Very limited - like PS5 during launch
+        const int availableStock = 10;
         const int unitsPerReservation = 3;
-        const int concurrentRequests = 100; // 100 requests × 3 units = 300 demanded, only 10 available
+        const int concurrentRequests = 30; // Scaled to 30 to avoid PostgreSQL connection pool exhaustion (limit: 100)
 
         await using var inventoryDb = Fixture.CreateInventoryDbContext();
         var stock = Stock.Create(productId, "SKU-KILLSWITCH-001", availableStock);
@@ -100,43 +57,44 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
         Console.WriteLine("║ CRITICAL INVARIANT: Reserved ≤ Available (NO OVERSELLING)         ║");
         Console.WriteLine("╚════════════════════════════════════════════════════════════════════╝");
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Launch concurrent reservation "storm" (simulates flash sale)
-        // ═══════════════════════════════════════════════════════════════════════
         var results = new ConcurrentBag<(int Index, bool Success, Guid OrderId, string? Error)>();
         var startBarrier = new TaskCompletionSource();
 
-        var tasks = Enumerable.Range(0, concurrentRequests).Select(async i =>
+        Func<IMessageContext, Task> action = async bus =>
         {
-            var orderId = Guid.NewGuid();
-
-            // Wait at barrier for maximum concurrency impact
-            await startBarrier.Task;
-
-            var command = new ReserveInventoryCommand(
-                orderId,
-                [new OrderItemReservation(productId, unitsPerReservation, "SKU-KILLSWITCH-001")]);
-
-            try
+            var tasks = Enumerable.Range(0, concurrentRequests).Select(async i =>
             {
-                await Fixture.Host.InvokeMessageAndWaitAsync(command);
-                results.Add((i, Success: true, orderId, Error: null));
-            }
-            catch (Exception ex)
-            {
-                results.Add((i, Success: false, orderId, ex.Message));
-            }
-        }).ToList();
+                var orderId = Guid.NewGuid();
 
-        // Release all tasks simultaneously for maximum concurrency
-        startBarrier.SetResult();
-        await Task.WhenAll(tasks);
+                // Wait at barrier for maximum concurrency impact
+                await startBarrier.Task;
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: THE CRITICAL INVARIANT - NEVER OVERSELL
-        // ═══════════════════════════════════════════════════════════════════════
+                var command = new ReserveStockCommand(orderId, productId, unitsPerReservation);
+
+                try
+                {
+                    await bus.InvokeAsync(command);
+                    results.Add((i, Success: true, orderId, Error: null));
+                }
+                catch (Exception ex)
+                {
+                    results.Add((i, Success: false, orderId, ex.Message));
+                }
+            }).ToList();
+
+            // Release all tasks simultaneously for maximum concurrency
+            startBarrier.SetResult();
+            await Task.WhenAll(tasks);
+        };
+
+        // Track both concurrent requests within a single TrackedSession
+        await Fixture.Host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(action);
+
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var finalStock = await verifyDb.Stocks
+            .IgnoreQueryFilters()
             .Include(s => s.Reservations)
             .FirstOrDefaultAsync(s => s.Id == stockId);
 
@@ -172,13 +130,9 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
         Console.WriteLine("╚════════════════════════════════════════════════════════════════════╝");
 
-        // THE CRITICAL ASSERTION
         totalReserved.ShouldBeLessThanOrEqualTo(availableStock,
-            $"CRITICAL FAILURE: OVERSELLING DETECTED! Reserved {totalReserved} units but only {availableStock} available. " +
-            "This indicates the fail-closed invariant was violated. " +
-            "Without distributed locking, the system allowed concurrent reservations that exceeded stock.");
+            $"CRITICAL FAILURE: OVERSELLING DETECTED! Reserved {totalReserved} units but only {availableStock} available.");
 
-        // Stock accounting invariant
         var availableQty = finalStock.GetAvailableQuantity();
         var reservedQty = finalStock.GetReservedQuantity();
         (availableQty + reservedQty).ShouldBe(finalStock.Quantity,
@@ -189,21 +143,9 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
     #region Test 2: Verify PostgreSQL FOR UPDATE Lock Provides Fallback
 
-    /// <summary>
-    ///     Validates that PostgreSQL's FOR UPDATE lock provides a reliable fallback
-    ///     when Redis is unavailable. This is the "defense in depth" pattern.
-    ///
-    ///     <para>
-    ///     The system should NEVER rely solely on Redis for preventing overselling.
-    ///     PostgreSQL pessimistic locking must be the last line of defense.
-    ///     </para>
-    /// </summary>
     [Fact]
     public async Task PostgresForUpdateLock_ShouldPreventRaceCondition_EvenWithoutRedis()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Two concurrent requests that would cause race condition without locking
-        // ═══════════════════════════════════════════════════════════════════════
         var productId = Guid.NewGuid();
         const int availableStock = 100;
         const int requestAmount = 70; // Two of these would oversell
@@ -217,30 +159,27 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
         Console.WriteLine("[PostgresLock] Testing FOR UPDATE lock as fallback...");
         Console.WriteLine($"[PostgresLock] Available: {availableStock}, Request: {requestAmount} × 2 = {requestAmount * 2}");
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Fire two concurrent reservations that would oversell without locking
-        // ═══════════════════════════════════════════════════════════════════════
         var order1Id = Guid.NewGuid();
         var order2Id = Guid.NewGuid();
 
-        var reservation1 = new ReserveInventoryCommand(
-            order1Id,
-            [new OrderItemReservation(productId, requestAmount, "SKU-FORLOCK-001")]);
+        var reservation1 = new ReserveStockCommand(order1Id, productId, requestAmount);
+        var reservation2 = new ReserveStockCommand(order2Id, productId, requestAmount);
 
-        var reservation2 = new ReserveInventoryCommand(
-            order2Id,
-            [new OrderItemReservation(productId, requestAmount, "SKU-FORLOCK-001")]);
+        Func<IMessageContext, Task> action = async bus =>
+        {
+            var task1 = bus.InvokeAsync(reservation1);
+            var task2 = bus.InvokeAsync(reservation2);
+            await Task.WhenAll(task1, task2);
+        };
 
-        var task1 = Fixture.Host.InvokeMessageAndWaitAsync(reservation1);
-        var task2 = Fixture.Host.InvokeMessageAndWaitAsync(reservation2);
+        // Track both concurrent requests within a single TrackedSession
+        await Fixture.Host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(action);
 
-        await Task.WhenAll(task1, task2);
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: Only one should succeed, no overselling
-        // ═══════════════════════════════════════════════════════════════════════
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var finalStock = await verifyDb.Stocks
+            .IgnoreQueryFilters()
             .Include(s => s.Reservations)
             .FirstOrDefaultAsync(s => s.Id == stockId);
 
@@ -253,8 +192,7 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
         Console.WriteLine($"[PostgresLock] Total reserved: {totalReserved} / {availableStock}");
 
         totalReserved.ShouldBeLessThanOrEqualTo(availableStock,
-            $"PostgreSQL FOR UPDATE lock failed! Reserved {totalReserved} but only {availableStock} available. " +
-            "The database-level locking did not prevent the race condition.");
+            $"PostgreSQL FOR UPDATE lock failed! Reserved {totalReserved} but only {availableStock} available.");
 
         Console.WriteLine("[PostgresLock] ✓ FOR UPDATE lock prevented overselling");
     }
@@ -263,24 +201,9 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
     #region Test 3: Circuit Breaker Should Trip After Repeated Failures
 
-    /// <summary>
-    ///     Validates that after repeated lock acquisition failures, the circuit breaker
-    ///     trips and fast-fails subsequent requests rather than continuing to hammer
-    ///     a failing Redis instance.
-    ///
-    ///     <para>
-    ///     <b>Circuit Breaker Pattern:</b>
-    ///     - Closed: Normal operation, requests flow through
-    ///     - Open: After N failures, reject immediately
-    ///     - Half-Open: After timeout, allow probe request
-    ///     </para>
-    /// </summary>
     [Fact]
     public async Task CircuitBreaker_ShouldPreventCascadingFailures()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Create stock for circuit breaker test
-        // ═══════════════════════════════════════════════════════════════════════
         var productId = Guid.NewGuid();
         const int availableStock = 1000;
 
@@ -289,55 +212,51 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
         inventoryDb.Stocks.Add(stock);
         await inventoryDb.SaveChangesAsync();
 
-        Console.WriteLine("[CircuitBreaker] Testing circuit breaker behavior under load...");
-
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Fire many rapid requests to test circuit breaker behavior
-        // ═══════════════════════════════════════════════════════════════════════
-        const int rapidFireCount = 50;
+        const int rapidFireCount = 30; // Avoid connection pool exhaustion
         var results = new ConcurrentBag<(int Index, bool Success, TimeSpan Duration)>();
 
-        var tasks = Enumerable.Range(0, rapidFireCount).Select(async i =>
+        Func<IMessageContext, Task> action = async bus =>
         {
-            var orderId = Guid.NewGuid();
-            var command = new ReserveInventoryCommand(
-                orderId,
-                [new OrderItemReservation(productId, 1, "SKU-CIRCUIT-001")]);
-
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            try
+            var tasks = Enumerable.Range(0, rapidFireCount).Select(async i =>
             {
-                await Fixture.Host.InvokeMessageAndWaitAsync(command);
-                sw.Stop();
-                results.Add((i, Success: true, sw.Elapsed));
-            }
-            catch
-            {
-                sw.Stop();
-                results.Add((i, Success: false, sw.Elapsed));
-            }
-        });
+                var orderId = Guid.NewGuid();
+                var command = new ReserveStockCommand(orderId, productId, 1);
 
-        await Task.WhenAll(tasks);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    await bus.InvokeAsync(command);
+                    sw.Stop();
+                    results.Add((i, Success: true, sw.Elapsed));
+                }
+                catch
+                {
+                    sw.Stop();
+                    results.Add((i, Success: false, sw.Elapsed));
+                }
+            });
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: System should handle load gracefully
-        // ═══════════════════════════════════════════════════════════════════════
+            await Task.WhenAll(tasks);
+        };
+
+        // Track both concurrent requests within a single TrackedSession
+        await Fixture.Host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(action);
+
         var successCount = results.Count(r => r.Success);
         var failureCount = results.Count(r => !r.Success);
-        var avgDuration = results.Average(r => r.Duration.TotalMilliseconds);
+        var avgDuration = results.Any() ? results.Average(r => r.Duration.TotalMilliseconds) : 0;
 
         Console.WriteLine($"[CircuitBreaker] Results: {successCount} success, {failureCount} failed");
         Console.WriteLine($"[CircuitBreaker] Avg duration: {avgDuration:F2}ms");
 
-        // If circuit breaker is working, failed requests should be fast
         if (failureCount > 0)
         {
             var avgFailureDuration = results.Where(r => !r.Success).Average(r => r.Duration.TotalMilliseconds);
-            Console.WriteLine($"[CircuitBreaker] Avg failure duration: {avgFailureDuration:F2}ms (should be fast if circuit is open)");
+            Console.WriteLine($"[CircuitBreaker] Avg failure duration: {avgFailureDuration:F2}ms");
         }
 
-        // Verify stock invariant still holds
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var finalStock = await verifyDb.Stocks.FindAsync(stock.Id);
         finalStock.ShouldNotBeNull();
@@ -351,23 +270,9 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
     #region Test 4: Graceful Degradation Under Partial Redis Failure
 
-    /// <summary>
-    ///     Tests system behavior when Redis is partially available (intermittent failures).
-    ///     The system should degrade gracefully rather than fail completely.
-    ///
-    ///     <para>
-    ///     <b>Partial Failure Scenarios:</b>
-    ///     - Redis responding slowly (timeout some requests)
-    ///     - Redis dropping occasional connections
-    ///     - Redis returning errors for some keys
-    ///     </para>
-    /// </summary>
     [Fact]
     public async Task PartialRedisFailure_ShouldDegradeGracefully()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Multiple products to simulate varying Redis response
-        // ═══════════════════════════════════════════════════════════════════════
         var products = new List<(Guid ProductId, string Sku, int Stock)>
         {
             (Guid.NewGuid(), "SKU-DEGRADE-001", 50),
@@ -385,40 +290,41 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
         Console.WriteLine("[Degradation] Testing graceful degradation across multiple products...");
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Mixed load across multiple products
-        // ═══════════════════════════════════════════════════════════════════════
         var results = new ConcurrentBag<(Guid ProductId, bool Success)>();
 
-        var tasks = products.SelectMany(p =>
-            Enumerable.Range(0, 20).Select(async _ =>
-            {
-                var orderId = Guid.NewGuid();
-                var command = new ReserveInventoryCommand(
-                    orderId,
-                    [new OrderItemReservation(p.ProductId, 5, p.Sku)]);
-
-                try
+        Func<IMessageContext, Task> action = async bus =>
+        {
+            var tasks = products.SelectMany(p =>
+                Enumerable.Range(0, 10).Select(async _ => // 10 instead of 20 = 30 total concurrent requests
                 {
-                    await Fixture.Host.InvokeMessageAndWaitAsync(command);
-                    results.Add((p.ProductId, Success: true));
-                }
-                catch
-                {
-                    results.Add((p.ProductId, Success: false));
-                }
-            }));
+                    var orderId = Guid.NewGuid();
+                    var command = new ReserveStockCommand(orderId, p.ProductId, 5);
 
-        await Task.WhenAll(tasks);
+                    try
+                    {
+                        await bus.InvokeAsync(command);
+                        results.Add((p.ProductId, Success: true));
+                    }
+                    catch
+                    {
+                        results.Add((p.ProductId, Success: false));
+                    }
+                }));
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: No overselling on any product
-        // ═══════════════════════════════════════════════════════════════════════
+            await Task.WhenAll(tasks);
+        };
+
+        // Track both concurrent requests within a single TrackedSession
+        await Fixture.Host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(action);
+
         await using var verifyDb = Fixture.CreateInventoryDbContext();
 
         foreach (var (productId, sku, stockQty) in products)
         {
             var finalStock = await verifyDb.Stocks
+                .IgnoreQueryFilters()
                 .Include(s => s.Reservations)
                 .FirstOrDefaultAsync(s => s.ProductId == productId);
 
@@ -442,24 +348,9 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
     #region Test 5: Recovery After Redis Restoration
 
-    /// <summary>
-    ///     Tests that the system recovers normally after Redis comes back online.
-    ///     This validates the "circuit breaker half-open" transition.
-    ///
-    ///     <para>
-    ///     After a Redis outage:
-    ///     1. Circuit breaker should be open (fast-failing requests)
-    ///     2. After timeout, circuit goes half-open
-    ///     3. Probe request succeeds
-    ///     4. Circuit closes, normal operation resumes
-    ///     </para>
-    /// </summary>
     [Fact]
     public async Task AfterRedisRecovery_SystemShouldResumeNormalOperation()
     {
-        // ═══════════════════════════════════════════════════════════════════════
-        // ARRANGE: Create stock for recovery test
-        // ═══════════════════════════════════════════════════════════════════════
         var productId = Guid.NewGuid();
         const int availableStock = 100;
 
@@ -471,17 +362,12 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
 
         Console.WriteLine("[Recovery] Simulating post-Redis-outage recovery...");
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ACT: Sequential requests to simulate recovery scenario
-        // ═══════════════════════════════════════════════════════════════════════
         var successfulReservations = new List<Guid>();
 
         for (int i = 0; i < 10; i++)
         {
             var orderId = Guid.NewGuid();
-            var command = new ReserveInventoryCommand(
-                orderId,
-                [new OrderItemReservation(productId, 5, "SKU-RECOVER-001")]);
+            var command = new ReserveStockCommand(orderId, productId, 5);
 
             try
             {
@@ -495,24 +381,18 @@ public class RedisKillSwitchFailClosedTests : IntegrationTestBase
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        // ASSERT: System recovered and processed requests correctly
-        // ═══════════════════════════════════════════════════════════════════════
         await using var verifyDb = Fixture.CreateInventoryDbContext();
         var finalStock = await verifyDb.Stocks.FindAsync(stockId);
 
         finalStock.ShouldNotBeNull();
         Console.WriteLine($"[Recovery] Final reserved: {finalStock.ReservedQuantity}/{availableStock}");
 
-        // Verify some requests succeeded
         successfulReservations.Count.ShouldBeGreaterThan(0,
             "At least some reservations should succeed after recovery");
 
-        // Verify no overselling
         finalStock.ReservedQuantity.ShouldBeLessThanOrEqualTo(availableStock,
             "Recovery should not cause overselling");
 
-        // Verify stock accounting
         (finalStock.GetAvailableQuantity() + finalStock.GetReservedQuantity()).ShouldBe(finalStock.Quantity,
             "Stock accounting invariant must hold after recovery");
 
