@@ -917,25 +917,17 @@
         "resolved": "0.55.0",
         "contentHash": "GIfgOvuF8MpU52bprhwtDEtx0gmVIGOepM8bw0lH/TSMD0rg1Xp+5Y53kPG8rFVdcpbNANlhDQ5mEVVPO3/2Tg=="
       },
-      "SQLitePCLRaw.config.e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "3.0.0",
-        "contentHash": "hfbVNSnATZzAAH1Lncl1y692zt+O4Dq/gEV1uDIHUnkodFxuyTagQLSvqQHpbwhvTpeXlVTZNos/5Jf/HbVToQ==",
-        "dependencies": {
-          "SQLitePCLRaw.provider.e_sqlite3": "3.0.0"
-        }
-      },
       "SQLitePCLRaw.lib.e_sqlite3": {
         "type": "Transitive",
-        "resolved": "3.50.3",
-        "contentHash": "tVyhqQ8wxgedWiiPFChyZhE8I3PkOM/AE1azsj1qsdYUws13ONBFyi3aDxju4tD2kzedB2q5+50WrTyY0h2gMQ=="
+        "resolved": "2.1.13",
+        "contentHash": "D2UAuiGxFYBqeRXjjjGgvJ5UQifzn6wefmSqeKU7XcNGKLbJRP6X7kcPZ6opOBJGdCIlgbSxTvDpBbLvsN594A=="
       },
       "SQLitePCLRaw.provider.e_sqlite3": {
         "type": "Transitive",
-        "resolved": "3.0.0",
-        "contentHash": "/+tYEcxy6X7az6+bwOxphSp63vRIZyL3ag8Dx0dqWz7Xq3XfTsB/rgIZ/2YwDCH8krln4CjSJ03D2WnOgkQMSw==",
+        "resolved": "2.1.13",
+        "contentHash": "ZU60dSqoSNRe49KcQDUmOVgdRtjITOssVXFtiISs+zJXDI4D2Sndwpn2NOtzDQNPu0ZAvpoLPQ+GLKv6iEZn8Q==",
         "dependencies": {
-          "SQLitePCLRaw.core": "3.0.0"
+          "SQLitePCLRaw.core": "2.1.13"
         }
       },
       "System.ClientModel": {
@@ -1546,18 +1538,18 @@
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "CentralTransitive",
         "requested": "[2.1.13, )",
-        "resolved": "3.0.0",
-        "contentHash": "fve56V3V/IBJT34ak0pFiJTAl/djHeQNd7/s7e1BlvpAnQT51uu7gk+2kFLe3UEVkCm3nfvODujRDjz5qsNE7A==",
+        "resolved": "2.1.13",
+        "contentHash": "NlDixlC7uHmo+ojXRgkNvN0tQtVGpLDZ3x2OpgNj+G07VHh5cXSszFDrAiC4BpUiPwkcaeuQkMV9WQ123xVtmQ==",
         "dependencies": {
-          "SQLitePCLRaw.config.e_sqlite3": "3.0.0",
-          "SQLitePCLRaw.lib.e_sqlite3": "3.50.3"
+          "SQLitePCLRaw.lib.e_sqlite3": "2.1.13",
+          "SQLitePCLRaw.provider.e_sqlite3": "2.1.13"
         }
       },
       "SQLitePCLRaw.core": {
         "type": "CentralTransitive",
         "requested": "[2.1.13, )",
-        "resolved": "3.0.0",
-        "contentHash": "tnVrkfPiCpHRWPahEI+tRd8jcqyoaJUi5V93x68EM0h2+QDDL4SvSk2maEkjV/mYj5vATLzcXV91QmcfHZGOMw=="
+        "resolved": "2.1.13",
+        "contentHash": "2joofoinuHBFs0nMX3nKuXgxpXryRkCOdM2Ua6HBqQLLy6IW+5f28ZI+HAvMyF8vG7XfNz/lwfBfE6V4juru8Q=="
       },
       "WolverineFx": {
         "type": "CentralTransitive",

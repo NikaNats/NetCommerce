@@ -1,4 +1,5 @@
 #nullable enable
+
 using System.Diagnostics;
 using System.Net;
 using System.Text;
@@ -41,7 +42,8 @@ public class RedisKillScriptTests : IAsyncLifetime
     private const int RequestsPerSecond = 50;
     private const int KillRedisAfterSeconds = 10; // Kill Redis after 10s of load
 
-    public async Task InitializeAsync()
+    // xUnit v3: ValueTask InitializeAsync
+    public async ValueTask InitializeAsync()
     {
         // Start a managed Redis container for this test
         _redisContainer = new RedisBuilder()
@@ -58,7 +60,8 @@ public class RedisKillScriptTests : IAsyncLifetime
         };
     }
 
-    public async Task DisposeAsync()
+    // xUnit v3: ValueTask DisposeAsync
+    public async ValueTask DisposeAsync()
     {
         _httpClient?.Dispose();
 
@@ -79,7 +82,9 @@ public class RedisKillScriptTests : IAsyncLifetime
     ///     - T+10-30s: Verify API returns 503 (not 200 with un-locked reservation)
     ///     </para>
     /// </summary>
-    [Fact(Skip = "Run manually - requires running API instance with managed Redis")]
+    [Fact]
+    [Trait("Category", "LoadTest")]
+    [Trait("Category", "RequiresApi")]
     public async Task KillRedis_DuringLoadTest_ShouldReturn503NotAllowOverselling()
     {
         // ═══════════════════════════════════════════════════════════════════════════
@@ -215,7 +220,9 @@ public class RedisKillScriptTests : IAsyncLifetime
     ///     Validates that the health endpoint reports unhealthy within SLA
     ///     when Redis is killed.
     /// </summary>
-    [Fact(Skip = "Run manually - requires running API instance")]
+    [Fact]
+    [Trait("Category", "LoadTest")]
+    [Trait("Category", "RequiresApi")]
     public async Task KillRedis_HealthEndpoint_ShouldReportUnhealthyWithinSla()
     {
         // ═══════════════════════════════════════════════════════════════════════════
@@ -279,7 +286,9 @@ public class RedisKillScriptTests : IAsyncLifetime
     ///     Simulates a "kill and recover" scenario to ensure the system
     ///     can resume normal operation after Redis comes back.
     /// </summary>
-    [Fact(Skip = "Run manually - requires running API instance")]
+    [Fact]
+    [Trait("Category", "LoadTest")]
+    [Trait("Category", "RequiresApi")]
     public async Task KillAndRecoverRedis_ShouldResumeNormalOperation()
     {
         // ═══════════════════════════════════════════════════════════════════════════

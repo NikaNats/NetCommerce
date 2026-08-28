@@ -1,3 +1,5 @@
+#nullable enable
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetCommerce.Inventory.Domain.Stock;
@@ -38,13 +40,15 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         _releaseLogger = Substitute.For<ILogger<PartitionedReleaseInventoryHandler>>();
     }
 
-    public async Task InitializeAsync()
+    // xUnit v3: ValueTask InitializeAsync
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetAsync();
         _dbContext = _fixture.CreateInventoryDbContext();
     }
 
-    public async Task DisposeAsync()
+    // xUnit v3: ValueTask DisposeAsync
+    public async ValueTask DisposeAsync()
     {
         await _dbContext.DisposeAsync();
     }
@@ -108,7 +112,7 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         var failed = (InventoryReservationFailed)result;
         failed.OrderId.ShouldBe(orderId);
         failed.UnavailableProductIds.ShouldNotBeNull();
-        failed.UnavailableProductIds.ShouldContain(productId);
+        failed.UnavailableProductIds!.ShouldContain(productId);
     }
 
     [Fact]
@@ -129,7 +133,8 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         // Assert
         result.ShouldBeOfType<InventoryReservationFailed>();
         var failed = (InventoryReservationFailed)result;
-        failed.UnavailableProductIds.ShouldContain(productId);
+        failed.UnavailableProductIds.ShouldNotBeNull();
+        failed.UnavailableProductIds!.ShouldContain(productId);
     }
 
     [Fact]
@@ -204,7 +209,8 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         // Assert - Should fail entirely, not partial
         result.ShouldBeOfType<InventoryReservationFailed>();
         var failed = (InventoryReservationFailed)result;
-        failed.UnavailableProductIds.ShouldContain(productId2);
+        failed.UnavailableProductIds.ShouldNotBeNull();
+        failed.UnavailableProductIds!.ShouldContain(productId2);
     }
 
     #endregion
