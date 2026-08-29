@@ -1,7 +1,7 @@
 # ==============================================================================
 # 1. BUILD STAGE - Native AOT Compilation
 # ==============================================================================
-FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 # AOT Prerequisites: Native Linker Dependencies
@@ -67,7 +67,7 @@ RUN dotnet publish -c Release -o /app/publish \
 # - No package manager (apt, apk) - Prevents post-exploitation tooling
 # - Non-root user - Runs as 'app' user (UID 1654) by default
 # - Minimal attack surface - Minimal dependencies (~70MB total container size)
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-preview-chiseled
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra
 WORKDIR /app
 
 # Copy the compiled native executable and config

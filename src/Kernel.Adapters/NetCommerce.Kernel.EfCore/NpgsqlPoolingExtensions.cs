@@ -17,7 +17,9 @@ public static class NpgsqlPoolingExtensions
     /// <summary>
     /// Configures EF Core with strict Npgsql connection pooling to prevent Postgres exhaustion.
     /// </summary>
-    public static IServiceCollection AddPooledKernelDbContext<TContext>(
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL2075", Justification = "Reflection for Schema field is optional fallback; AOT-safe via direct MigrationsHistoryTable")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "MakeGenericType for DbContext is handled by EF Core source generation")]
+    public static IServiceCollection AddPooledKernelDbContext<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All)] TContext>(
         this IServiceCollection services,
         IConfiguration configuration,
         string connectionStringName,

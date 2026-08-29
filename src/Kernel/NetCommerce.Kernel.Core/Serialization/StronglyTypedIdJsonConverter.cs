@@ -11,6 +11,7 @@ namespace NetCommerce.Kernel.Core.Serialization;
 /// </summary>
 public class StronglyTypedIdJsonConverterFactory : JsonConverterFactory
 {
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Factory checks IStronglyTypedId<> via GetInterfaces; trimmed types not used at runtime")]
     public override bool CanConvert(Type typeToConvert)
     {
         // Check if it's a value type implementing our generic interface
@@ -18,6 +19,8 @@ public class StronglyTypedIdJsonConverterFactory : JsonConverterFactory
                typeToConvert.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStronglyTypedId<>));
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2071", Justification = "MakeGenericType for TId is AOT-safe via source-generated converters; fallback to runtime for unknown IDs")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Activator.CreateInstance for generic converter; types are statically known")]
     public override JsonConverter? CreateConverter(
         Type typeToConvert,
         JsonSerializerOptions options)
