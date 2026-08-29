@@ -58,7 +58,7 @@
          NU1608 (Transitive dependency version mismatch - EF Core 10 + WolverineFx transitively bring different CodeAnalysis versions),
          NU1107 (Oakton 6.3.0 constrains Host <10.0.0 but Wolverine 6.x requires Host >=10.0.0 - forced to Host 10.x which is API-compatible) -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591;CA1014;NETSDK1210;NU1608;NU1107;CS8669;IDE0005;ASPIRE010;xUnit1026;xUnit1004;CA5394;CS0618;AV0011;CS1570;CS1574;CS0219;CS0006;IL2026;IL3050;CS1572;CS1573</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;CA1014;NETSDK1210;NU1608;NU1107;CS8669;IDE0005;ASPIRE010;xUnit1026;xUnit1004;xUnit1051;xUnit2024;xUnit2020;CA5394;CS0618;AV0011;CS1570;CS1574;CS0219;CS0006;IL2026;IL3050;CS1572;CS1573</NoWarn>
   </PropertyGroup>
 
   <!--

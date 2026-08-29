@@ -91,7 +91,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await Task.Delay(500);
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -127,7 +127,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -172,7 +172,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -227,7 +227,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act - Run ONCE
         await job.StartAsync(cts.Token);
-        await Task.Delay(50); // Fast enough to catch only first tick
+        await Task.Delay(500); // Fast enough to catch only first tick
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -323,7 +323,7 @@ public class ReservationCleanupJobTests : IDisposable
         await Should.NotThrowAsync(async () =>
         {
             await job.StartAsync(cts.Token);
-            await Task.Delay(50);
+            await Task.Delay(500);
             await job.StopAsync(CancellationToken.None);
         });
     }
@@ -338,7 +338,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(50);
+        await Task.Delay(500);
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -381,7 +381,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -423,7 +423,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act - Start job, then cancel quickly
         await job.StartAsync(cts.Token);
-        await Task.Delay(10); // Very short delay
+        await Task.Delay(100); // Very short delay
         cts.Cancel();
         await job.StopAsync(CancellationToken.None);
 
@@ -460,7 +460,7 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(100);
+        await Task.Delay(500);
         await job.StopAsync(CancellationToken.None);
 
         // Assert

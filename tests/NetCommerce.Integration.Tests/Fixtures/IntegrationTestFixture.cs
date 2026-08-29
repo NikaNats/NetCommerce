@@ -64,7 +64,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     /// </summary>
     public IHost Host => _host ?? throw new InvalidOperationException("Host not initialized");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Start PostgreSQL container
         _postgresContainer = new PostgreSqlBuilder("postgres:17")
@@ -111,7 +111,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                || message.Contains("refused", StringComparison.OrdinalIgnoreCase);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {
@@ -370,7 +370,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
 
     protected IServiceProvider Services => _scope.ServiceProvider;
 
-    public virtual async Task InitializeAsync()
+    public virtual async ValueTask InitializeAsync()
     {
         await Fixture.ResetDatabaseAsync();
         TestPaymentGateway.Reset();
@@ -378,7 +378,7 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         _scope = Fixture.Host.Services.CreateScope();
     }
 
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (_scope is IAsyncDisposable asyncDisposable)
             await asyncDisposable.DisposeAsync();

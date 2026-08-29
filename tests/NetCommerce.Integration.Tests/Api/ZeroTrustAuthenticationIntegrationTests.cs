@@ -38,7 +38,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
     private string _publicKeyJwk = null!;
     private RSA _rsa = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Start WireMock to simulate Keycloak
         _keycloakMock = WireMockServer.Start();
@@ -55,7 +55,7 @@ public class ZeroTrustAuthenticationIntegrationTests : IAsyncLifetime
         _client = _host.GetTestClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client.Dispose();
         await _host.StopAsync();

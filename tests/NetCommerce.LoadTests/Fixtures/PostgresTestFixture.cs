@@ -20,7 +20,7 @@ public sealed class PostgresTestFixture : IAsyncLifetime
 
     public string ConnectionString => _postgresContainer.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _postgresContainer = new PostgreSqlBuilder("postgres:17")
             .WithDatabase("loadtest_db")
@@ -35,7 +35,7 @@ public sealed class PostgresTestFixture : IAsyncLifetime
         await context.Database.EnsureCreatedAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_postgresContainer is not null)
         {

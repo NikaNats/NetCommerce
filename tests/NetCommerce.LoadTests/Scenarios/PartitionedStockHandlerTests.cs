@@ -40,13 +40,13 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         _releaseLogger = Substitute.For<ILogger<PartitionedReleaseInventoryHandler>>();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _fixture.ResetAsync();
         _dbContext = _fixture.CreateInventoryDbContext();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_dbContext is not null)
         {

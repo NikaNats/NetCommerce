@@ -34,7 +34,7 @@ public class ContentionSkewStressTests : IAsyncLifetime
     private PostgreSqlContainer _postgresContainer = null!;
     private string ConnectionString => _postgresContainer.GetConnectionString();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _postgresContainer = new PostgreSqlBuilder("postgres:17")
             .WithDatabase("loadtest_db")
@@ -46,7 +46,7 @@ public class ContentionSkewStressTests : IAsyncLifetime
         await InitializeDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_postgresContainer is not null)
         {

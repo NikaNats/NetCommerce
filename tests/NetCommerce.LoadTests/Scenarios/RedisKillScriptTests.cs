@@ -41,7 +41,7 @@ public class RedisKillScriptTests : IAsyncLifetime
     private const int RequestsPerSecond = 50;
     private const int KillRedisAfterSeconds = 10;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _redisContainer = new RedisBuilder()
             .WithImage("redis:7.4")
@@ -57,7 +57,7 @@ public class RedisKillScriptTests : IAsyncLifetime
         };
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _httpClient?.Dispose();
 
