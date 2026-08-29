@@ -129,9 +129,16 @@ public static class ZeroTrustAuthenticationExtensions
                 client.Timeout = TimeSpan.FromSeconds(10);
             });
 
-        // 11. Register Admin API Key options
+        // 11. Register Admin Elevated Auth options (fail-closed, explicit posture)
+        services.AddOptions<AdminElevatedAuthOptions>()
+            .Bind(configuration.GetSection(AdminElevatedAuthOptions.SectionName))
+            .ValidateOnStart();
+
+        // Backward compat: keep old section bound as well for migration
         services.AddOptions<AdminApiKeyOptions>()
             .Bind(configuration.GetSection(AdminApiKeyOptions.SectionName));
+
+        services.AddSingleton<IValidateOptions<AdminElevatedAuthOptions>, AdminElevatedAuthOptionsValidator>();
 
         // 12. Register Authorization Handlers
         services.AddSingleton<IAuthorizationHandler, ResourceOwnerAuthorizationHandler>();
