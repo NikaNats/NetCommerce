@@ -37,7 +37,7 @@ public static class OpenApiExtensions
                 options.WithTitle("NetCommerce API Explorer")
                        .WithTheme(ScalarTheme.Moon)
                        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-            });
+            }).WithSecurityHeadersPolicy("ScalarDevUI");
         }
 
         return app;

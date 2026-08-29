@@ -47,6 +47,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // ============================================================================
+// Enterprise HTTP Security Headers (OWASP Compliant)
+// ============================================================================
+builder.Services.AddNetCommerceSecurityHeaders();
+
+// ============================================================================
 // Enterprise-Hardened Web Host (Kestrel Security & Performance)
 // ============================================================================
 builder.AddEnterpriseWebHost();
@@ -212,6 +217,11 @@ builder.Services.AddVersioning();
 builder.AddNetCommerceOpenApi();
 
 var app = builder.Build();
+
+// ============================================================================
+// CRITICAL: Security Headers Middleware (MUST BE FIRST)
+// ============================================================================
+app.UseNetCommerceSecurityHeaders();
 
 // ============================================================================
 // Aspire Default Endpoints (Health checks)

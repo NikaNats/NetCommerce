@@ -20,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Http"/>
     <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer"/>
+    <PackageReference Include="NetEscapades.AspNetCore.SecurityHeaders" />
   </ItemGroup>
 
 </Project>
