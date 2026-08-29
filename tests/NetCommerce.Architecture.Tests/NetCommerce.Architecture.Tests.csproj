@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Direct pin to resolve NU1107: WolverineFx 6.30.3 needs Host >=10.0.0 while Oakton 6.3.0 constrains <10.0.0 (see Directory.Build.props NoWarn NU1107) -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="xunit" />
