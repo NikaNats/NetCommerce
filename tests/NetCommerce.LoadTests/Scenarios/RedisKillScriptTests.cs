@@ -36,19 +36,16 @@ public class RedisKillScriptTests : IAsyncLifetime
     private RedisContainer? _redisContainer;
     private HttpClient? _httpClient;
 
-    // Configuration
     private const string ApiBaseUrl = "http://localhost:5000";
     private const int LoadTestDurationSeconds = 30;
     private const int RequestsPerSecond = 50;
-    private const int KillRedisAfterSeconds = 10; // Kill Redis after 10s of load
+    private const int KillRedisAfterSeconds = 10;
 
-    // xUnit v3: ValueTask InitializeAsync
-    public async ValueTask InitializeAsync()
+    public async Task InitializeAsync()
     {
-        // Start a managed Redis container for this test
         _redisContainer = new RedisBuilder()
             .WithImage("redis:7.4")
-            .WithPortBinding(6380, 6379) // Use different port to avoid conflicts
+            .WithPortBinding(6380, 6379)
             .Build();
 
         await _redisContainer.StartAsync();
@@ -60,12 +57,11 @@ public class RedisKillScriptTests : IAsyncLifetime
         };
     }
 
-    // xUnit v3: ValueTask DisposeAsync
-    public async ValueTask DisposeAsync()
+    public async Task DisposeAsync()
     {
         _httpClient?.Dispose();
 
-        if (_redisContainer != null)
+        if (_redisContainer is not null)
         {
             await _redisContainer.DisposeAsync();
         }

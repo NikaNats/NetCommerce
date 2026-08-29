@@ -9,7 +9,7 @@
     <ProjectReference Include="..\..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="Exists('..\..\..\artifacts\bin\NetCommerce.Kernel.SourceGenerators\$(Configuration)\NetCommerce.Kernel.SourceGenerators.dll')">
     <Analyzer Include="..\..\..\artifacts\bin\NetCommerce.Kernel.SourceGenerators\$(Configuration)\NetCommerce.Kernel.SourceGenerators.dll"/>
   </ItemGroup>
 

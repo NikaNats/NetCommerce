@@ -1,39 +1,76 @@
+#nullable enable
 using Asp.Versioning;
-using Asp.Versioning.Builder; // Required for ApiVersionSet
+using Asp.Versioning.Builder;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Api.Endpoints.Media;
+
+// Strongly-typed AOT-safe DTO (fixes runtime serialization crashes in Native AOT)
+public sealed record UploadMediaResponse(string Key, string Url);
 
 public class MediaEndpoints : IEndpointGroup
 {
     public void MapEndpoints(IEndpointRouteBuilder app, ApiVersionSet versionSet)
     {
         var group = app.MapGroup("/api/v{version:apiVersion}/media")
-            .WithApiVersionSet(versionSet) // <--- THIS IS CRITICAL
-            .HasApiVersion(1.0)            // Specify which versions this group supports
+            .WithApiVersionSet(versionSet)
+            .HasApiVersion(1.0)
             .WithTags("Media");
 
         group.MapGet("/upload-url", GetUploadUrl)
             .WithName("GetMediaUploadUrl")
-            .WithSummary("Get a presigned URL for uploading a file")
             .RequireAuthorization("VendorOnly");
 
         group.MapPost("/upload", Upload)
             .WithName("UploadMedia")
-            .WithSummary("Upload a file directly (for smaller files)")
             .RequireAuthorization("VendorOnly")
             .DisableAntiforgery();
 
         group.MapDelete("/", Delete)
             .WithName("DeleteMedia")
-            .WithSummary("Delete a file")
             .RequireAuthorization("VendorOnly");
 
         group.MapGet("/url", GetPublicUrl)
             .WithName("GetMediaPublicUrl")
-            .WithSummary("Get public URL for an image")
             .AllowAnonymous();
+    }
+
+    private static async Task<IResult> Upload(
+        IFormFile? file,
+        IStorageService storageService,
+        HttpContext httpContext,
+        string folder = "products",
+        CancellationToken cancellationToken = default)
+    {
+        if (file is null || file.Length == 0)
+            return Results.BadRequest(new { error = "File is required" });
+
+        await using var stream = file.OpenReadStream();
+
+        var result = await storageService.UploadAsync(
+            stream,
+            file.FileName,
+            file.ContentType,
+            folder,
+            cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            var version = httpContext.Features.Get<IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
+            var location = $"/api/v{version.MajorVersion}/media/{result.Value}";
+
+            // Using strongly-typed record for AOT safety
+            return Results.Created(location, new UploadMediaResponse(
+                result.Value!,
+                storageService.GetPublicUrl(result.Value!)
+            ));
+        }
+
+        return result.ToApiResult();
     }
 
     private static async Task<IResult> GetUploadUrl(
@@ -50,45 +87,6 @@ public class MediaEndpoints : IEndpointGroup
             contentType,
             TimeSpan.FromMinutes(expiryMinutes),
             cancellationToken);
-
-        return result.ToApiResult();
-    }
-
-    private static async Task<IResult> Upload(
-        IFormFile file,
-        IStorageService storageService,
-        HttpContext httpContext,
-        string folder = "products",
-        CancellationToken cancellationToken = default)
-    {
-        if (file == null || file.Length == 0)
-            return Results.BadRequest("File is required");
-
-        if (file.Length > 10 * 1024 * 1024) // 10MB
-            return Results.BadRequest("File size exceeds 10MB limit");
-
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp", "image/gif" };
-        if (!allowedTypes.Contains(file.ContentType.ToLower()))
-            return Results.BadRequest("Invalid file type. Allowed: jpeg, png, webp, gif");
-
-        await using var stream = file.OpenReadStream();
-        var result = await storageService.UploadAsync(
-            stream,
-            file.FileName,
-            file.ContentType,
-            folder,
-            cancellationToken);
-
-        if (result.IsSuccess)
-        {
-            var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
-            var location = $"/api/v{version.MajorVersion}/media/{result.Value}";
-            return Results.Created(location, new
-            {
-                Key = result.Value,
-                Url = storageService.GetPublicUrl(result.Value!)
-            });
-        }
 
         return result.ToApiResult();
     }

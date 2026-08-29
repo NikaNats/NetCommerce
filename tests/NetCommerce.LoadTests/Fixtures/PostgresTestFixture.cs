@@ -17,12 +17,10 @@ namespace NetCommerce.LoadTests.Fixtures;
 public sealed class PostgresTestFixture : IAsyncLifetime
 {
     private PostgreSqlContainer _postgresContainer = null!;
-    private ServiceProvider _serviceProvider = null!;
 
     public string ConnectionString => _postgresContainer.GetConnectionString();
 
-    // xUnit v3: ValueTask InitializeAsync
-    public async ValueTask InitializeAsync()
+    public async Task InitializeAsync()
     {
         _postgresContainer = new PostgreSqlBuilder("postgres:17")
             .WithDatabase("loadtest_db")
@@ -32,40 +30,32 @@ public sealed class PostgresTestFixture : IAsyncLifetime
 
         await _postgresContainer.StartAsync();
 
-        _serviceProvider = CreateServiceProvider();
-
-        await using var scoped = CreateScopedDbContext();
-        await scoped.Context.Database.EnsureCreatedAsync();
+        // Create schema and tables
+        await using var context = CreateInventoryDbContext();
+        await context.Database.EnsureCreatedAsync();
     }
 
-    // xUnit v3: ValueTask DisposeAsync
-    public async ValueTask DisposeAsync()
+    public async Task DisposeAsync()
     {
-        await _serviceProvider.DisposeAsync();
-        await _postgresContainer.DisposeAsync();
-    }
-
-    public ScopedDbContext<InventoryDbContext> CreateScopedDbContext()
-    {
-        var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-        return new ScopedDbContext<InventoryDbContext>(context, scope);
+        if (_postgresContainer is not null)
+        {
+            await _postgresContainer.DisposeAsync();
+        }
     }
 
     public InventoryDbContext CreateInventoryDbContext()
     {
-        var scope = _serviceProvider.CreateScope();
+        var serviceProvider = CreateServiceProvider();
+        var scope = serviceProvider.CreateScope();
         return scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
     }
 
-    private ServiceProvider CreateServiceProvider()
+    public ServiceProvider CreateServiceProvider()
     {
         var services = new ServiceCollection();
-
         services.AddScoped<ITenantContext>(_ => Substitute.For<ITenantContext>());
         services.AddScoped<IUserContext>(_ => Substitute.For<IUserContext>());
         services.AddScoped<IMessageBus>(_ => Substitute.For<IMessageBus>());
-
         services.AddKernelEfCore<InventoryDbContext>(options => options.UseNpgsql(ConnectionString));
 
         return services.BuildServiceProvider();
@@ -73,10 +63,10 @@ public sealed class PostgresTestFixture : IAsyncLifetime
 
     public async Task ResetAsync()
     {
-        await using var scoped = CreateScopedDbContext();
-        await scoped.Context.Database.ExecuteSqlRawAsync("""
-            TRUNCATE TABLE inventory.stock_reservations, inventory.stocks CASCADE;
-            """);
+        await using var context = CreateInventoryDbContext();
+        await context.Database.ExecuteSqlRawAsync("""
+                                                  TRUNCATE TABLE inventory.stock_reservations, inventory.stocks CASCADE;
+                                                  """);
     }
 }
 

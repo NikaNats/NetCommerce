@@ -1,17 +1,18 @@
+#nullable enable
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Sas;
 using Microsoft.Extensions.Options;
-using NetCommerce.Media.Application.Services;
 using NetCommerce.Kernel.Core.Results;
+using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Media.Infrastructure.Storage;
 
-/// <summary>
-///     Azure Blob Storage service for media storage.
-///     Used when running with Aspire (Azurite locally, Azure Blob Storage in production).
-/// </summary>
 public sealed class AzureBlobStorageService : IStorageService
 {
     private readonly BlobServiceClient _blobServiceClient;
@@ -34,17 +35,27 @@ public sealed class AzureBlobStorageService : IStorageService
     {
         try
         {
-            var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
-            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+            // Defensive Length check for non-seekable streams
+            var streamLength = fileStream.CanSeek ? fileStream.Length : ImageInspector.MaxSizeBytes - 1;
 
-            var key = GenerateKey(folder, fileName);
+            // 1. Magic-Byte Validation & MIME Detection
+            var validationResult = await ImageInspector.ValidateAsync(fileStream, streamLength, cancellationToken);
+            if (!validationResult.IsSuccess)
+                return Result.Failure<string>(validationResult.Error);
+
+            var validatedImage = validationResult.Value;
+
+            // 2. Resolve Container Client (Direct access without redundant CreateIfNotExists call on every upload)
+            var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
+            var key = GenerateSafeKey(folder, validatedImage.SafeFileName);
             var blobClient = containerClient.GetBlobClient(key);
 
             var blobHttpHeaders = new BlobHttpHeaders
             {
-                ContentType = contentType
+                ContentType = validatedImage.MimeType // True detected MIME type
             };
 
+            // 3. Upload Stream
             await blobClient.UploadAsync(
                 fileStream,
                 new BlobUploadOptions { HttpHeaders = blobHttpHeaders },
@@ -54,8 +65,7 @@ public sealed class AzureBlobStorageService : IStorageService
         }
         catch (Exception ex)
         {
-            return Result.Failure<string>(
-                Error.Failure("Storage.Upload.Failed", ex.Message));
+            return Result.Failure<string>(Error.Failure("Storage.Upload.Failed", ex.Message));
         }
     }
 
@@ -69,12 +79,10 @@ public sealed class AzureBlobStorageService : IStorageService
         try
         {
             var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
-            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
-
-            var key = GenerateKey(folder, fileName);
+            var sanitizedName = SanitizeFileName(fileName);
+            var key = GenerateSafeKey(folder, $"{Guid.NewGuid():N}_{sanitizedName}");
             var blobClient = containerClient.GetBlobClient(key);
 
-            // Create a SAS token for upload
             var sasBuilder = new BlobSasBuilder
             {
                 BlobContainerName = _options.ContainerName,
@@ -93,58 +101,52 @@ public sealed class AzureBlobStorageService : IStorageService
         }
         catch (Exception ex)
         {
-            return Result.Failure<PresignedUploadUrl>(
-                Error.Failure("Storage.PresignedUrl.Failed", ex.Message));
+            return Result.Failure<PresignedUploadUrl>(Error.Failure("Storage.PresignedUrl.Failed", ex.Message));
         }
     }
 
-    public async Task<Result> DeleteAsync(
-        string key,
-        CancellationToken cancellationToken = default)
+    public async Task<Result> DeleteAsync(string key, CancellationToken cancellationToken = default)
     {
         try
         {
             var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
             var blobClient = containerClient.GetBlobClient(key);
-
             await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
             return Result.Success();
         }
         catch (Exception ex)
         {
-            return Result.Failure(
-                Error.Failure("Storage.Delete.Failed", ex.Message));
+            return Result.Failure(Error.Failure("Storage.Delete.Failed", ex.Message));
         }
     }
 
     public string GetPublicUrl(string key)
     {
+        if (string.IsNullOrWhiteSpace(key)) return string.Empty;
+
+        if (!string.IsNullOrEmpty(_options.BaseUrl))
+            return $"{_options.BaseUrl.TrimEnd('/')}/{key.TrimStart('/')}";
+
         var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
-        var blobClient = containerClient.GetBlobClient(key);
-        return blobClient.Uri.ToString();
+        return containerClient.GetBlobClient(key).Uri.ToString();
     }
 
-    public async Task<Result<Stream>> DownloadAsync(
-        string key,
-        CancellationToken cancellationToken = default)
+    public async Task<Result<Stream>> DownloadAsync(string key, CancellationToken cancellationToken = default)
     {
         try
         {
             var containerClient = _blobServiceClient.GetBlobContainerClient(_options.ContainerName);
             var blobClient = containerClient.GetBlobClient(key);
-
             var response = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
             return Result.Success(response.Value.Content);
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            return Result.Failure<Stream>(
-                Error.NotFound("Storage.File.NotFound", $"File not found: {key}"));
+            return Result.Failure<Stream>(Error.NotFound("Storage.File.NotFound", $"File not found: {key}"));
         }
         catch (Exception ex)
         {
-            return Result.Failure<Stream>(
-                Error.Failure("Storage.Download.Failed", ex.Message));
+            return Result.Failure<Stream>(Error.Failure("Storage.Download.Failed", ex.Message));
         }
     }
 
@@ -169,41 +171,29 @@ public sealed class AzureBlobStorageService : IStorageService
         }
         catch (Exception ex)
         {
-            return Result.Failure<string>(
-                Error.Failure("Storage.SignedUrl.Failed", ex.Message));
+            return Result.Failure<string>(Error.Failure("Storage.SignedUrl.Failed", ex.Message));
         }
     }
 
-    private static string GenerateKey(string folder, string fileName)
+    private static string GenerateSafeKey(string folder, string safeFileName)
     {
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd");
-        var uniqueId = Guid.NewGuid().ToString("N")[..8];
-        var sanitizedFileName = SanitizeFileName(fileName);
-        return $"{folder}/{timestamp}/{uniqueId}_{sanitizedFileName}";
+        var sanitizedFolder = folder.Trim('/').Replace('\\', '/');
+        return $"{sanitizedFolder}/{timestamp}/{safeFileName}";
     }
 
     private static string SanitizeFileName(string fileName)
     {
+        var nameOnly = Path.GetFileName(fileName);
         var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+        var sanitized = string.Join("_", nameOnly.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
         return sanitized.ToLowerInvariant();
     }
 }
 
-/// <summary>
-///     Configuration options for Azure Blob Storage.
-/// </summary>
 public class AzureBlobOptions
 {
     public const string SectionName = "AzureBlob";
-
-    /// <summary>
-    ///     The name of the blob container to use.
-    /// </summary>
     public string ContainerName { get; set; } = "media";
-
-    /// <summary>
-    ///     The base URL for generating public URLs.
-    /// </summary>
     public string? BaseUrl { get; set; }
 }

@@ -1,3 +1,6 @@
+#nullable enable
+using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using NetCommerce.Kernel.Core.Results;
 using NetCommerce.Kernel.Application;
@@ -19,6 +22,7 @@ using NetCommerce.Api.Endpoints.Catalog;
 using NetCommerce.Api.Endpoints.Ordering;
 using NetCommerce.Api.Endpoints.Basket;
 using NetCommerce.Api.Endpoints.Inventory;
+using NetCommerce.Api.Endpoints.Media;
 using NetCommerce.Api.Endpoints.Admin;
 using NetCommerce.Api.Endpoints.Auth;
 using NetCommerce.Payments.Application.Transactions.Commands;
@@ -27,45 +31,55 @@ using NetCommerce.Finance.Application.Commands;
 namespace NetCommerce.Api.Serialization;
 
 // ============================================================================
-// SYSTEM TYPES
+// SYSTEM & PRIMITIVE TYPES
 // ============================================================================
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(double))]
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(decimal))]
 [JsonSerializable(typeof(Guid))]
 [JsonSerializable(typeof(DateTime))]
 [JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(Dictionary<string, long>))]
 
 // ============================================================================
 // KERNEL & INFRASTRUCTURE
 // ============================================================================
 [JsonSerializable(typeof(Microsoft.AspNetCore.Mvc.ProblemDetails))]
+[JsonSerializable(typeof(Microsoft.AspNetCore.Mvc.ValidationProblemDetails))]
 [JsonSerializable(typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails))]
 
 // ============================================================================
-// GENERIC WRAPPERS (CRITICAL FOR AOT)
+// GENERIC WRAPPERS (CRITICAL FOR AOT RESULT PATTERN)
 // ============================================================================
+[JsonSerializable(typeof(Result))]
 [JsonSerializable(typeof(Result<Guid>))]
 [JsonSerializable(typeof(Result<string>))]
 [JsonSerializable(typeof(Result<bool>))]
+[JsonSerializable(typeof(Result<int>))]
 
 // Catalog Generics
 [JsonSerializable(typeof(Result<ProductDto>))]
 [JsonSerializable(typeof(Result<CategoryDto>))]
 [JsonSerializable(typeof(Result<IReadOnlyList<CategoryDto>>))]
 [JsonSerializable(typeof(List<CategoryDto>))]
+[JsonSerializable(typeof(CategoryDto[]))]
 [JsonSerializable(typeof(Result<PagedResult<ProductDto>>))]
 [JsonSerializable(typeof(PagedResult<ProductDto>))]
 [JsonSerializable(typeof(PaginatedResponse<ProductDto>))]
+[JsonSerializable(typeof(PaginatedResponse<ProductListItemDto>))]
 [JsonSerializable(typeof(PaginationMetadata))]
 
 // Inventory Generics
 [JsonSerializable(typeof(Result<StockDto>))]
 [JsonSerializable(typeof(Result<IReadOnlyList<StockDto>>))]
 [JsonSerializable(typeof(List<StockDto>))]
+[JsonSerializable(typeof(StockDto[]))]
 
 // Media Generics
 [JsonSerializable(typeof(Result<PresignedUploadUrl>))]
@@ -75,10 +89,10 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(List<StuckSagaDto>))]
 
 // ============================================================================
-// DOMAIN DTOS & ENDPOINT REQUESTS
+// DOMAIN DTOS & ENDPOINT REQUESTS / RESPONSES
 // ============================================================================
 
-// Catalog
+// Catalog & Search
 [JsonSerializable(typeof(CreateProductCommand))]
 [JsonSerializable(typeof(UpdateProductCommand))]
 [JsonSerializable(typeof(UpdateProductPriceRequest))]
@@ -90,6 +104,9 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(ProductAttributeDto))]
 [JsonSerializable(typeof(ProductListItemDto))]
 [JsonSerializable(typeof(CategoryDto))]
+[JsonSerializable(typeof(SearchResponse))]
+[JsonSerializable(typeof(ProductSearchResult))]
+[JsonSerializable(typeof(ProductSearchResult[]))]
 
 // Basket
 [JsonSerializable(typeof(ShoppingBasket))]
@@ -111,8 +128,9 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(StockDto))]
 [JsonSerializable(typeof(UpdateStockQuantityRequest))]
 
-// Media
+// Media (Direct Upload & Presigned)
 [JsonSerializable(typeof(PresignedUploadUrl))]
+[JsonSerializable(typeof(UploadMediaResponse))]
 
 // Payments
 [JsonSerializable(typeof(RefundPaymentTransactionCommand))]
@@ -151,20 +169,14 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(SessionInfoResponse))]
 [JsonSerializable(typeof(AuthErrorResponse))]
 
-// Common response types
-[JsonSerializable(typeof(HealthResponse))]
-[JsonSerializable(typeof(HealthEntry[]))]
-
-// Rate limiting
+// Rate Limiting
 [JsonSerializable(typeof(RateLimitResponse))]
-
-// Exception handling
-[JsonSerializable(typeof(Microsoft.AspNetCore.Mvc.ValidationProblemDetails))]
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     WriteIndented = false,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    GenerationMode = JsonSourceGenerationMode.Default
 )]
 internal partial class ApiJsonContext : JsonSerializerContext
 {

@@ -40,17 +40,18 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
         _releaseLogger = Substitute.For<ILogger<PartitionedReleaseInventoryHandler>>();
     }
 
-    // xUnit v3: ValueTask InitializeAsync
-    public async ValueTask InitializeAsync()
+    public async Task InitializeAsync()
     {
         await _fixture.ResetAsync();
         _dbContext = _fixture.CreateInventoryDbContext();
     }
 
-    // xUnit v3: ValueTask DisposeAsync
-    public async ValueTask DisposeAsync()
+    public async Task DisposeAsync()
     {
-        await _dbContext.DisposeAsync();
+        if (_dbContext is not null)
+        {
+            await _dbContext.DisposeAsync();
+        }
     }
 
     #region ReserveInventoryCommand Tests
