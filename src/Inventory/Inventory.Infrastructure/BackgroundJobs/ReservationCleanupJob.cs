@@ -1,3 +1,4 @@
+#nullable enable
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,8 +11,10 @@ namespace NetCommerce.Inventory.Infrastructure.BackgroundJobs;
 
 /// <summary>
 ///     Background service that periodically cleans up expired stock reservations.
-///     Runs on a configurable interval to release reservations where ExpiresAt &lt; Now and Status == Active.
-///     Uses TimeProvider for deterministic time operations and testability.
+///     Health-aware with circuit breaker: after 3 consecutive failures it marks
+///     CleanupJobHealthState.IsDegraded = true, causing /health/ready to fail
+///     and K8s to remove the pod from rotation. Exponential backoff prevents
+///     log spam and DB hammering. Uses TimeProvider for deterministic testing.
 /// </summary>
 public class ReservationCleanupJob : BackgroundService
 {
@@ -19,18 +22,27 @@ public class ReservationCleanupJob : BackgroundService
     private readonly ReservationCleanupOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
+    private readonly CleanupJobHealthState _healthState;
+    private int _consecutiveFailures;
+    private const int MaxFailuresBeforeDegraded = 3;
 
     public ReservationCleanupJob(
         IServiceScopeFactory scopeFactory,
         ILogger<ReservationCleanupJob> logger,
         IOptions<ReservationCleanupOptions> options,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        CleanupJobHealthState? healthState = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _options = options.Value;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _healthState = healthState ?? new CleanupJobHealthState();
     }
+
+    // Test-visible for assertions
+    internal int ConsecutiveFailures => _consecutiveFailures;
+    internal CleanupJobHealthState HealthState => _healthState;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -46,9 +58,14 @@ public class ReservationCleanupJob : BackgroundService
             "ReservationCleanupJob started. Interval: {Interval}ms, BatchSize: {BatchSize}",
             _options.IntervalMs, _options.BatchSize);
 
+        // Initial cleanup attempt (immediate)
         try
         {
             await CleanupExpiredReservationsAsync(stoppingToken);
+            _consecutiveFailures = 0;
+            _healthState.IsDegraded = false;
+            _healthState.ConsecutiveFailures = 0;
+            _healthState.LastSuccessUtc = _timeProvider.GetUtcNow();
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -56,28 +73,61 @@ public class ReservationCleanupJob : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during reservation cleanup");
+            HandleFailure(ex);
+            // Exponential backoff before entering periodic loop if initial fails
+            if (_healthState.IsDegraded)
+            {
+                var backoff = TimeSpan.FromSeconds(Math.Pow(2, Math.Min(_consecutiveFailures, 7)));
+                backoff = backoff > TimeSpan.FromMinutes(5) ? TimeSpan.FromMinutes(5) : backoff;
+                try { await Task.Delay(backoff, _timeProvider, stoppingToken); } catch (OperationCanceledException) { return; }
+            }
         }
 
-        // Use TimeProvider for PeriodicTimer to enable deterministic testing
         using var timer = new PeriodicTimer(interval, _timeProvider);
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
             try
             {
                 await CleanupExpiredReservationsAsync(stoppingToken);
+                _consecutiveFailures = 0;
+                _healthState.IsDegraded = false;
+                _healthState.ConsecutiveFailures = 0;
+                _healthState.LastSuccessUtc = _timeProvider.GetUtcNow();
+                _healthState.LastError = null;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                // Graceful shutdown
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during reservation cleanup");
+                HandleFailure(ex);
+                if (_healthState.IsDegraded)
+                {
+                    var backoff = TimeSpan.FromSeconds(Math.Pow(2, Math.Min(_consecutiveFailures, 7)));
+                    if (backoff > TimeSpan.FromMinutes(5)) backoff = TimeSpan.FromMinutes(5);
+                    _logger.LogWarning("Cleanup job backing off for {Backoff}s before next attempt", backoff.TotalSeconds);
+                    try { await Task.Delay(backoff, _timeProvider, stoppingToken); } catch (OperationCanceledException) { break; }
+                }
             }
+        }
 
         _logger.LogInformation("ReservationCleanupJob stopped");
+    }
+
+    private void HandleFailure(Exception ex)
+    {
+        _consecutiveFailures++;
+        _healthState.ConsecutiveFailures = _consecutiveFailures;
+        _healthState.LastError = ex.Message;
+        _logger.LogError(ex, "Cleanup cycle failed. Consecutive failures: {Count}", _consecutiveFailures);
+
+        if (_consecutiveFailures >= MaxFailuresBeforeDegraded)
+        {
+            _healthState.IsDegraded = true;
+            _logger.LogCritical("Cleanup job entering degraded state. ConsecutiveFailures={Count}, LastError={Error}. Pod will fail readiness probes.", _consecutiveFailures, ex.Message);
+        }
     }
 
     private async Task CleanupExpiredReservationsAsync(CancellationToken cancellationToken)
@@ -87,7 +137,6 @@ public class ReservationCleanupJob : BackgroundService
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
 
-        // Find expired active reservations (limited by BatchSize)
         var expiredReservations = await context.StockReservations
             .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= now)
             .OrderBy(r => r.ExpiresAt)

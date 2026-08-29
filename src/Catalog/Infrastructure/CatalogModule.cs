@@ -26,23 +26,9 @@ public static class CatalogModule
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Database - uses Aspire-provided connection string "CatalogDb"
-        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
-        var connectionString = configuration.GetConnectionString("CatalogDb")
-                               ?? configuration.GetConnectionString("DefaultConnection");
-
-        services.AddKernelEfCore<CatalogDbContext>(options =>
-            options.UseNpgsql(connectionString,
-                npgsqlOptions =>
-                {
-                    npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", CatalogDbContext.Schema);
-
-                    // Enable Connection Resiliency
-                    npgsqlOptions.EnableRetryOnFailure(
-                        5,
-                        TimeSpan.FromSeconds(30),
-                        null);
-                }));
+        // Database - pooled to prevent max_connections exhaustion (Catalog read-heavy: 30)
+        // Sizing: 6 contexts × pooled avg 20 + burst = 130 per pod, 3 pods = 390 → set max_connections ≥400 or use PgBouncer
+        services.AddPooledKernelDbContext<CatalogDbContext>(configuration, "CatalogDb", maxPoolSize: 30);
 
         // Repositories
         // Product repository with caching decorator for enterprise-scale read performance

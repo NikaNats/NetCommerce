@@ -23,19 +23,8 @@ public static class OrderingModule
 {
     public static IServiceCollection AddOrderingModule(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database - uses Aspire-provided connection string "OrderingDb"
-        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
-        var connectionString = configuration.GetConnectionString("OrderingDb")
-                               ?? configuration.GetConnectionString("DefaultConnection");
-
-        services.AddKernelEfCore<OrderingDbContext>(options =>
-            options.UseNpgsql(
-                connectionString,
-                b =>
-                {
-                    b.MigrationsHistoryTable("__EFMigrationsHistory", OrderingDbContext.Schema);
-                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                }));
+        // Database - pooled strict limits (Ordering: 20). See NpgsqlPoolingExtensions sizing formula.
+        services.AddPooledKernelDbContext<OrderingDbContext>(configuration, "OrderingDb", maxPoolSize: 20);
 
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();

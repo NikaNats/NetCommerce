@@ -47,6 +47,22 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // ============================================================================
+// Reverse Proxy Awareness (Forwarded Headers) - MUST be before RateLimiter/Auth
+// ============================================================================
+// CRITICAL SECURITY: Trust only KnownNetworks/KnownProxies. Never trust X-Forwarded-For from open internet.
+// Behind ALB/Nginx/Cloudflare, RemoteIpAddress without this collapses all clients to proxy IP.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    // Default private ranges – override via configuration for production VPC CIDRs
+    options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("10.0.0.0/8"));
+    options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("172.16.0.0/12"));
+    options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("192.168.0.0/16"));
+});
+
+// ============================================================================
 // Enterprise HTTP Security Headers (OWASP Compliant)
 // ============================================================================
 builder.Services.AddNetCommerceSecurityHeaders();
@@ -219,7 +235,13 @@ builder.AddNetCommerceOpenApi();
 var app = builder.Build();
 
 // ============================================================================
-// CRITICAL: Security Headers Middleware (MUST BE FIRST)
+// Forwarded Headers (MUST be before RateLimiter, SecurityHeaders, Auth)
+// Resolves RemoteIpAddress behind ALB/Nginx/Cloudflare; prevents IP spoofing DoS.
+// ============================================================================
+app.UseForwardedHeaders();
+
+// ============================================================================
+// CRITICAL: Security Headers Middleware (MUST BE FIRST after ForwardedHeaders)
 // ============================================================================
 app.UseNetCommerceSecurityHeaders();
 

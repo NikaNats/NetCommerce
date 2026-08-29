@@ -62,18 +62,8 @@ public static class FinanceModule
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
-        // Database - uses AddKernelEfCore for interceptor-based audit & tenant isolation
-        var connectionString = configuration.GetConnectionString("FinanceDb")
-                               ?? configuration.GetConnectionString("DefaultConnection");
-
-        services.AddKernelEfCore<FinanceDbContext>(options =>
-            options.UseNpgsql(
-                connectionString,
-                b =>
-                {
-                    b.MigrationsHistoryTable("__EFMigrationsHistory", FinanceDbContext.Schema);
-                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                }));
+        // Database - pooled strict limits (Finance: 20) - see NpgsqlPoolingExtensions
+        services.AddPooledKernelDbContext<FinanceDbContext>(configuration, "FinanceDb", maxPoolSize: 20);
 
         return services;
     }

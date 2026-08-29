@@ -1,0 +1,42 @@
+name: PR Validation - CancellationToken Propagation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  cancellation-token-guard:
+    name: Enforce CancellationToken Propagation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce CancellationToken Propagation in Handlers
+        run: |
+          echo "Scanning for async EF Core calls missing cancellationToken..."
+          VIOLATIONS=$(grep -rnE "await\s+.*\.(ToListAsync|FirstOrDefaultAsync|SingleOrDefaultAsync|SaveChangesAsync|AnyAsync|CountAsync|ExecuteSqlRawAsync)\(" src --include="*.cs" | grep -v "cancellationToken" | grep -v "CancelTest" || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ ARCHITECTURE VIOLATION: Missing CancellationToken in async EF Core calls."
+            echo "Affected files must pass cancellationToken to allow graceful K8s SIGTERM shutdown."
+            echo ""
+            echo "$VIOLATIONS"
+            echo ""
+            echo "Fix: Add CancellationToken cancellationToken as last param and pass it to EF Core:"
+            echo "  var x = await db.Set.FirstOrDefaultAsync(e => e.Id == id, cancellationToken);"
+            exit 1
+          fi
+          echo "✅ All async EF Core calls propagate CancellationToken."
+
+  build-verify:
+    name: Build & Test Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore --force-evaluate
+      - run: dotnet build -c Release --no-restore
+      - run: dotnet test --no-build -c Release --filter "Category!=Integration"

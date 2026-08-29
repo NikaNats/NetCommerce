@@ -47,15 +47,17 @@ public static partial class ServiceCollectionExtensions
         });
 
         // Rate Limiting - Protection against DoS attacks
+        // NOTE: HttpContext.Connection.RemoteIpAddress is populated by ForwardedHeadersMiddleware (configured in Program.cs).
+        // Do NOT trust X-Forwarded-For directly; KnownNetworks/KnownProxies must be allow-listed.
         services.AddRateLimiter(options =>
         {
-            // Global rate limit: 100 requests per minute per IP
+            // Global rate limit: 100 requests per minute per partition (user-or-IP aware)
             options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(
                 httpContext =>
                 {
-                    var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    var partitionKey = httpContext.GetRateLimitPartitionKey();
                     return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                        clientIp,
+                        partitionKey,
                         _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                         {
                             PermitLimit = 100,
@@ -68,9 +70,9 @@ public static partial class ServiceCollectionExtensions
             // Strict policy for authentication endpoints (5 attempts per minute)
             options.AddPolicy("AuthStrict", httpContext =>
             {
-                var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var partitionKey = httpContext.GetRateLimitPartitionKey();
                 return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                    clientIp,
+                    partitionKey,
                     _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
                     {
                         PermitLimit = 5,
@@ -97,12 +99,7 @@ public static partial class ServiceCollectionExtensions
             // Token bucket allows bursts while maintaining average rate.
             options.AddPolicy("PerUser", httpContext =>
             {
-                var userId = httpContext.User.FindFirst("sub")?.Value
-                             ?? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-                var partitionKey = !string.IsNullOrEmpty(userId)
-                    ? $"user:{userId}"
-                    : $"ip:{httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+                var partitionKey = httpContext.GetRateLimitPartitionKey();
 
                 return System.Threading.RateLimiting.RateLimitPartition.GetTokenBucketLimiter(
                     partitionKey,

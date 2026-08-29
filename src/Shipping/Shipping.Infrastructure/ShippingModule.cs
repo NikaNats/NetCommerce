@@ -23,18 +23,8 @@ public static class ShippingModule
     /// </summary>
     public static IServiceCollection AddShippingModule(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database - uses Aspire-provided connection string "ShippingDb"
-        var connectionString = configuration.GetConnectionString("ShippingDb")
-                               ?? configuration.GetConnectionString("DefaultConnection");
-
-        services.AddKernelEfCore<ShippingDbContext>(options =>
-            options.UseNpgsql(
-                connectionString,
-                b =>
-                {
-                    b.MigrationsHistoryTable("__EFMigrationsHistory", ShippingDbContext.Schema);
-                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                }));
+        // Database - pooled strict limits (Shipping low write: 15)
+        services.AddPooledKernelDbContext<ShippingDbContext>(configuration, "ShippingDb", maxPoolSize: 15);
 
         // Repository
         services.AddScoped<IShipmentRepository, ShipmentRepository>();

@@ -25,19 +25,8 @@ public static class PaymentsModule
 {
     public static IServiceCollection AddPaymentsModule(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database - uses Aspire-provided connection string "PaymentsDb"
-        // Using AddKernelEfCore for interceptor-based audit & tenant isolation
-        var connectionString = configuration.GetConnectionString("PaymentsDb")
-                               ?? configuration.GetConnectionString("DefaultConnection");
-
-        services.AddKernelEfCore<PaymentsDbContext>(options =>
-            options.UseNpgsql(
-                connectionString,
-                b =>
-                {
-                    b.MigrationsHistoryTable("__EFMigrationsHistory", PaymentsDbContext.Schema);
-                    b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                }));
+        // Database - pooled strict limits (Payments: 20)
+        services.AddPooledKernelDbContext<PaymentsDbContext>(configuration, "PaymentsDb", maxPoolSize: 20);
 
         // Repositories
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
