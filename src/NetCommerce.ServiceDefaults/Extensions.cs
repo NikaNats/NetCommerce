@@ -122,6 +122,12 @@ public static class Extensions
             Predicate = r => r.Tags.Contains(LiveTag),
             ResponseWriter = WriteHealthResponse
         });
+        // Compat alias: guide and scripts use /health/live, code uses /health/alive
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = r => r.Tags.Contains(LiveTag),
+            ResponseWriter = WriteHealthResponse
+        });
 
         return app;
     }
