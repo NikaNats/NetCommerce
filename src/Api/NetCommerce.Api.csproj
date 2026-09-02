@@ -8,8 +8,17 @@
          NATIVE AOT CONFIGURATION (Phase 1)
          Enables Ahead-Of-Time compilation to machine code before deployment.
          This eliminates JIT overhead, reduces memory usage, and improves cold start.
+
+         CRITICAL: Gated to Release. PublishAot makes the SDK embed AOT simulation
+         feature switches (RuntimeFeature.IsDynamicCodeSupported=false, etc.) into
+         the build-time runtimeconfig.json, which makes even local JIT 'dotnet run'
+         behave like a published AOT binary - EF Core then refuses to build models
+         ("Model building is not supported when publishing with NativeAOT"), breaking
+         the dev loop and 'codegen write'. AOT publishing always passes
+         /p:PublishAot=true explicitly (Dockerfile, CI), so this gate only affects
+         the local Debug F5/run experience.
          ====================================================================== -->
-    <PublishAot>true</PublishAot>
+    <PublishAot Condition="'$(Configuration)' == 'Release'">true</PublishAot>
 
     <!--
       Optimization: Removes the ability to generate dynamic code at runtime.
@@ -133,6 +142,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="NetCommerce.Integration.Tests"/>
+    <!-- Architecture tests reflect over the internal ApiJsonContext to enforce AOT trim boundaries -->
+    <InternalsVisibleTo Include="NetCommerce.Architecture.Tests"/>
   </ItemGroup>
 
 </Project>

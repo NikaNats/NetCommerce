@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Compliance.Audit;
 using NetCommerce.Kernel.Wolverine.Middleware;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -44,9 +45,13 @@ public static class WolverineKernelExtensions
         opts.Durability.DeadLetterQueueExpiration = TimeSpan.FromDays(30);
 
         // 4. Middleware Application
-        // Wolverine is smart enough to only apply AuditMiddleware
-        // to messages implementing IAuditableCommand.
-        opts.Policies.AddMiddleware(typeof(AuditMiddleware));
+        // AuditMiddleware is attached ONLY to chains whose message implements IAuditableCommand.
+        // A blanket Policies.AddMiddleware() forces every chain (saga steps, plain events, ...)
+        // to bind an IAuditableCommand variable, which fails static code generation with
+        // UnResolvableVariableException for messages that are not auditable commands.
+        opts.Policies.AddMiddleware(
+            typeof(AuditMiddleware),
+            chain => typeof(IAuditableCommand).IsAssignableFrom(chain.MessageType));
 
         // 5. Pure Canonical JSON Serialization (Phase 6 Complete)
         // All legacy SharedKernel types have been purged from the database.

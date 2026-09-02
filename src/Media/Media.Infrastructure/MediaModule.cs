@@ -1,5 +1,8 @@
+using Amazon;
+using Amazon.S3;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NetCommerce.Media.Application.Services;
 using NetCommerce.Media.Infrastructure.Storage;
 
@@ -25,6 +28,27 @@ public static class MediaModule
         {
             // S3 Configuration (MinIO/AWS fallback)
             services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
+
+            // The AWS SDK client must be explicitly registered; S3StorageService cannot activate
+            // without it. Construction is offline-safe: credentials resolve lazily from
+            // config/env/instance profile on first request.
+            services.AddSingleton<IAmazonS3>(sp =>
+            {
+                var options = sp.GetRequiredService<IOptions<S3Options>>().Value;
+                var config = new AmazonS3Config
+                {
+                    ServiceURL = string.IsNullOrEmpty(options.Endpoint) ? null : options.Endpoint,
+                    ForcePathStyle = options.ForcePathStyle
+                };
+
+                if (!string.IsNullOrEmpty(options.AccessKey) && !string.IsNullOrEmpty(options.SecretKey))
+                {
+                    return new AmazonS3Client(options.AccessKey, options.SecretKey, config);
+                }
+
+                return new AmazonS3Client(config);
+            });
+
             services.AddScoped<IStorageService, S3StorageService>();
         }
 

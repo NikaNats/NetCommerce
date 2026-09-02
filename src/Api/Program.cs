@@ -235,6 +235,30 @@ builder.AddNetCommerceOpenApi();
 var app = builder.Build();
 
 // ============================================================================
+// CI/CD Migration Runner Mode (--migrate-only)
+// ============================================================================
+// EF Core migrations require dynamic code (IL3050) and therefore cannot run
+// inside the Native AOT production container. Deployment pipelines execute the
+// JIT-built binary with this flag as a dedicated pre-deployment step; the
+// process exits cleanly once all bounded-context schemas are applied.
+if (args.Contains("--migrate-only"))
+{
+    Console.WriteLine("[MIGRATION RUNNER] Running PostgreSQL schema migrations across all bounded contexts...");
+
+#pragma warning disable IL3050 // EF Core migrations require dynamic code - this is a JIT pipeline step, never the AOT container
+    await app.Services.ApplyMigrationsAsync<CatalogDbContext>();
+    await app.Services.ApplyMigrationsAsync<OrderingDbContext>();
+    await app.Services.ApplyMigrationsAsync<InventoryDbContext>();
+    await app.Services.ApplyMigrationsAsync<PaymentsDbContext>();
+    await app.Services.ApplyMigrationsAsync<FinanceDbContext>();
+    await app.Services.ApplyMigrationsAsync<ShippingDbContext>();
+#pragma warning restore IL3050
+
+    Console.WriteLine("[MIGRATION RUNNER] Schema migrations complete. Exiting clean.");
+    return 0;
+}
+
+// ============================================================================
 // Forwarded Headers (MUST be before RateLimiter, SecurityHeaders, Auth)
 // Resolves RemoteIpAddress behind ALB/Nginx/Cloudflare; prevents IP spoofing DoS.
 // ============================================================================
@@ -253,7 +277,12 @@ app.MapDefaultEndpoints();
 // ============================================================================
 // Resilient Database Migrations (Dev or AutoMigrate flag)
 // ============================================================================
-if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMigrate"))
+// Skipped when running a JasperFx CLI command (e.g. 'codegen write') - the app
+// is not serving and must not require a live database. --migrate-only performs
+// its own dedicated migration pass below.
+if ((app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMigrate"))
+    && !args.Contains("--migrate-only")
+    && !args.Contains("codegen"))
 {
 #pragma warning disable IL3050 // EF Core migrations require dynamic code - this is dev-only
     await app.Services.ApplyMigrationsAsync<CatalogDbContext>();

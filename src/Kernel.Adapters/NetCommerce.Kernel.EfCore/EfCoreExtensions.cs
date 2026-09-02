@@ -21,7 +21,10 @@ public static class EfCoreExtensions
     {
         // 1. Core Services
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<TContext>());
-        services.AddScoped<IAuditRepository, AuditRepository>();
+        // AuditRepository demands a DbContext; only concrete bounded contexts are registered, never
+        // the base type. Resolve the module's context via factory so DI validation (e.g. Wolverine
+        // 'codegen write' container scan) can construct the descriptor.
+        services.AddScoped<IAuditRepository>(sp => new AuditRepository(sp.GetRequiredService<TContext>()));
         services.AddScoped<AuditService>();
 
         // 2. Domain Event Dispatcher (Wolverine bridge) - not needed with outbox

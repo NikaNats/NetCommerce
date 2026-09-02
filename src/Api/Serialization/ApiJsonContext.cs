@@ -137,6 +137,7 @@ namespace NetCommerce.Api.Serialization;
 
 // Finance
 [JsonSerializable(typeof(CheckDailyReconciliation))]
+[JsonSerializable(typeof(NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession))]
 
 // Admin DLQ Endpoints
 [JsonSerializable(typeof(BulkReplayDlqRequest))]
