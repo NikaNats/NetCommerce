@@ -8,6 +8,7 @@ using NBomber.CSharp;
 using NBomber.Http.CSharp;
 using NetCommerce.LoadTests.Assertions;
 using Shouldly;
+using Xunit;
 
 namespace NetCommerce.LoadTests.Scenarios;
 
@@ -33,9 +34,16 @@ namespace NetCommerce.LoadTests.Scenarios;
 ///     - CPU Context Switching: Low proves threads aren't fighting for cycles
 ///     - Saga Leak Rate: Zero verified by SagaLeakAssertions after burst
 ///     </para>
+///
+///     <para>
+///     <b>Execution:</b> Run against a live running API instance:
+///     <code>dotnet test --filter "FullyQualifiedName~ContentionStressTests"</code>
+///     </para>
 /// </summary>
 public class ContentionStressTests
 {
+    private static readonly string ApiBaseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5000";
+
     // ═══════════════════════════════════════════════════════════════════════════════
     // TEST 1: SINGLE-KEY SATURATION ("ZERO-LOCK" BENCHMARK)
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -44,7 +52,7 @@ public class ContentionStressTests
     ///     Sends 5,000 ReserveInventoryCommand requests in a 10-second burst,
     ///     all targeting the exact same ProductId (the PS5 Launch Scenario).
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     public async Task SingleKeySaturation_5000Requests_SameProductId_ShouldHaveZeroDeadlocks()
     {
@@ -53,7 +61,6 @@ public class ContentionStressTests
         // ═══════════════════════════════════════════════════════════════
         const int totalRequests = 5_000;
         const int burstDurationSeconds = 10;
-        const string apiBaseUrl = "http://localhost:5000";
 
         // THE HOT KEY: All 5,000 requests target this single ProductId
         var hotProductId = Guid.NewGuid();
@@ -67,7 +74,7 @@ public class ContentionStressTests
 
         using var httpClient = new HttpClient
         {
-            BaseAddress = new Uri(apiBaseUrl),
+            BaseAddress = new Uri(ApiBaseUrl),
             Timeout = TimeSpan.FromSeconds(60) // Long timeout for queue depth
         };
 
@@ -83,11 +90,9 @@ public class ContentionStressTests
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = Guid.NewGuid(),
                         orderId = warmupOrderId,
-                        items = new[]
-                        {
-                            new { productId = Guid.NewGuid(), quantity = 1, sku = "WARMUP-SKU" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -110,7 +115,6 @@ public class ContentionStressTests
         // ═══════════════════════════════════════════════════════════════
         // MAIN TEST: SINGLE-KEY SATURATION BURST
         // ═══════════════════════════════════════════════════════════════
-
         var requestsPerSecond = totalRequests / burstDurationSeconds;
 
         var scenario = Scenario.Create("single_key_saturation", async context =>
@@ -124,11 +128,9 @@ public class ContentionStressTests
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = hotProductId,
                         orderId,
-                        items = new[]
-                        {
-                            new { productId = hotProductId, quantity = 1, sku = "PS5-HOT-KEY" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -185,7 +187,6 @@ public class ContentionStressTests
         // ═══════════════════════════════════════════════════════════════
         // ASSERTIONS: ACM-GRADE METRICS
         // ═══════════════════════════════════════════════════════════════
-
         var scenarioStats = stats.ScenarioStats[0];
 
         // METRIC 1: Zero Deadlock Rate
@@ -209,7 +210,7 @@ public class ContentionStressTests
             "Expected < 10 for linear queue behavior. May indicate contention leakage.");
 
         // METRIC 3: Saga Leak Detection
-        await stats.AssertNoSagaLeaksAsync(apiBaseUrl);
+        await stats.AssertNoSagaLeaksAsync(ApiBaseUrl);
 
         // Output detailed metrics for analysis
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
@@ -236,14 +237,13 @@ public class ContentionStressTests
     ///     - Hot Stream: 100 RPS (the PS5)
     ///     - Cold Stream: 10 RPS (the Toaster)
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     public async Task PartitionSkew_HotAndColdProducts_SameSlot_ShouldMeasureStarvation()
     {
         // ═══════════════════════════════════════════════════════════════
         // CONFIGURATION
         // ═══════════════════════════════════════════════════════════════
-        const string apiBaseUrl = "http://localhost:5000";
         const int hotRps = 100;
         const int coldRps = 10;
         const int testDurationSeconds = 30;
@@ -258,7 +258,7 @@ public class ContentionStressTests
 
         using var httpClient = new HttpClient
         {
-            BaseAddress = new Uri(apiBaseUrl),
+            BaseAddress = new Uri(ApiBaseUrl),
             Timeout = TimeSpan.FromSeconds(30)
         };
 
@@ -273,11 +273,9 @@ public class ContentionStressTests
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = hotProductId,
                         orderId,
-                        items = new[]
-                        {
-                            new { productId = hotProductId, quantity = 1, sku = "PS5-HOT" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -311,11 +309,9 @@ public class ContentionStressTests
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = coldProductId,
                         orderId,
-                        items = new[]
-                        {
-                            new { productId = coldProductId, quantity = 1, sku = "TOASTER-COLD" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -368,7 +364,7 @@ public class ContentionStressTests
             Console.WriteLine("⚠️  WARNING: Partition Skew detected!");
         }
 
-        await stats.AssertNoSagaLeaksAsync(apiBaseUrl);
+        await stats.AssertNoSagaLeaksAsync(ApiBaseUrl);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -379,11 +375,10 @@ public class ContentionStressTests
     ///     Stress tests the database write path by sending reservation requests
     ///     faster than the disk can fsync. Validates graceful backpressure.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     public async Task WalExhaustion_HighWriteLoad_ShouldApplyBackpressure()
     {
-        const string apiBaseUrl = "http://localhost:5000";
         const int initialRps = 100;
         const int maxRps = 1000;
         const int rpsIncrement = 100;
@@ -394,7 +389,7 @@ public class ContentionStressTests
 
         using var httpClient = new HttpClient
         {
-            BaseAddress = new Uri(apiBaseUrl),
+            BaseAddress = new Uri(ApiBaseUrl),
             Timeout = TimeSpan.FromSeconds(60)
         };
 
@@ -420,11 +415,9 @@ public class ContentionStressTests
                     .WithBody(new StringContent(
                         JsonSerializer.Serialize(new
                         {
+                            productId,
                             orderId,
-                            items = new[]
-                            {
-                                new { productId, quantity = 1, sku = "WAL-STRESS-TEST" }
-                            }
+                            quantity = 1
                         }),
                         Encoding.UTF8,
                         "application/json"));
@@ -489,13 +482,13 @@ public class ContentionStressTests
             currentRps += rpsIncrement;
         }
 
-        var healthCheck = await httpClient.GetAsync("/health");
+        var healthCheck = await httpClient.GetAsync("/health/ready");
         healthCheck.IsSuccessStatusCode.ShouldBeTrue("CRITICAL: System became unresponsive under WAL stress.");
 
         Console.WriteLine("\nWaiting 30s for saga backlog to drain...");
         await Task.Delay(TimeSpan.FromSeconds(30));
 
-        await new NBomber.Contracts.Stats.NodeStats().AssertNoSagaLeaksAsync(apiBaseUrl);
+        await new NBomber.Contracts.Stats.NodeStats().AssertNoSagaLeaksAsync(ApiBaseUrl);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -507,11 +500,10 @@ public class ContentionStressTests
     ///     - Update product price every 100ms
     ///     - Concurrent users search and attempt to buy
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     public async Task StaleCacheRace_RapidPriceUpdates_ShouldEnforceTriplePassPricing()
     {
-        const string apiBaseUrl = "http://localhost:5000";
         const int priceUpdateIntervalMs = 100;
         const int testDurationSeconds = 30;
         const int buyersPerSecond = 10;
@@ -527,7 +519,7 @@ public class ContentionStressTests
 
         using var httpClient = new HttpClient
         {
-            BaseAddress = new Uri(apiBaseUrl),
+            BaseAddress = new Uri(ApiBaseUrl),
             Timeout = TimeSpan.FromSeconds(30)
         };
 
@@ -541,12 +533,12 @@ public class ContentionStressTests
                 currentPrice = prices[index % prices.Length];
                 priceVersions.AddOrUpdate(currentPrice, 1, (_, v) => v + 1);
 
-                var updateRequest = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/products/{testProductId}/price")
+                var updateRequest = new HttpRequestMessage(HttpMethod.Patch, $"/api/v1/products/{testProductId}/price")
                 {
                     Content = new StringContent(
                         JsonSerializer.Serialize(new { amount = currentPrice, currency = "GEL" }),
                         Encoding.UTF8,
-                        "application/json")
+                        "application/merge-patch+json")
                 };
 
                 try
@@ -607,7 +599,8 @@ public class ContentionStressTests
                             state = "TB",
                             country = "Georgia",
                             postalCode = "0100"
-                        }
+                        },
+                        paymentMethod = "CreditCard"
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -659,14 +652,11 @@ public class ContentionStressTests
         staleSuccesses.ShouldBe(0, "TRIPLE-PASS PRICING FAILURE: Orders succeeded with stale Meilisearch price.");
         priceConflicts.ShouldBeGreaterThan(0, "TEST VALIDITY: No price conflicts detected.");
 
-        await stats.AssertNoSagaLeaksAsync(apiBaseUrl);
+        await stats.AssertNoSagaLeaksAsync(ApiBaseUrl);
     }
 
     #region Helper Methods
 
-    /// <summary>
-    ///     Generates two ProductIds that deterministically hash to the same Wolverine partition slot.
-    /// </summary>
     private static (Guid hotProductId, Guid coldProductId) GenerateCollidingProductIds(int partitionCount)
     {
         var hotProductId = Guid.NewGuid();
@@ -682,9 +672,6 @@ public class ContentionStressTests
         }
     }
 
-    /// <summary>
-    ///     Calculates the partition slot for a ProductId using Wolverine's DJB2/FNV-1a deterministic hash.
-    /// </summary>
     private static int GetPartitionSlot(Guid productId, int partitionCount = 9)
     {
         var str = productId.ToString();
@@ -692,9 +679,6 @@ public class ContentionStressTests
         return Math.Abs(deterministicHash) % partitionCount;
     }
 
-    /// <summary>
-    ///     Deterministic DJB2 String Hash (Process-Independent).
-    /// </summary>
     private static int GetDeterministicHashCode(string str)
     {
         unchecked

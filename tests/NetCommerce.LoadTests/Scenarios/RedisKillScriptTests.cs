@@ -4,14 +4,12 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
-using NetCommerce.Domain.Shared.Events;
-using NetCommerce.Inventory.Domain.Stock;
 using NetCommerce.LoadTests.Assertions;
 using Shouldly;
 using Testcontainers.Redis;
+using Xunit;
 
 namespace NetCommerce.LoadTests.Scenarios;
 
@@ -19,16 +17,14 @@ namespace NetCommerce.LoadTests.Scenarios;
 ///     Phase 7: Infrastructure Health-Check Drill - Redis Kill Script.
 ///
 ///     <para>
-///     <b>Requirement:</b> Create a "Kill Script" that stops the Redis container while
-///     a load test is running. Verify that the Inventory module returns 503 Service Unavailable
+///     <b>Requirement:</b> Stops the Redis container while a load test is running.
+///     Verifies that the Inventory module returns 503 Service Unavailable
 ///     instead of allowing un-locked reservations.
 ///     </para>
 ///
 ///     <para>
-///     <b>Critical Validation:</b>
-///     - When Redis dies mid-load, API must NOT allow reservations to proceed without locks
-///     - System must fail-closed (503) rather than fail-open (allow overselling)
-///     - Health check must report unhealthy within SLA (configurable, default: 5s)
+///     <b>Execution:</b> Run against a live running API instance:
+///     <code>dotnet test --filter "FullyQualifiedName~RedisKillScriptTests"</code>
 ///     </para>
 /// </summary>
 public class RedisKillScriptTests : IAsyncLifetime
@@ -36,16 +32,17 @@ public class RedisKillScriptTests : IAsyncLifetime
     private RedisContainer? _redisContainer;
     private HttpClient? _httpClient;
 
-    private const string ApiBaseUrl = "http://localhost:5000";
+    private static readonly string ApiBaseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5000";
     private const int LoadTestDurationSeconds = 30;
     private const int RequestsPerSecond = 50;
     private const int KillRedisAfterSeconds = 10;
 
     public async ValueTask InitializeAsync()
     {
+        // Bind to standard Redis port 6379 so the running API's default connection string is targeted
         _redisContainer = new RedisBuilder()
-            .WithImage("redis:7.4")
-            .WithPortBinding(6380, 6379)
+            .WithImage("redis:8-alpine")
+            .WithPortBinding(6379, 6379)
             .Build();
 
         await _redisContainer.StartAsync();
@@ -70,49 +67,34 @@ public class RedisKillScriptTests : IAsyncLifetime
     /// <summary>
     ///     Runs a load test while killing Redis mid-flight.
     ///     Validates that the system responds with 503 after Redis dies.
-    ///
-    ///     <para>
-    ///     Timeline:
-    ///     - T+0s: Load test starts (50 RPS)
-    ///     - T+10s: Redis container is killed
-    ///     - T+10-30s: Verify API returns 503 (not 200 with un-locked reservation)
-    ///     </para>
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     [Trait("Category", "RequiresApi")]
     public async Task KillRedis_DuringLoadTest_ShouldReturn503NotAllowOverselling()
     {
-        // ═══════════════════════════════════════════════════════════════════════════
-        // METRICS COLLECTORS
-        // ═══════════════════════════════════════════════════════════════════════════
         var successBeforeKill = 0;
         var successAfterKill = 0;
         var service503AfterKill = 0;
         var otherErrorsAfterKill = 0;
         var redisKilledAt = DateTime.MinValue;
-        var killSignalSent = false;
 
-        // Product for testing
         var hotProductId = Guid.NewGuid();
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // NBOMBER SCENARIO: Continuous reservation requests
-        // ═══════════════════════════════════════════════════════════════════════════
         var loadScenario = Scenario.Create("redis_kill_drill", async context =>
         {
             var orderId = Guid.NewGuid();
+
+            // Correct flat payload matching ReserveStockCommand
             var request = Http.CreateRequest("POST", "/api/v1/inventory/reserve")
                 .WithHeader("X-Idempotency-Key", Guid.NewGuid().ToString())
                 .WithHeader("Content-Type", "application/json")
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = hotProductId,
                         orderId,
-                        items = new[]
-                        {
-                            new { productId = hotProductId, quantity = 1, sku = "SKU-REDIS-KILL-001" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -120,7 +102,6 @@ public class RedisKillScriptTests : IAsyncLifetime
             try
             {
                 var response = await Http.Send(_httpClient!, request);
-
                 var statusCode = response.StatusCode ?? "";
                 var isAfterKill = redisKilledAt != DateTime.MinValue;
 
@@ -160,36 +141,23 @@ public class RedisKillScriptTests : IAsyncLifetime
                 during: TimeSpan.FromSeconds(LoadTestDurationSeconds)))
         .WithoutWarmUp();
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // KILL SCRIPT: Background task to kill Redis after delay
-        // ═══════════════════════════════════════════════════════════════════════════
         var killTask = Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(KillRedisAfterSeconds));
 
             Console.WriteLine($"[KILL SCRIPT] Stopping Redis container at {DateTime.UtcNow:O}...");
-
             await _redisContainer!.StopAsync();
             redisKilledAt = DateTime.UtcNow;
-            killSignalSent = true;
-
             Console.WriteLine($"[KILL SCRIPT] Redis container stopped successfully.");
         });
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // EXECUTE LOAD TEST
-        // ═══════════════════════════════════════════════════════════════════════════
         var stats = NBomberRunner
             .RegisterScenarios(loadScenario)
             .WithReportFolder("reports/redis-kill-drill")
             .Run();
 
-        // Wait for kill task to complete
         await killTask;
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // ASSERTIONS: Validate fail-closed behavior
-        // ═══════════════════════════════════════════════════════════════════════════
         Console.WriteLine("\n╔════════════════════════════════════════════════════════════╗");
         Console.WriteLine("║           REDIS KILL DRILL - RESULTS SUMMARY              ║");
         Console.WriteLine("╠════════════════════════════════════════════════════════════╣");
@@ -200,58 +168,39 @@ public class RedisKillScriptTests : IAsyncLifetime
         Console.WriteLine($"║ Other errors AFTER kill:   {otherErrorsAfterKill,6} requests              ║");
         Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
 
-        // CRITICAL ASSERTION: After Redis dies, no reservations should succeed
-        // If successAfterKill > 0, the system allowed un-locked reservations = OVERSELLING RISK
         successAfterKill.ShouldBe(0,
-            $"CRITICAL FAILURE: {successAfterKill} reservations succeeded WITHOUT Redis locks! " +
-            "This indicates the system is vulnerable to overselling when Redis is unavailable.");
+            $"CRITICAL FAILURE: {successAfterKill} reservations succeeded WITHOUT Redis locks!");
 
-        // System should be returning 503 Service Unavailable
         service503AfterKill.ShouldBeGreaterThan(0,
-            "Expected 503 responses after Redis was killed, but received none. " +
-            "Health check may not be detecting Redis failure.");
+            "Expected 503 responses after Redis was killed, but received none.");
     }
 
     /// <summary>
-    ///     Validates that the health endpoint reports unhealthy within SLA
-    ///     when Redis is killed.
+    ///     Validates that the health endpoint reports unhealthy within SLA when Redis is killed.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     [Trait("Category", "RequiresApi")]
     public async Task KillRedis_HealthEndpoint_ShouldReportUnhealthyWithinSla()
     {
-        // ═══════════════════════════════════════════════════════════════════════════
-        // CONFIGURATION
-        // ═══════════════════════════════════════════════════════════════════════════
-        const int maxSlaSeconds = 5; // Health check must detect failure within 5s
+        const int maxSlaSeconds = 5;
         var stopwatch = new Stopwatch();
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // VERIFY HEALTHY BEFORE KILL
-        // ═══════════════════════════════════════════════════════════════════════════
         var healthBefore = await _httpClient!.GetAsync("/health/ready");
         healthBefore.StatusCode.ShouldBe(HttpStatusCode.OK,
             "Health check should be healthy before Redis kill");
 
         Console.WriteLine($"[HEALTH DRILL] Initial health check: {healthBefore.StatusCode}");
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // KILL REDIS
-        // ═══════════════════════════════════════════════════════════════════════════
         Console.WriteLine($"[HEALTH DRILL] Killing Redis at {DateTime.UtcNow:O}...");
         await _redisContainer!.StopAsync();
         stopwatch.Start();
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // POLL HEALTH ENDPOINT UNTIL UNHEALTHY
-        // ═══════════════════════════════════════════════════════════════════════════
         var detectedUnhealthy = false;
-        while (stopwatch.Elapsed.TotalSeconds < maxSlaSeconds + 2) // +2s buffer
+        while (stopwatch.Elapsed.TotalSeconds < maxSlaSeconds + 2)
         {
             var healthAfter = await _httpClient.GetAsync("/health/ready");
-            Console.WriteLine(
-                $"[HEALTH DRILL] T+{stopwatch.Elapsed.TotalSeconds:F1}s: {healthAfter.StatusCode}");
+            Console.WriteLine($"[HEALTH DRILL] T+{stopwatch.Elapsed.TotalSeconds:F1}s: {healthAfter.StatusCode}");
 
             if (healthAfter.StatusCode == HttpStatusCode.ServiceUnavailable)
             {
@@ -260,61 +209,45 @@ public class RedisKillScriptTests : IAsyncLifetime
                 break;
             }
 
-            await Task.Delay(500); // Poll every 500ms
+            await Task.Delay(500);
         }
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // ASSERTIONS
-        // ═══════════════════════════════════════════════════════════════════════════
         Console.WriteLine($"\n[HEALTH DRILL] Detection time: {stopwatch.Elapsed.TotalSeconds:F2}s");
 
         detectedUnhealthy.ShouldBeTrue(
             $"Health check did not report unhealthy within {maxSlaSeconds}s SLA");
 
         stopwatch.Elapsed.TotalSeconds.ShouldBeLessThanOrEqualTo(maxSlaSeconds,
-            $"Health check detected Redis failure in {stopwatch.Elapsed.TotalSeconds:F2}s, " +
-            $"which exceeds the {maxSlaSeconds}s SLA");
-
-        Console.WriteLine($"[HEALTH DRILL] ✓ Health check detected Redis failure within SLA");
+            $"Health check detected Redis failure in {stopwatch.Elapsed.TotalSeconds:F2}s, which exceeds the {maxSlaSeconds}s SLA");
     }
 
     /// <summary>
     ///     Simulates a "kill and recover" scenario to ensure the system
-    ///     can resume normal operation after Redis comes back.
+    ///     resumes normal operation after Redis comes back online.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
     [Trait("Category", "LoadTest")]
     [Trait("Category", "RequiresApi")]
     public async Task KillAndRecoverRedis_ShouldResumeNormalOperation()
     {
-        // ═══════════════════════════════════════════════════════════════════════════
-        // PHASE 1: Normal operation
-        // ═══════════════════════════════════════════════════════════════════════════
         var phase1Success = await TryReserveAsync();
         Console.WriteLine($"[RECOVERY] Phase 1 (before kill): {(phase1Success ? "SUCCESS" : "FAILED")}");
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // PHASE 2: Kill Redis
-        // ═══════════════════════════════════════════════════════════════════════════
         Console.WriteLine("[RECOVERY] Killing Redis...");
         await _redisContainer!.StopAsync();
-        await Task.Delay(2000); // Wait for detection
+        await Task.Delay(2000);
 
         var phase2Status = await GetReservationStatusAsync();
         Console.WriteLine($"[RECOVERY] Phase 2 (after kill): {phase2Status}");
-        phase2Status.ShouldBeOneOf(503, 500); // Should be unavailable or error
+        phase2Status.ShouldBeOneOf(503, 500);
 
-        // ═══════════════════════════════════════════════════════════════════════════
-        // PHASE 3: Restart Redis
-        // ═══════════════════════════════════════════════════════════════════════════
         Console.WriteLine("[RECOVERY] Restarting Redis...");
         await _redisContainer.StartAsync();
-        await Task.Delay(5000); // Wait for health check to detect recovery
+        await Task.Delay(5000);
 
         var phase3Success = await TryReserveAsync();
         Console.WriteLine($"[RECOVERY] Phase 3 (after recovery): {(phase3Success ? "SUCCESS" : "FAILED")}");
 
-        // After Redis recovers, reservations should work again
         phase3Success.ShouldBeTrue(
             "System should resume normal operation after Redis recovers");
     }
@@ -328,11 +261,9 @@ public class RedisKillScriptTests : IAsyncLifetime
                 new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = Guid.NewGuid(),
                         orderId = Guid.NewGuid(),
-                        items = new[]
-                        {
-                            new { productId = Guid.NewGuid(), quantity = 1, sku = "SKU-TEST-001" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
@@ -354,11 +285,9 @@ public class RedisKillScriptTests : IAsyncLifetime
                 new StringContent(
                     JsonSerializer.Serialize(new
                     {
+                        productId = Guid.NewGuid(),
                         orderId = Guid.NewGuid(),
-                        items = new[]
-                        {
-                            new { productId = Guid.NewGuid(), quantity = 1, sku = "SKU-TEST-001" }
-                        }
+                        quantity = 1
                     }),
                     Encoding.UTF8,
                     "application/json"));
