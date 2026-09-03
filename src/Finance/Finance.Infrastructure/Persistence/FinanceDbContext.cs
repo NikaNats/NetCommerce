@@ -4,6 +4,7 @@ using NetCommerce.Finance.Domain.Reconciliation;
 using NetCommerce.Finance.Domain.Webhooks;
 using NetCommerce.Finance.Infrastructure.Persistence.Configurations;
 using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Compliance.Pii;
 using NetCommerce.Kernel.EfCore.Persistence;
 
 namespace NetCommerce.Finance.Infrastructure.Persistence;
@@ -26,6 +27,7 @@ public class FinanceDbContext : BaseDbContext
     public DbSet<ReconciliationSession> ReconciliationSessions => Set<ReconciliationSession>();
     public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
     public DbSet<FinancialAuditEntry> FinancialAuditLog => Set<FinancialAuditEntry>();
+    public DbSet<PiiVaultEntry> PiiVaultEntries => Set<PiiVaultEntry>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -44,5 +46,6 @@ public class FinanceDbContext : BaseDbContext
         modelBuilder.ApplyConfiguration(new ReconciliationSessionConfiguration());
         modelBuilder.ApplyConfiguration(new ProcessedWebhookEventConfiguration());
         modelBuilder.ApplyConfiguration(new FinancialAuditEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new PiiVaultEntryConfiguration());
     }
 }

@@ -1,5 +1,4 @@
 #nullable enable
-using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
@@ -9,66 +8,60 @@ namespace NetCommerce.Kernel.EfCore.Persistence;
 
 public static class MultiTenancyExtensions
 {
-    // MethodInfo cache for performance optimization
-    private static readonly MethodInfo ConfigureTenantFilterMethod = typeof(MultiTenancyExtensions)
-        .GetMethod(nameof(ConfigureTenantFilter), BindingFlags.NonPublic | BindingFlags.Static,
+    private static readonly MethodInfo EfPropertyMethod = typeof(EF)
+        .GetMethod(nameof(EF.Property), BindingFlags.Public | BindingFlags.Static,
             binder: null,
-            types: [typeof(ModelBuilder), typeof(BaseDbContext)],
-            modifiers: null)
-        ?? throw new InvalidOperationException("Could not find ConfigureTenantFilter method.");
+            types: [typeof(object), typeof(string)],
+            modifiers: null)!
+        .MakeGenericMethod(typeof(string));
 
     /// <summary>
     ///     Automatically applies Query Filters for ISoftDelete and IMultiTenant.
+    ///
+    ///     Composition rule: an entity implementing BOTH interfaces gets a SINGLE
+    ///     combined filter (<c>not-deleted AND same-tenant</c>). EF Core keeps only
+    ///     the last <c>HasQueryFilter</c> call per entity, so applying them
+    ///     separately would silently drop one predicate and leak rows.
     /// </summary>
-    [RequiresUnreferencedCode("Multi-tenancy filter uses reflection to apply query filters dynamically.")]
-    [RequiresDynamicCode("Multi-tenancy filter uses MakeGenericMethod and expression trees.")]
     public static void ApplyKernelGlobalFilters(this ModelBuilder modelBuilder, BaseDbContext context)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             var clrType = entityType.ClrType;
 
-            // 1. Configure Soft Delete
-            if (typeof(ISoftDelete).IsAssignableFrom(clrType))
+            var isSoftDelete = typeof(ISoftDelete).IsAssignableFrom(clrType);
+            var isMultiTenant = typeof(IMultiTenant).IsAssignableFrom(clrType);
+
+            if (!isSoftDelete && !isMultiTenant)
+                continue;
+
+            var parameter = Expression.Parameter(clrType, "e");
+            Expression? body = null;
+
+            if (isSoftDelete)
             {
-                modelBuilder.Entity(clrType).HasQueryFilter(GetSoftDeleteFilter(clrType));
+                var deletedAt = Expression.Property(parameter, nameof(ISoftDelete.DeletedAt));
+                body = Expression.Equal(deletedAt, Expression.Constant(null, typeof(DateTime?)));
             }
 
-            // 2. Configure Multi-Tenancy
-            if (typeof(IMultiTenant).IsAssignableFrom(clrType))
+            if (isMultiTenant)
             {
-                // We must use reflection to call the generic method because
-                // HasQueryFilter<T> requires the generic type argument.
-                var genericMethod = ConfigureTenantFilterMethod.MakeGenericMethod(clrType);
-                genericMethod.Invoke(null, [modelBuilder, context]);
+                // EF.Property<string>(e, "TenantId") == context.CurrentTenantId.
+                // The closure-captured CurrentTenantId is parameterized by EF Core,
+                // so the filter value is evaluated fresh on each query execution.
+                var tenantId = Expression.Call(
+                    EfPropertyMethod,
+                    parameter,
+                    Expression.Constant(nameof(IMultiTenant.TenantId)));
+                var currentTenant = Expression.Property(
+                    Expression.Constant(context),
+                    nameof(BaseDbContext.CurrentTenantId));
+                var sameTenant = Expression.Equal(tenantId, currentTenant);
+
+                body = body is null ? sameTenant : Expression.AndAlso(body, sameTenant);
             }
+
+            modelBuilder.Entity(clrType).HasQueryFilter(Expression.Lambda(body!, parameter));
         }
-    }
-
-    /// <summary>
-    ///     This method is called via Reflection for each IMultiTenant entity.
-    ///     The <paramref name="context"/> is captured in the closure so EF Core can
-    ///     evaluate <see cref="BaseDbContext.CurrentTenantId"/> at query time.
-    /// </summary>
-    private static void ConfigureTenantFilter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] TEntity>(
-        ModelBuilder builder, BaseDbContext context)
-        where TEntity : class, IMultiTenant
-    {
-        builder.Entity<TEntity>().HasQueryFilter(e =>
-            // EF Core parameterizes the closure-captured context.CurrentTenantId
-            // so the filter value is evaluated fresh on each query execution.
-            EF.Property<string>(e, nameof(IMultiTenant.TenantId)) == context.CurrentTenantId
-        );
-
-        // OPTIONAL: Add Index for performance
-        builder.Entity<TEntity>().HasIndex(e => e.TenantId);
-    }
-
-    private static LambdaExpression GetSoftDeleteFilter(Type type)
-    {
-        var parameter = Expression.Parameter(type, "e");
-        var property = Expression.Property(parameter, nameof(ISoftDelete.DeletedAt));
-        var filter = Expression.Equal(property, Expression.Constant(null));
-        return Expression.Lambda(filter, parameter);
     }
 }

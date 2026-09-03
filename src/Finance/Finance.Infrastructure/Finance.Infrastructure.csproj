@@ -9,6 +9,7 @@
     <ProjectReference Include="..\Finance.Domain\Finance.Domain.csproj"/>
     <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
     <ProjectReference Include="..\..\Kernel.Adapters\NetCommerce.Kernel.Stripe\NetCommerce.Kernel.Stripe.csproj"/>
+    <ProjectReference Include="..\..\Kernel\NetCommerce.Kernel.Compliance\NetCommerce.Kernel.Compliance.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

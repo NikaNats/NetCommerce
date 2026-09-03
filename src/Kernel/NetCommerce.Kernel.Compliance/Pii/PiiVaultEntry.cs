@@ -15,12 +15,11 @@ namespace NetCommerce.Kernel.Compliance.Pii;
 ///     4. Least Privilege: Catalog/Media modules can't access PII even with SQL injection
 ///     5. Audit Trail: All PII access is logged at vault level
 /// </summary>
-public sealed class PiiVaultEntry : Entity<Guid>
+public sealed class PiiVaultEntry : PiiVaultEntryBase
 {
     // EF Core constructor
     private PiiVaultEntry()
     {
-        UserId = string.Empty;
         EncryptedFullName = string.Empty;
         EncryptedEmail = string.Empty;
         EmailBlindIndex = string.Empty;
@@ -40,11 +39,13 @@ public sealed class PiiVaultEntry : Entity<Guid>
         string encryptedAddress,
         string? encryptedDateOfBirth,
         string? encryptedNationalId,
-        int keyVersion)
+        int keyVersion,
+        string? tenantId)
     {
         Id = Guid.NewGuid();
         ProfileId = profileId;
         UserId = userId;
+        TenantId = tenantId ?? string.Empty;
         EncryptedFullName = encryptedFullName;
         EncryptedEmail = encryptedEmail;
         EmailBlindIndex = emailBlindIndex;
@@ -60,16 +61,8 @@ public sealed class PiiVaultEntry : Entity<Guid>
         IsDeleted = false;
     }
 
-    /// <summary>
-    ///     The unique identifier for this PII profile.
-    ///     This is the token stored in business schemas (Ordering, Payments).
-    /// </summary>
-    public Guid ProfileId { get; private set; }
-
-    /// <summary>
-    ///     The User ID who owns this PII data (for authentication/authorization).
-    /// </summary>
-    public string UserId { get; private set; }
+    // Identity, ownership, tenancy, audit timestamps, key version and soft-delete
+    // state are inherited from PiiVaultEntryBase (single source of truth).
 
     /// <summary>
     ///     Full name encrypted with envelope encryption.
@@ -112,36 +105,6 @@ public sealed class PiiVaultEntry : Entity<Guid>
     public string? EncryptedNationalId { get; private set; }
 
     /// <summary>
-    ///     When this PII entry was created.
-    /// </summary>
-    public DateTime CreatedAt { get; private set; }
-
-    /// <summary>
-    ///     When this PII entry was last updated.
-    /// </summary>
-    public DateTime UpdatedAt { get; private set; }
-
-    /// <summary>
-    ///     When this PII entry was last accessed (for compliance audits).
-    /// </summary>
-    public DateTime LastAccessedAt { get; private set; }
-
-    /// <summary>
-    ///     The encryption key version used for this entry.
-    /// </summary>
-    public int KeyVersion { get; private set; }
-
-    /// <summary>
-    ///     Soft delete flag for GDPR compliance.
-    /// </summary>
-    public bool IsDeleted { get; private set; }
-
-    /// <summary>
-    ///     When the user requested to be forgotten (GDPR Article 17).
-    /// </summary>
-    public DateTime? DeletedAt { get; private set; }
-
-    /// <summary>
     ///     Creates a new PII vault entry with encrypted data.
     /// </summary>
     public static PiiVaultEntry Create(
@@ -155,7 +118,8 @@ public sealed class PiiVaultEntry : Entity<Guid>
         string encryptedAddress,
         string? encryptedDateOfBirth = null,
         string? encryptedNationalId = null,
-        int keyVersion = 1)
+        int keyVersion = 1,
+        string? tenantId = null)
     {
         if (profileId == Guid.Empty)
             throw new ArgumentException("Profile ID cannot be empty.", nameof(profileId));
@@ -183,7 +147,8 @@ public sealed class PiiVaultEntry : Entity<Guid>
             encryptedAddress,
             encryptedDateOfBirth,
             encryptedNationalId,
-            keyVersion);
+            keyVersion,
+            tenantId);
     }
 
     /// <summary>
@@ -207,23 +172,14 @@ public sealed class PiiVaultEntry : Entity<Guid>
     }
 
     /// <summary>
-    ///     Records that this PII entry was accessed (for compliance audits).
-    /// </summary>
-    public void RecordAccess()
-    {
-        LastAccessedAt = DateTime.UtcNow;
-    }
-
-    /// <summary>
     ///     Marks this PII entry as deleted (GDPR "Right to be Forgotten").
     /// </summary>
-    public void MarkAsDeleted()
+    public override void MarkAsDeleted()
     {
         if (IsDeleted)
             throw new InvalidOperationException("PII entry is already deleted.");
 
-        IsDeleted = true;
-        DeletedAt = DateTime.UtcNow;
+        base.MarkAsDeleted();
     }
 
     /// <summary>

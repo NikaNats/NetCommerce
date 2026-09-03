@@ -10,6 +10,7 @@ using NetCommerce.Finance.Infrastructure.Gateways;
 using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Finance.Infrastructure.Persistence.Repositories;
 using NetCommerce.Kernel.Application;
+using NetCommerce.Kernel.Compliance.Pii;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.EfCore;
 using NetCommerce.Kernel.Stripe;
@@ -35,6 +36,8 @@ public static class FinanceModule
         services.AddScoped<IReconciliationSessionRepository, ReconciliationSessionRepository>();
         services.AddScoped<IWebhookEventStore, WebhookEventStore>();
         services.AddScoped<IFinancialAuditRepository, FinancialAuditRepository>();
+        services.AddScoped<IPiiVaultRepository<PiiVaultEntry>, PiiVaultRepository>();
+        services.AddScoped<ISearchablePiiVaultRepository<PiiVaultEntry>, PiiVaultRepository>();
 
         // ============================================================================
         // Alerting Configuration

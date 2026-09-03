@@ -13,11 +13,12 @@ namespace NetCommerce.Kernel.Compliance.Pii;
 ///     3. GDPR "Right to be Forgotten": Delete one row, done
 ///     4. Least Privilege: Business modules can't access PII even with SQL injection
 /// </summary>
-public abstract class PiiVaultEntryBase : Entity<Guid>
+public abstract class PiiVaultEntryBase : Entity<Guid>, IMultiTenant, ISoftDelete
 {
     protected PiiVaultEntryBase()
     {
         UserId = string.Empty;
+        TenantId = string.Empty;
     }
 
     protected PiiVaultEntryBase(Guid profileId, string userId)
@@ -42,6 +43,18 @@ public abstract class PiiVaultEntryBase : Entity<Guid>
     ///     Links to Identity schema.
     /// </summary>
     public string UserId { get; protected set; }
+
+    /// <summary>
+    ///     Owning tenant. Enforces row-level isolation through the kernel
+    ///     global query filter; stamped automatically on insert by
+    ///     <c>TenantSaveInterceptor</c> when left empty.
+    /// </summary>
+    public string TenantId { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     Actor that performed the soft delete (GDPR audit trail).
+    /// </summary>
+    public string? DeletedBy { get; set; }
 
     /// <summary>
     ///     When this PII entry was created.
@@ -73,7 +86,7 @@ public abstract class PiiVaultEntryBase : Entity<Guid>
     /// <summary>
     ///     When the entry was soft deleted.
     /// </summary>
-    public DateTime? DeletedAt { get; protected set; }
+    public DateTime? DeletedAt { get; set; }
 
     /// <summary>
     ///     Records an access to this PII entry.
@@ -88,8 +101,30 @@ public abstract class PiiVaultEntryBase : Entity<Guid>
     /// </summary>
     public virtual void MarkAsDeleted()
     {
+        SoftDelete("system");
+    }
+
+    /// <summary>
+    ///     <see cref="ISoftDelete"/> implementation. Forgotten entries stay
+    ///     invisible to LINQ through the kernel soft-delete query filter.
+    /// </summary>
+    public void SoftDelete(string deletedBy)
+    {
         IsDeleted = true;
         DeletedAt = DateTime.UtcNow;
+        DeletedBy = deletedBy;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    ///     Restores a previously forgotten entry (e.g., erroneous erasure with
+    ///     legal basis to retain).
+    /// </summary>
+    public void Restore()
+    {
+        IsDeleted = false;
+        DeletedAt = null;
+        DeletedBy = null;
         UpdatedAt = DateTime.UtcNow;
     }
 
