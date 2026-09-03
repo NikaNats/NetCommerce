@@ -9,4 +9,10 @@
     <ProjectReference Include="..\..\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
   </ItemGroup>
 
+  <!-- Friend assembly for cache rehydration (Product.Rehydrate). No type-level
+       dependency is introduced in this direction; verified by Architecture.Tests. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Catalog.Infrastructure"/>
+  </ItemGroup>
+
 </Project>

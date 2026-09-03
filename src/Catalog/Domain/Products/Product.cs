@@ -128,6 +128,52 @@ public sealed class Product : AggregateRoot<Guid>
         var attribute = _attributes.FirstOrDefault(a => a.Key == key);
         if (attribute != null) _attributes.Remove(attribute);
     }
+
+    /// <summary>
+    ///     Rehydrates a <see cref="Product"/> from a snapshot (e.g., cache deserialization).
+    ///     Deliberately raises NO domain events: a cache hit is not a business fact.
+    ///     Internal by design — only persistence and caching infrastructure (friend
+    ///     assemblies) may bypass the creation invariants enforced by
+    ///     <see cref="Create"/>.
+    /// </summary>
+    internal static Product Rehydrate(
+        Guid id,
+        string name,
+        string description,
+        string sku,
+        Money price,
+        decimal weightKg,
+        Guid categoryId,
+        ProductStatus status,
+        string? seoTitle,
+        string? seoDescription,
+        string? slug,
+        IReadOnlyList<(Guid Id, string ImageKey, int DisplayOrder, bool IsPrimary)> images,
+        IReadOnlyList<(string Key, string Value, string? DisplayName)> attributes)
+    {
+        var product = new Product
+        {
+            Id = id,
+            Name = name,
+            Description = description,
+            Sku = sku,
+            Price = price,
+            WeightKg = weightKg,
+            CategoryId = categoryId,
+            Status = status,
+            SeoTitle = seoTitle,
+            SeoDescription = seoDescription,
+            Slug = slug
+        };
+
+        foreach (var image in images)
+            product._images.Add(new ProductImage(image.Id, image.ImageKey, image.DisplayOrder, image.IsPrimary));
+
+        foreach (var attribute in attributes)
+            product._attributes.Add(new ProductAttribute(attribute.Key, attribute.Value, attribute.DisplayName));
+
+        return product;
+    }
 }
 
 public enum ProductStatus

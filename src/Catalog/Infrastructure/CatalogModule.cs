@@ -7,6 +7,7 @@ using NetCommerce.Catalog.Application.Products.Mappers;
 using NetCommerce.Catalog.Application.Products.Queries;
 using NetCommerce.Catalog.Domain.Categories;
 using NetCommerce.Catalog.Domain.Products;
+using NetCommerce.Catalog.Infrastructure.Caching;
 using NetCommerce.Catalog.Infrastructure.Persistence;
 using NetCommerce.Catalog.Infrastructure.Persistence.Repositories;
 using NetCommerce.Catalog.Infrastructure.Services;
@@ -37,6 +38,13 @@ public static class CatalogModule
             new CachedProductRepository(
                 provider.GetRequiredService<ProductRepository>(),
                 provider.GetRequiredService<Microsoft.Extensions.Caching.Hybrid.HybridCache>()));
+
+#pragma warning disable EXTEXP0018 // HybridCache serializer API is experimental in this SDK band
+        // Product aggregates are not STJ-deserializable by design; serialize via
+        // snapshot DTO instead. Without this, every HybridCache read throws
+        // NotSupportedException (HybridCache serializes even the L1/stampede path).
+        services.AddHybridCache().AddSerializer<Product?>(new ProductCacheSerializer());
+#pragma warning restore EXTEXP0018
 
         services.AddScoped<ICategoryRepository, CategoryRepository>();
 
