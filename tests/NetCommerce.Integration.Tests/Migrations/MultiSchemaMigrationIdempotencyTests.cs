@@ -176,14 +176,18 @@ public sealed class MultiSchemaMigrationIdempotencyTests : IntegrationTestBase
 
         await using (var dropCmd = connection.CreateCommand())
         {
+#pragma warning disable CA2100 // Database name is a test-generated identifier, never user input
             dropCmd.CommandText = $"DROP DATABASE IF EXISTS \"{databaseName}\" WITH (FORCE);";
+#pragma warning restore CA2100
             dropCmd.CommandTimeout = 60;
             await dropCmd.ExecuteNonQueryAsync();
         }
 
         await using (var createCmd = connection.CreateCommand())
         {
+#pragma warning disable CA2100 // Database name is a test-generated identifier, never user input
             createCmd.CommandText = $"CREATE DATABASE \"{databaseName}\";";
+#pragma warning restore CA2100
             createCmd.CommandTimeout = 60;
             await createCmd.ExecuteNonQueryAsync();
         }
@@ -194,7 +198,9 @@ public sealed class MultiSchemaMigrationIdempotencyTests : IntegrationTestBase
         await using var connection = new NpgsqlConnection(Fixture.PostgresConnectionString);
         await connection.OpenAsync();
         await using var cmd = connection.CreateCommand();
+#pragma warning disable CA2100 // Database name is a test-generated identifier, never user input
         cmd.CommandText = $"DROP DATABASE IF EXISTS \"{databaseName}\" WITH (FORCE);";
+#pragma warning restore CA2100
         cmd.CommandTimeout = 60;
         await cmd.ExecuteNonQueryAsync();
     }

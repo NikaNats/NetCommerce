@@ -40,12 +40,15 @@ public class WebhookEventStore : IWebhookEventStore
     {
         // Use INSERT ... ON CONFLICT DO NOTHING for atomic idempotency
         // Returns 1 if inserted (new event), 0 if conflict (duplicate)
+        // NOTE: Identifiers are quoted PascalCase to match the EF Core model
+        // (no snake_case naming convention is configured; see the Finance
+        // migrations where columns are "Id", "StripeEventId", ...).
         const string sql = """
             INSERT INTO finance.processed_webhook_events
-                (id, stripe_event_id, event_type, payment_intent_id, received_at, status)
+                ("Id", "StripeEventId", "EventType", "PaymentIntentId", "ReceivedAt", "Status")
             VALUES
-                ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (stripe_event_id) DO NOTHING
+                ({0}, {1}, {2}, {3}, {4}, {5})
+            ON CONFLICT ("StripeEventId") DO NOTHING
             """;
 
         var id = Guid.NewGuid();
@@ -71,8 +74,8 @@ public class WebhookEventStore : IWebhookEventStore
     {
         const string sql = """
             UPDATE finance.processed_webhook_events
-            SET status = $1, processed_at = $2
-            WHERE stripe_event_id = $3
+            SET "Status" = {0}, "ProcessedAt" = {1}
+            WHERE "StripeEventId" = {2}
             """;
 
         await _context.Database.ExecuteSqlRawAsync(
@@ -87,8 +90,8 @@ public class WebhookEventStore : IWebhookEventStore
     {
         const string sql = """
             UPDATE finance.processed_webhook_events
-            SET status = $1, processed_at = $2, error_message = $3
-            WHERE stripe_event_id = $4
+            SET "Status" = {0}, "ProcessedAt" = {1}, "ErrorMessage" = {2}
+            WHERE "StripeEventId" = {3}
             """;
 
         await _context.Database.ExecuteSqlRawAsync(
@@ -118,7 +121,7 @@ public class WebhookEventStore : IWebhookEventStore
 
         const string sql = """
             DELETE FROM finance.processed_webhook_events
-            WHERE received_at < $1
+            WHERE "ReceivedAt" < {0}
             """;
 
         var deleted = await _context.Database.ExecuteSqlRawAsync(sql, [cutoff], ct);
