@@ -42,6 +42,17 @@ AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================================
+// Environment Detection for Testing & Native AOT
+// ============================================================================
+// Detects if running under local development, test environment, or a test runner
+// (xUnit/testhost). This prevents Oakton assembly hijacking and ensures Wolverine
+// uses dynamic compilation in tests while enforcing strict static codegen in production.
+var isTestOrDev = builder.Environment.IsDevelopment()
+    || builder.Environment.IsEnvironment("Testing")
+    || AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name?.StartsWith("xunit", StringComparison.OrdinalIgnoreCase) == true
+                                                     || a.GetName().Name?.StartsWith("testhost", StringComparison.OrdinalIgnoreCase) == true);
+
+// ============================================================================
 // Add Aspire Service Defaults (OpenTelemetry, Health Checks, Service Discovery, Polly)
 // ============================================================================
 builder.AddServiceDefaults();
@@ -92,7 +103,16 @@ builder.Host.UseWolverineMessaging(
     builder.Configuration,
     opts =>
     {
-        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+        // 1. Explicitly pin ApplicationAssembly to NetCommerce.Api so Wolverine always looks
+        // for handlers in the API assembly, even when hosted via WebApplicationFactory (where
+        // the test runner's entry assembly defaults to NetCommerce.Integration.Tests).
+        opts.ApplicationAssembly = typeof(Program).Assembly;
+
+        // 2. In Development and Testing environments, allow dynamic Auto discovery so WebApplicationFactory
+        // and local test runners resolve handlers seamlessly.
+        // In Production (Native AOT container), strictly enforce TypeLoadMode.Static.
+        opts.CodeGeneration.TypeLoadMode = isTestOrDev ? TypeLoadMode.Auto : TypeLoadMode.Static;
+
         opts.CodeGeneration.GeneratedCodeOutputPath =
             Path.Combine(Directory.GetCurrentDirectory(), "Internal", "Generated");
 
@@ -279,7 +299,7 @@ app.MapDefaultEndpoints();
 // ============================================================================
 // Skipped when running a JasperFx CLI command (e.g. 'codegen write') - the app
 // is not serving and must not require a live database. --migrate-only performs
-// its own dedicated migration pass below.
+// its own dedicated migration pass above.
 if ((app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("AutoMigrate"))
     && !args.Contains("--migrate-only")
     && !args.Contains("codegen"))
@@ -348,7 +368,6 @@ var versionSet = app.GetDefaultApiVersionSet();
 // Eliminates reflection-based assembly scanning (Assembly.GetTypes() / Activator.CreateInstance).
 app.MapNetCommerceEndpoints(versionSet);
 
-
 // ============================================================================
 // Wolverine.Http Endpoints (Zero-Ceremony, Attribute-Based)
 // ============================================================================
@@ -358,8 +377,15 @@ app.MapNetCommerceEndpoints(versionSet);
 app.MapWolverineEndpoints();
 
 // ============================================================================
-// NATIVE AOT: Use Oakton Commands for CLI Support
-// Enables: dotnet run -- codegen write
-// This generates static handler code that the AOT compiler can see.
+// Host Execution: Standard Web Server vs Oakton CLI Runner
 // ============================================================================
+// When running in a test host (e.g. WebApplicationFactory) without CLI arguments,
+// start the web host directly. This avoids Oakton overriding ApplicationAssembly to testhost.
+// When CLI arguments are present (e.g. 'codegen write'), delegate to JasperFx command execution.
+if (args.Length == 0 && isTestOrDev)
+{
+    await app.RunAsync();
+    return 0;
+}
+
 return await JasperFx.CommandLineHostingExtensions.RunJasperFxCommands(app, args);

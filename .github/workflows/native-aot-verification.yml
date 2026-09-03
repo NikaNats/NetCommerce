@@ -113,6 +113,29 @@ jobs:
           path: /tmp/netcommerce-aot.tar
           retention-days: 1
 
+  database-migration-and-drift-verification:
+    name: Multi-Schema Migration & Blue-Green Compatibility Drills
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore Dependencies
+        run: dotnet restore NetCommerce.slnx --locked-mode
+
+      - name: Execute Migration Idempotency, Expand/Contract & Envelope Drift Tests
+        run: |
+          # Integration tests self-provision PostgreSQL + Redis via Testcontainers
+          # (Docker is pre-installed on ubuntu-latest runners).
+          dotnet test tests/NetCommerce.Integration.Tests/NetCommerce.Integration.Tests.csproj \
+            -c Release \
+            --filter "Category=DatabaseMigrations|Category=BlueGreenCompatibility|Category=WolverineDrift" \
+            --logger "console;verbosity=normal"
+
   native-runtime-smoke-test:
     name: Execute Native Binary Runtime Smoke Suite
     runs-on: ubuntu-latest

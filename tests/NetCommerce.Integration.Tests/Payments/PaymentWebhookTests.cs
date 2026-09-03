@@ -10,7 +10,6 @@ using Microsoft.Extensions.Hosting;
 using NetCommerce.Integration.Tests.Fixtures;
 using NetCommerce.Kernel.Application.Notifications;
 using NetCommerce.Kernel.Stripe;
-using NetCommerce.Ordering.Application.Sagas;
 using NSubstitute;
 using Shouldly;
 using System;
@@ -22,13 +21,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Wolverine;
-using Wolverine.Postgresql;
-using Wolverine.RDBMS;
 
 namespace NetCommerce.Integration.Tests.Payments;
 
 /// <summary>
-///     Integration tests for Stripe webhook endpoint.
+///     Integration tests for Stripe webhook endpoint via WebApplicationFactory.
 /// </summary>
 [Collection(nameof(IntegrationTestCollection))]
 public class PaymentWebhookTests : IntegrationTestBase
@@ -37,18 +34,22 @@ public class PaymentWebhookTests : IntegrationTestBase
     private readonly HttpClient _client;
     private readonly WebApplicationFactory<Program> _factory;
 
+    static PaymentWebhookTests()
+    {
+        // Must be set at the process level before WebApplication.CreateBuilder(args) runs
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+    }
+
     public PaymentWebhookTests(IntegrationTestFixture fixture) : base(fixture)
     {
-        // Tell JasperFx command line integration to start the host under WebApplicationFactory
         JasperFxEnvironment.AutoStartHost = true;
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
-            // Set environment to Testing to skip auto-migrations
             builder.UseEnvironment("Testing");
             builder.UseSetting("AutoMigrate", "false");
 
-            // Set all required connection strings to use TestContainers
+            // Point all connection strings to Testcontainers
             builder.UseSetting("ConnectionStrings:CatalogDb", fixture.PostgresConnectionString);
             builder.UseSetting("ConnectionStrings:InventoryDb", fixture.PostgresConnectionString);
             builder.UseSetting("ConnectionStrings:OrderingDb", fixture.PostgresConnectionString);
@@ -59,13 +60,6 @@ public class PaymentWebhookTests : IntegrationTestBase
 
             builder.ConfigureServices(services =>
             {
-                // Register PostgreSQL persistence provider and OrderFulfillmentSaga
-                services.Configure<WolverineOptions>(opts =>
-                {
-                    opts.PersistMessagesWithPostgresql(fixture.PostgresConnectionString, "wolverine");
-                    opts.AddSagaType<OrderFulfillmentSaga>();
-                });
-
                 // Override Stripe configuration with test values
                 services.Configure<StripeOptions>(options =>
                 {
@@ -74,21 +68,18 @@ public class PaymentWebhookTests : IntegrationTestBase
                     options.WebhookSecret = WebhookSecret;
                 });
 
-                // Add distributed memory cache
                 services.AddDistributedMemoryCache();
 
-                // Register fake S3 service
+                // Register test doubles for external I/O
                 services.AddScoped<IAmazonS3>(_ => Substitute.For<IAmazonS3>());
 
                 // Mock IMessageBus for isolated signature testing
                 services.RemoveAll<IMessageBus>();
                 services.AddSingleton<IMessageBus>(Substitute.For<IMessageBus>());
 
-                // Register OrderNotificationHandler dependencies
                 services.AddScoped<IEmailProvider>(_ => Substitute.For<IEmailProvider>());
                 services.AddScoped<ITemplateEngine>(_ => Substitute.For<ITemplateEngine>());
 
-                // Register mocked ITenantContext and IUserContext
                 var mockTenantContext = Substitute.For<NetCommerce.Kernel.Application.ITenantContext>();
                 mockTenantContext.TenantId.Returns("test-tenant");
                 mockTenantContext.HasTenant.Returns(true);
@@ -103,7 +94,7 @@ public class PaymentWebhookTests : IntegrationTestBase
         _client = _factory.CreateClient();
     }
 
-    [Fact(Skip = "Covered by PaymentWebhookControllerUnitTests")]
+    [Fact(Skip = "Covered by PaymentWebhookContractTests")]
     public async Task WebhookEndpoint_ValidSignature_ShouldReturn200()
     {
         string paymentIntentId = "pi_test_123456789";
