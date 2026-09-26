@@ -7,37 +7,20 @@ namespace Ordering.Infrastructure.Persistence.Migrations
     /// <inheritdoc />
     public partial class AddTenantIdToOrder : Migration
     {
+        // NOTE: This migration is intentionally a no-op. The tenant_id column
+        // and its index are created by the 20260203000000_BaselineOrderSchema
+        // baseline, which was added later to repair a history that previously
+        // contained no table creation at all. The empty Up/Down keeps the
+        // migration history chain (and any database that recorded it) intact
+        // while making scripted provisioning from zero idempotent.
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "tenant_id",
-                schema: "ordering",
-                table: "orders",
-                type: "character varying(100)",
-                maxLength: 100,
-                nullable: false,
-                defaultValue: "default-tenant");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Orders_TenantId",
-                schema: "ordering",
-                table: "orders",
-                column: "tenant_id");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Orders_TenantId",
-                schema: "ordering",
-                table: "orders");
-
-            migrationBuilder.DropColumn(
-                name: "tenant_id",
-                schema: "ordering",
-                table: "orders");
         }
     }
 }

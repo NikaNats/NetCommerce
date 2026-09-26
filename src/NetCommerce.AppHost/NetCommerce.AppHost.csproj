@@ -6,6 +6,13 @@
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>
     <UserSecretsId>netcommerce-apphost</UserSecretsId>
+    <!--
+      No packages lock file for the dev-time orchestrator host: Aspire pulls
+      OS-specific transitive packages (e.g. Aspire.Dashboard.Sdk.linux-x64 vs
+      win-x64), so a committed lock can never verify on all developer/CI hosts
+      (NU1004). The shippable projects keep their locks; this host is never deployed.
+    -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>

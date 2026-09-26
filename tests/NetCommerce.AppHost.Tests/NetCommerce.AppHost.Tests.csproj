@@ -6,6 +6,12 @@
     <OutputType>Exe</OutputType>
     <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
     <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
+    <!--
+      No packages lock file: transitively inherits the AppHost's OS-specific
+      Aspire packages (see NetCommerce.AppHost.csproj). Locked restore cannot
+      verify across Windows/Linux hosts (NU1004).
+    -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>

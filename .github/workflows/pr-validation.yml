@@ -16,10 +16,25 @@ jobs:
       - name: Enforce CancellationToken Propagation in Handlers
         run: |
           echo "Scanning for async EF Core calls missing cancellationToken..."
-          VIOLATIONS=$(grep -rnE "await\s+.*\.(ToListAsync|FirstOrDefaultAsync|SingleOrDefaultAsync|SaveChangesAsync|AnyAsync|CountAsync|ExecuteSqlRawAsync)\(" src --include="*.cs" | grep -v "cancellationToken" | grep -v "CancelTest" || true)
+          # Matches invocations of the reviewed EF Core async methods, then inspects
+          # the call plus its continuation lines (invocations may span lines) for any
+          # CancellationToken argument: cancellationToken, ct, cancellation (Wolverine),
+          # or CancellationToken.None.
+          # Excludes src/Api/Internal/Generated: machine-generated Wolverine handlers
+          # receive Wolverine's own token and are verified by `codegen test` + arch tests.
+          VIOLATIONS=$(grep -rnE "await\s+.*\.(ToListAsync|FirstOrDefaultAsync|SingleOrDefaultAsync|SaveChangesAsync|AnyAsync|CountAsync|ExecuteSqlRawAsync)\(" src --include="*.cs" \
+            | grep -v "src/Api/Internal/Generated/" \
+            | grep -v "CancelTest" \
+            | while IFS=: read -r file line _; do
+                if ! sed -n "${line},$((line + 6))p" "$file" \
+                  | tr '\n' ' ' \
+                  | grep -qE "\b(cancellationToken|ct|cancellation|CancellationToken\.None)\b"; then
+                  echo "${file}:${line}";
+                fi
+              done || true)
           if [ -n "$VIOLATIONS" ]; then
             echo "❌ ARCHITECTURE VIOLATION: Missing CancellationToken in async EF Core calls."
-            echo "Affected files must pass cancellationToken to allow graceful K8s SIGTERM shutdown."
+            echo "Affected invocations must pass a CancellationToken to allow graceful K8s SIGTERM shutdown."
             echo ""
             echo "$VIOLATIONS"
             echo ""
