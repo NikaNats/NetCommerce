@@ -56,11 +56,15 @@ public static class CreateOrderHandler
         ILogger<CreateOrderCommand> logger,
         CancellationToken cancellationToken)
     {
-        // Idempotency check
+        // Idempotency check, scoped to the requesting customer.
+        // The DB unique index is composite (IdempotencyKey, CustomerId), so a
+        // key-only lookup could return ANOTHER customer's order id (IDOR):
+        // the caller would then receive a foreign OrderId. Always scope by CustomerId.
         var existingOrder = await db.Orders
             .AsNoTracking()
-            .Select(o => new { o.Id, o.IdempotencyKey })
-            .FirstOrDefaultAsync(o => o.IdempotencyKey == command.IdempotencyKey, cancellationToken);
+            .Select(o => new { o.Id, o.IdempotencyKey, o.CustomerId })
+            .FirstOrDefaultAsync(o => o.IdempotencyKey == command.IdempotencyKey
+                && o.CustomerId == command.CustomerId, cancellationToken);
 
         if (existingOrder is not null)
         {
@@ -228,8 +232,22 @@ public static class CreateOrderHandler
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
+            // The composite unique index (IdempotencyKey, CustomerId) guarantees
+            // the conflicting row belongs to THIS customer — still scope the
+            // lookup defensively and handle the race where it is not yet visible.
             var duplicate = await db.Orders.AsNoTracking()
-                .FirstAsync(o => o.IdempotencyKey == command.IdempotencyKey, cancellationToken);
+                .FirstOrDefaultAsync(o => o.IdempotencyKey == command.IdempotencyKey
+                    && o.CustomerId == command.CustomerId, cancellationToken);
+
+            if (duplicate is null)
+            {
+                logger.LogError(
+                    "Unique constraint hit for idempotency key {Key} but no matching order is visible.",
+                    command.IdempotencyKey);
+
+                return Result.Failure<Guid>(Error.Conflict(
+                    "Duplicate order request is being processed. Please retry."));
+            }
 
             logger.LogWarning(
                 "Unique constraint hit for idempotency key {Key}. Returning existing OrderId {OrderId}.",

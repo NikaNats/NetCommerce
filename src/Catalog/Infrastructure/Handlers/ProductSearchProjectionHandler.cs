@@ -20,6 +20,16 @@ public static class ProductSearchProjectionHandler
 {
     private const string ProductsIndexName = "products";
 
+    // One-time index provisioning guard. Settings updates are idempotent but
+    // expensive: firing 3 settings tasks per ProductPublished event turns a
+    // 500-product bulk import into 1,500 Meilisearch tasks and stalls indexing
+    // for minutes. Configure once per process; re-arm after a cooldown so a
+    // failed attempt (Meilisearch down at startup) is retried, not dropped.
+    private static volatile bool _indexConfigured;
+    private static DateTime _lastConfigAttemptUtc = DateTime.MinValue;
+    private static readonly SemaphoreSlim ConfigLock = new(1, 1);
+    private static readonly TimeSpan ConfigRetryCooldown = TimeSpan.FromMinutes(5);
+
     /// <summary>
     ///     Handles ProductPublished event by projecting product to Meilisearch search index.
     ///     Wolverine automatically handles this through the outbox pattern for guaranteed delivery.
@@ -66,8 +76,8 @@ public static class ProductSearchProjectionHandler
             // Get or create Meilisearch index
             Index? index = meilisearchClient.Index(ProductsIndexName);
 
-            // Configure searchable attributes and ranking rules on first use
-            await ConfigureIndexIfNeeded(index, logger, cancellationToken);
+            // Configure searchable attributes and ranking rules once per process
+            await ConfigureIndexOnceAsync(index, logger, cancellationToken);
 
             // Add/update document in search index
             await index.AddDocumentsAsync([searchDocument], "Id", cancellationToken);
@@ -155,13 +165,28 @@ public static class ProductSearchProjectionHandler
         }
     }
 
-    private static async Task ConfigureIndexIfNeeded(
+    private static async Task ConfigureIndexOnceAsync(
         Index index,
         ILogger logger,
         CancellationToken cancellationToken)
     {
+        if (_indexConfigured)
+            return;
+
+        if (DateTime.UtcNow - _lastConfigAttemptUtc < ConfigRetryCooldown)
+            return;
+
+        await ConfigLock.WaitAsync(cancellationToken);
         try
         {
+            if (_indexConfigured)
+                return;
+
+            if (DateTime.UtcNow - _lastConfigAttemptUtc < ConfigRetryCooldown)
+                return;
+
+            _lastConfigAttemptUtc = DateTime.UtcNow;
+
             // Configure searchable attributes for typo tolerance and relevance
             await index.UpdateSearchableAttributesAsync(
                 ["Name", "Description", "Sku", "Tags"],
@@ -184,12 +209,20 @@ public static class ProductSearchProjectionHandler
                 ],
                 cancellationToken);
 
+            _indexConfigured = true;
+
             logger.LogInformation("Meilisearch index '{IndexName}' configured successfully", ProductsIndexName);
         }
         catch (Exception ex)
         {
-            // Index configuration is idempotent, safe to ignore if already configured
+            // Settings update failed (e.g. Meilisearch unavailable). The document
+            // write below still proceeds; configuration is retried after the
+            // cooldown instead of on every event.
             logger.LogDebug(ex, "Meilisearch index configuration skipped (likely already configured)");
+        }
+        finally
+        {
+            ConfigLock.Release();
         }
     }
 }

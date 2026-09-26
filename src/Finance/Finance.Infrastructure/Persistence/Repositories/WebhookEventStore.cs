@@ -9,9 +9,11 @@ namespace NetCommerce.Finance.Infrastructure.Persistence.Repositories;
 ///     WebhookEventStore implementation using PostgreSQL for durable idempotency.
 ///
 ///     <para>
-///     <b>Idempotency Pattern:</b>
-///     Uses INSERT ... ON CONFLICT DO NOTHING for atomic claim-or-skip.
-///     This ensures exactly-once processing even under rapid Stripe retries.
+    /// <b>Idempotency Pattern:</b>
+    ///     Uses INSERT ... ON CONFLICT DO UPDATE (re-claim only when prior
+    ///     status is Failed) for atomic claim-or-skip.
+    ///     This ensures exactly-once processing even under rapid Stripe retries,
+    ///     while allowing Stripe's 72-hour retry window to recover transient failures.
 ///     </para>
 ///
 ///     <para>
@@ -38,17 +40,28 @@ public class WebhookEventStore : IWebhookEventStore
         string? paymentIntentId,
         CancellationToken ct = default)
     {
-        // Use INSERT ... ON CONFLICT DO NOTHING for atomic idempotency
-        // Returns 1 if inserted (new event), 0 if conflict (duplicate)
+        // Atomically insert when new, or re-claim when the previous attempt failed.
+        // Without the DO UPDATE branch, a Stripe retry after a transient failure
+        // would hit ON CONFLICT DO NOTHING, return 0 rows, and be misreported as
+        // an already-processed duplicate (HTTP 200) — permanently dropping the
+        // event while Stripe stops retrying.
+        // Concurrency safety: under READ COMMITTED, concurrent reclaim attempts
+        // serialize on the row lock and re-check the WHERE clause, so only one
+        // claimant observes rowsAffected == 1.
         // NOTE: Identifiers are quoted PascalCase to match the EF Core model
         // (no snake_case naming convention is configured; see the Finance
         // migrations where columns are "Id", "StripeEventId", ...).
         const string sql = """
             INSERT INTO finance.processed_webhook_events
-                ("Id", "StripeEventId", "EventType", "PaymentIntentId", "ReceivedAt", "Status")
+                ("Id", "StripeEventId", "EventType", "PaymentIntentId", "ReceivedAt", "Status", "ErrorMessage")
             VALUES
-                ({0}, {1}, {2}, {3}, {4}, {5})
-            ON CONFLICT ("StripeEventId") DO NOTHING
+                ({0}, {1}, {2}, {3}, {4}, {5}, NULL)
+            ON CONFLICT ("StripeEventId")
+            DO UPDATE SET
+                "Status" = {5},
+                "ReceivedAt" = {4},
+                "ErrorMessage" = NULL
+            WHERE finance.processed_webhook_events."Status" = 'Failed'
             """;
 
         var id = Guid.NewGuid();

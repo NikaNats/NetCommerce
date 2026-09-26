@@ -49,6 +49,17 @@ public static class MultiTenancyExtensions
                 // EF.Property<string>(e, "TenantId") == context.CurrentTenantId.
                 // The closure-captured CurrentTenantId is parameterized by EF Core,
                 // so the filter value is evaluated fresh on each query execution.
+                //
+                // NULL-TOLERANT: system scopes without an ambient HTTP request
+                // (Wolverine message handlers, IHostedService workers) resolve no
+                // tenant. Without the bypass, their filter would evaluate
+                // tenant_id = NULL and silently return zero rows — e.g.
+                // GracePeriodManagerService would never find orders and sagas
+                // would never start. When a tenant IS ambient (HTTP requests
+                // carrying the tenant claim/header), isolation stays strict.
+                // NOTE: tenantless HTTP traffic is treated as system traffic;
+                // per-customer isolation for those routes still comes from the
+                // JWT subject scoping in the endpoints/handlers themselves.
                 var tenantId = Expression.Call(
                     EfPropertyMethod,
                     parameter,
@@ -56,9 +67,13 @@ public static class MultiTenancyExtensions
                 var currentTenant = Expression.Property(
                     Expression.Constant(context),
                     nameof(BaseDbContext.CurrentTenantId));
+                var noAmbientTenant = Expression.Equal(
+                    currentTenant,
+                    Expression.Constant(null, currentTenant.Type));
                 var sameTenant = Expression.Equal(tenantId, currentTenant);
+                var tenantFilter = Expression.OrElse(noAmbientTenant, sameTenant);
 
-                body = body is null ? sameTenant : Expression.AndAlso(body, sameTenant);
+                body = body is null ? tenantFilter : Expression.AndAlso(body, tenantFilter);
             }
 
             modelBuilder.Entity(clrType).HasQueryFilter(Expression.Lambda(body!, parameter));

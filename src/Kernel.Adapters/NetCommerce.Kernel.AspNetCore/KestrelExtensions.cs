@@ -23,9 +23,11 @@ public static class KestrelExtensions
             options.AddServerHeader = false; // Security: Hide version
             options.AllowResponseHeaderCompression = true;
 
-            // 2025 Best Practice: Support HTTP/3 for performance
-            // Kestrel will automatically fallback from HTTP/3 to HTTP/2 if UDP is blocked in corporate networks.
-            options.ConfigureEndpointDefaults(o => o.Protocols = HttpProtocols.Http1AndHttp2AndHttp3);
+            // Cleartext container ports (Docker/K8s terminate TLS at the
+            // ingress/ALB) support HTTP/1.1 + HTTP/2 only. Enabling HTTP/3 on a
+            // non-TLS endpoint crashes Kestrel at startup with
+            // "HTTP/3 requires HTTPS" (ASPNETCORE_URLS=http://+:8080).
+            options.ConfigureEndpointDefaults(o => o.Protocols = HttpProtocols.Http1AndHttp2);
 
             // Enterprise Limits: Prevent DoS
             options.Limits.MaxRequestBodySize = 52_428_800; // 50MB Default
