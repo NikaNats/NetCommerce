@@ -41,7 +41,8 @@ public class PaymentWebhookEndpoints : IEndpoint
             .WithDisplayName("Stripe Payment Webhook")
             .WithDescription("Receives asynchronous payment confirmation from Stripe")
             .AllowAnonymous()
-            .DisableAntiforgery();
+            .DisableAntiforgery()
+            .RequireRateLimiting("Webhook");
             // WithOpenApi() removed — deprecated in .NET 10 (ASPDEPR002).
             // OpenAPI metadata is now generated at startup via AddOpenApi().
     }

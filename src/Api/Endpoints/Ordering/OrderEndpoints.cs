@@ -11,6 +11,7 @@ using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.Core.Results;
+using System.Security.Claims;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Ordering;
@@ -42,6 +43,16 @@ public class OrderEndpoints : IEndpointGroup
             .WithDescription("Returns all sagas in ManualInterventionRequired state (refund failed, requires ops team review).")
             .Produces<StuckSagasResponse>(StatusCodes.Status200OK)
             .RequireAuthorization("AdminOnly");
+
+        group.MapDelete("/{orderId:guid}", CancelOrder)
+            .WithName("CancelOrder")
+            .WithSummary("Cancel an order")
+            .WithDescription("Cancels the order and stops the running fulfillment saga (releases inventory, refunds if already paid). Only the owning customer may cancel.")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status403Forbidden)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
+            .RequireAuthorization("CustomerOnly");
     }
 
     private static async Task<IResult> CreateOrder(
@@ -50,6 +61,20 @@ public class OrderEndpoints : IEndpointGroup
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        // Identity attribution: the order's customer ALWAYS comes from the
+        // authenticated JWT subject — never from the request body. Accepting a
+        // client-supplied CustomerId would let any customer create (and, via
+        // idempotency scoping, read) orders under another customer's identity.
+        var subject = httpContext.User.FindFirst("sub")?.Value
+            ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!Guid.TryParse(subject, out var customerId))
+        {
+            return Results.Unauthorized();
+        }
+
+        command = command with { CustomerId = customerId };
+
         var result = await bus.InvokeAsync<Result<Guid>>(command, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
@@ -81,6 +106,45 @@ public class OrderEndpoints : IEndpointGroup
         return Results.Ok(new StuckSagasResponse(
             stuckSagas.Count,
             stuckSagas));
+    }
+
+    private static async Task<IResult> CancelOrder(
+        Guid orderId,
+        string? reason,
+        OrderingDbContext db,
+        IMessageBus bus,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var order = await db.Orders
+            .AsNoTracking()
+            .Select(o => new { o.Id, o.CustomerId })
+            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+
+        if (order is null)
+            return Results.NotFound(new { OrderId = orderId, Message = "Order not found." });
+
+        // Ownership check: the JWT subject must identify the ordering customer.
+        // Fail closed — a non-Guid subject (or a mismatch) is forbidden, never
+        // treated as "no owner". This is sound because CreateOrder stamps
+        // CustomerId from the same JWT subject claim.
+        var subject = httpContext.User.FindFirst("sub")?.Value
+            ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (!Guid.TryParse(subject, out var callerCustomerId)
+            || callerCustomerId != order.CustomerId)
+        {
+            return Results.Forbid();
+        }
+
+        var result = await bus.InvokeAsync<Result>(
+            new CancelOrderCommand(orderId, reason ?? "Cancelled by customer."),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+            return result.ToApiResult();
+
+        return Results.Ok(new { Id = orderId, Message = "Order cancelled." });
     }
 }
 

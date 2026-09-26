@@ -206,6 +206,11 @@ public sealed class OrderFulfillmentSaga : Saga
     ///     Handles grace period timeout (5 minutes elapsed).
     ///     If user hasn't cancelled, proceed to lock inventory and process payment.
     ///     This is the "point of no return" - payment will now be captured.
+    ///
+    ///     STRICT STATE GUARD: only fires from <see cref="OrderFulfillmentState.InGracePeriod"/>.
+    ///     A late/duplicate timeout arriving in any other state (e.g. still reserving,
+    ///     already paying, or compensating a cancellation) must be ignored —
+    ///     otherwise the customer could be charged twice or charged after cancelling.
     /// </summary>
     public (
         LockInventoryForPaymentCommand? LockCommand,
@@ -214,11 +219,14 @@ public sealed class OrderFulfillmentSaga : Saga
         GracePeriodTimeout timeout,
         ILogger<OrderFulfillmentSaga> logger)
     {
-        // If user cancelled during grace period, this won't execute (saga marked complete)
-        if (State == OrderFulfillmentState.Completed || State == OrderFulfillmentState.Failed)
+        // Idempotency: only the grace-period state may advance to payment.
+        // Cancellation completes the saga (or moves it to Compensating), so a
+        // cancelled order can never fall through to LockInventoryForPayment.
+        if (State != OrderFulfillmentState.InGracePeriod)
         {
             logger.LogInformation(
-                "Grace period expired for Order {OrderId} but order was already {State}. Ignoring.",
+                "Ignoring grace period timeout for Order {OrderId}. " +
+                "Current state: {State} (already processed or cancelled)",
                 Id,
                 State);
             // Return null tuple - Wolverine will not cascade null messages
@@ -239,6 +247,82 @@ public sealed class OrderFulfillmentSaga : Saga
             $"Grace period ended. Processing payment for order {OrderNumber}.");
 
         return (lockCommand, notification);
+    }
+
+    /// <summary>
+    ///     Handles customer or admin cancellation of a running fulfillment.
+    ///     Stops the pipeline before any further charges: releases held inventory
+    ///     and, if payment was already captured, issues a refund and parks the
+    ///     saga in <see cref="OrderFulfillmentState.Compensating"/> until the
+    ///     refund is verified (Guarded Compensation). Otherwise completes
+    ///     immediately. Late timeouts arriving afterwards are ignored by the
+    ///     strict state guards.
+    /// </summary>
+    public (
+        ReleaseInventoryReservationCommand? ReleaseCommand,
+        RefundPaymentCommand? RefundCommand,
+        FailOrderCommand FailCommand,
+        OrderStatusChanged Notification,
+        CompensationStalledTimeoutMessage? StallTimeout
+        ) Handle(
+        CancelOrderFulfillmentCommand command,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogWarning(
+            "Order {OrderId} ({OrderNumber}) cancelled: {Reason}. " +
+            "Stopping fulfillment. Paid={IsPaid}, State={State}",
+            Id,
+            OrderNumber,
+            command.Reason,
+            IsPaid,
+            State);
+
+        // Release any inventory this saga may hold. The release handler resolves
+        // reservations by OrderId, so this also covers reservations created but
+        // not yet reported back when cancellation raced the reservation reply
+        // (anything created afterwards expires via the reservation cleanup job).
+        ReleaseInventoryReservationCommand? releaseCommand = null;
+        if (State is OrderFulfillmentState.InGracePeriod
+            or OrderFulfillmentState.LockingInventory
+            or OrderFulfillmentState.ProcessingPayment
+            or OrderFulfillmentState.ConfirmingInventory
+            or OrderFulfillmentState.Compensating)
+        {
+            releaseCommand = new ReleaseInventoryReservationCommand(
+                Id,
+                $"Order cancelled: {command.Reason}");
+        }
+
+        RefundPaymentCommand? refundCommand = null;
+        CompensationStalledTimeoutMessage? stallTimeout = null;
+
+        if (IsPaid && !string.IsNullOrWhiteSpace(PaymentTransactionId))
+        {
+            refundCommand = new RefundPaymentCommand(
+                Id,
+                PaymentTransactionId!,
+                TotalAmount,
+                $"Order cancelled after payment: {command.Reason}");
+            stallTimeout = new CompensationStalledTimeoutMessage { Id = Id };
+
+            State = OrderFulfillmentState.Compensating;
+            FailureReason = $"Order cancelled after payment: {command.Reason}";
+            // Saga stays alive until RefundCompleted/RefundFailed (or escalation).
+        }
+        else
+        {
+            State = OrderFulfillmentState.Failed;
+            FailureReason = $"Order cancelled: {command.Reason}";
+            CompletedAt = DateTime.UtcNow;
+            MarkCompleted();
+        }
+
+        var notification = new OrderStatusChanged(
+            Id,
+            "Error",
+            "Your order has been cancelled.");
+
+        return (releaseCommand, refundCommand, new FailOrderCommand(Id, command.Reason), notification, stallTimeout);
     }
 
     /// <summary>
@@ -544,9 +628,8 @@ public sealed class OrderFulfillmentSaga : Saga
         FailureReason = $"Refund failed: {@event.Reason}";
 
         // We do NOT call MarkCompleted().
-        // This saga stays in the DB and shows up on an Admin Dashboard for human action.
-
-        // TODO: Emit alert to operations dashboard/PagerDuty
+        // This saga stays in the DB and shows up on the Admin Dashboard for human action.
+        // StuckSagaAlertService sweeps this state every few minutes and pages on-call.
     }
 
     #endregion
@@ -849,6 +932,16 @@ public sealed class OrderFulfillmentSaga : Saga
         logger.LogInformation(
             "Received late CompensationStalledTimeout for Order {OrderId}. Saga already completed, ignoring.",
             timeout.Id);
+    }
+
+    public static void NotFound(
+        CancelOrderFulfillmentCommand command,
+        ILogger<OrderFulfillmentSaga> logger)
+    {
+        logger.LogInformation(
+            "Received CancelOrderFulfillmentCommand for Order {OrderId} with no live saga. " +
+            "Order was already finalized or failed; nothing to stop.",
+            command.OrderId);
     }
 
     #endregion

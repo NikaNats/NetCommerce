@@ -10,32 +10,26 @@ namespace NetCommerce.Ordering.Infrastructure.Services;
 ///     Local fallback tax provider implementing simple jurisdiction-based rules.
 ///     Used when external tax services are unavailable or as a default implementation.
 ///     This ensures the checkout flow never breaks due to tax API downtime.
+///     Rate tables come from <see cref="TaxTableOptions"/> (config-overridable);
+///     Production-like environments must acknowledge them (see validator).
 /// </summary>
 public sealed class LocalTaxProvider : ITaxProvider
 {
-    // Category-specific adjustments (e.g., reduced rates for food, books)
-    private readonly Dictionary<string, decimal> _categoryAdjustments = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["FOOD"] = 0.5m, // 50% reduction (e.g., 18% -> 9%)
-        ["BOOKS"] = 0.5m, // 50% reduction
-        ["CHILDREN"] = 0.5m, // 50% reduction for children's items
-        ["MEDICAL"] = 0m, // Tax-exempt
-        ["EDUCATION"] = 0m // Tax-exempt
-    };
+    private readonly Dictionary<string, decimal> _categoryAdjustments;
+    private readonly Dictionary<string, decimal> _taxRates;
 
-    // Simple tax rate table - in production, this might be loaded from configuration
-    private readonly Dictionary<string, decimal> _taxRates = new(StringComparer.OrdinalIgnoreCase)
+    public LocalTaxProvider()
+        : this(new TaxTableOptions())
     {
-        ["GE"] = 0.18m, // Georgia VAT: 18%
-        ["US"] = 0.07m, // US average sales tax: ~7%
-        ["GB"] = 0.20m, // UK VAT: 20%
-        ["DE"] = 0.19m, // Germany VAT: 19%
-        ["FR"] = 0.20m, // France VAT: 20%
-        ["EU"] = 0.20m, // EU default VAT: 20%
-        ["CA"] = 0.13m, // Canada HST/GST average: ~13%
-        ["AU"] = 0.10m, // Australia GST: 10%
-        ["IN"] = 0.18m // India GST: 18%
-    };
+    }
+
+    public LocalTaxProvider(TaxTableOptions options)
+    {
+        // Rebuild with ordinal-ignore-case lookup: configuration binding replaces
+        // the dictionaries and does not preserve the comparer.
+        _taxRates = new Dictionary<string, decimal>(options.Rates, StringComparer.OrdinalIgnoreCase);
+        _categoryAdjustments = new Dictionary<string, decimal>(options.CategoryAdjustments, StringComparer.OrdinalIgnoreCase);
+    }
 
     public Task<TaxCalculationResult> GetTaxAsync(
         decimal amount,

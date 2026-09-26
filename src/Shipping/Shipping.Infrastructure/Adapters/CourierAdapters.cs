@@ -19,8 +19,17 @@ public sealed class CourierOptions
     /// <summary>
     ///     When true, use mock responses instead of real API calls.
     ///     Useful for development and testing.
+    ///     MUST be false in Production unless <see cref="AllowMockInProduction"/>
+    ///     is explicitly enabled (mock labels carry fake tracking numbers).
     /// </summary>
     public bool UseMockMode { get; set; } = true;
+
+    /// <summary>
+    ///     Explicit acknowledgment that mock courier responses are acceptable in
+    ///     Production (e.g. no courier contract yet). Without this, booting
+    ///     Production-like environments with <see cref="UseMockMode"/> fails fast.
+    /// </summary>
+    public bool AllowMockInProduction { get; set; } = false;
 }
 
 public sealed class DhlOptions

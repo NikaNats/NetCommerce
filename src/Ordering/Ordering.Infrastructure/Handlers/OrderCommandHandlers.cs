@@ -268,6 +268,7 @@ public static class CancelOrderHandler
     public static async Task<Result> HandleAsync(
         CancelOrderCommand command,
         OrderingDbContext db,
+        IMessageBus messageBus,
         ILogger<CancelOrderCommand> logger,
         CancellationToken cancellationToken)
     {
@@ -281,13 +282,20 @@ public static class CancelOrderHandler
             // Grace Period Cancellation Logic:
             // - If order.IsInGracePeriod (Status == Submitted):
             //   * Cancellation is instant and free
-            //   * Stock reservation will be released via OrderCancelledIntegrationEvent
             //   * Payment was never taken, so no refund needed
             // - If order is not in grace period:
             //   * May require refund processing
             //   * Compensating transactions may be triggered
-
+            //
+            // The saga MUST be stopped explicitly: cancelling the order row alone
+            // does not halt the running OrderFulfillmentSaga, which would otherwise
+            // fire its grace-period timeout and charge the customer anyway.
             order.Cancel(command.Reason);
+
+            // Stop the running saga (releases inventory; refunds if already paid).
+            // Enlisted in the same Wolverine outbox transaction as the cancel.
+            await messageBus.PublishAsync(
+                new CancelOrderFulfillmentCommand(command.OrderId, command.Reason));
 
             logger.LogInformation(
                 "Order {OrderId} cancelled. Reason: {Reason}",

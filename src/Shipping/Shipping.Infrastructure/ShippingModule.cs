@@ -32,6 +32,10 @@ public static class ShippingModule
         // Courier configuration (defaults to MockMode=true for development)
         services.Configure<CourierOptions>(configuration.GetSection(CourierOptions.SectionName));
 
+        // Fail-fast when Production-like environments run mock couriers unacknowledged.
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<CourierOptions>, CourierOptionsValidator>();
+        services.AddOptions<CourierOptions>().ValidateOnStart();
+
         // Register courier adapters
         services.AddSingleton<ICourierAdapter, DhlCourierAdapter>();
         services.AddSingleton<ICourierAdapter, FedExCourierAdapter>();

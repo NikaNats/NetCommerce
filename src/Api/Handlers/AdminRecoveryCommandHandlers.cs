@@ -104,20 +104,23 @@ public static class AdminRecoveryCommandHandlers
             TryCancel(order, command.Reason, logger);
         }
 
+        // Route release + refund decisions through the saga: it knows whether
+        // inventory is actually held and whether payment was captured. Publishing
+        // RefundPaymentCommand directly here would double-refund whenever the
+        // saga also compensates, and gateway refunds are not idempotent.
+        // The release is ALSO sent directly as belt-and-braces: if the saga is
+        // already gone, its NotFound path does nothing and stock would leak
+        // until the reservation cleanup job. The release handler is a no-op
+        // when no active reservation exists, so duplicates are harmless.
+        await bus.PublishAsync(
+            new CancelOrderFulfillmentCommand(
+                command.OrderId,
+                $"Admin force cancel: {command.Reason}"));
+
         await bus.PublishAsync(
             new ReleaseInventoryReservationCommand(
                 command.OrderId,
                 $"Admin force cancel: {command.Reason}"));
-
-        if (order?.PaymentTransactionId is not null && command.RefundAmount > 0)
-        {
-            await bus.PublishAsync(
-                new RefundPaymentCommand(
-                    command.OrderId,
-                    order.PaymentTransactionId,
-                    order.TotalAmount,
-                    command.Reason));
-        }
     }
 
     public static async Task Handle(

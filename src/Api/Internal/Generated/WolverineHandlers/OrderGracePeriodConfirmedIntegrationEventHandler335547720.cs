@@ -37,7 +37,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // The actual message execution
-            var outgoing1 = NetCommerce.Ordering.Application.EventHandlers.GracePeriodConfirmedSagaInitiator.Handle(orderGracePeriodConfirmedIntegrationEvent, orderRepository, _loggerForMessage);
+            var outgoing1 = await NetCommerce.Ordering.Application.EventHandlers.GracePeriodConfirmedSagaInitiator.Handle(orderGracePeriodConfirmedIntegrationEvent, orderRepository, _loggerForMessage, cancellation).ConfigureAwait(false);
 
             
             // The actual message execution

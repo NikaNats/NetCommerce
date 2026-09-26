@@ -43,7 +43,10 @@ ENV ConnectionStrings__OrderingDb="Host=dummy;Database=dummy;Username=dummy;Pass
 
 # Generate Wolverine static C# handler code into Internal/Generated/
 # In Debug/Dev mode, WolverineFx.RuntimeCompilation is available to execute this step.
-RUN dotnet run -- codegen write || echo "WARNING: Wolverine codegen failed - TypeLoadMode.Static will enforce failure at runtime"
+# HARD FAIL on codegen errors: TypeLoadMode.Static means any handler missing from the
+# generated output silently does not exist in the AOT production binary. A fallback
+# (e.g. `|| echo`) here would ship a "successfully built" image with dropped handlers.
+RUN dotnet run -- codegen write
 
 # Publish with Native AOT (Release Mode)
 # -c Release: Excludes WolverineFx.RuntimeCompilation (Roslyn) and optimizes binary size

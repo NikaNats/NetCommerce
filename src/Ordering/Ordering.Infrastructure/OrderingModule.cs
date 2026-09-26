@@ -32,11 +32,26 @@ public static class OrderingModule
         // ============================================================================
         // Triple-Pass Pricing Services
         // ============================================================================
+        // Tax tables and coupon tables are config-overridable and must be
+        // explicitly acknowledged for Production-like environments (validators
+        // fail startup otherwise — silent wrong-money math is not shippable).
+        services.Configure<TaxTableOptions>(configuration.GetSection(TaxTableOptions.SectionName));
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<TaxTableOptions>, TaxTableOptionsValidator>();
+        services.AddOptions<TaxTableOptions>().ValidateOnStart();
+
+        services.Configure<PromotionOptions>(configuration.GetSection(PromotionOptions.SectionName));
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<PromotionOptions>, PromotionOptionsValidator>();
+        services.AddOptions<PromotionOptions>().ValidateOnStart();
+
         // Tax Provider - using local fallback for resilience
-        services.AddScoped<ITaxProvider, LocalTaxProvider>();
+        services.AddScoped<ITaxProvider>(sp =>
+            new LocalTaxProvider(
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TaxTableOptions>>().Value));
 
         // Promotion Engine - simple implementation (can be replaced with external service)
-        services.AddScoped<IPromotionEngine, SimplePromotionEngine>();
+        services.AddScoped<IPromotionEngine>(sp =>
+            new SimplePromotionEngine(
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PromotionOptions>>().Value));
 
         // ============================================================================
         // Notification Services (Event-Driven Notification Sidecar Pattern)
@@ -44,22 +59,47 @@ public static class OrderingModule
         // Template Engine - simple implementation (replace with Razor/Scriban in production)
         services.AddSingleton<ITemplateEngine, SimpleTemplateEngine>();
 
-        // Email Provider - using in-memory for development/testing
-        // Production: Replace with SendGridEmailProvider or AwsSesEmailProvider
-        // services.AddHttpClient<IEmailProvider, SendGridEmailProvider>()
-        //     .AddStandardResilienceHandler(options => {
-        //         options.Retry.MaxRetryAttempts = 3;
-        //         options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(10);
-        //         options.CircuitBreaker.FailureRatio = 0.5; // Trip if 50% of calls fail
-        //         options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(10);
-        //     });
-        services.AddSingleton<IEmailProvider, InMemoryEmailProvider>();
+        // Email Provider - selected via Ordering:Email:Provider.
+        // Production-like environments fail startup on InMemory unless explicitly
+        // acknowledged (validator); SendGrid requires an API key + sender.
+        services.Configure<EmailProviderOptions>(configuration.GetSection(EmailProviderOptions.SectionName));
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<EmailProviderOptions>, EmailProviderOptionsValidator>();
+        services.AddOptions<EmailProviderOptions>().ValidateOnStart();
+
+        services.AddHttpClient("SendGrid", client =>
+        {
+            client.BaseAddress = new Uri("https://api.sendgrid.com/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
+        var emailProviderChoice = configuration.GetSection(EmailProviderOptions.SectionName).Get<EmailProviderOptions>()
+            ?? new EmailProviderOptions();
+
+        if (string.Equals(emailProviderChoice.Provider, "SendGrid", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddScoped<IEmailProvider, SendGridEmailProvider>();
+        }
+        else
+        {
+            services.AddSingleton<IEmailProvider, InMemoryEmailProvider>();
+        }
 
         // Wolverine will auto-discover OrderNotificationHandler as it's decorated with [WolverineHandler]
 
         // Grace Period configuration and background service
         services.Configure<GracePeriodOptions>(configuration.GetSection(GracePeriodOptions.SectionName));
         services.AddHostedService<GracePeriodManagerService>();
+
+        // Stuck-saga alerting: pages on-call when money is captured but the
+        // saga parks in ManualInterventionRequired (refund failed). Uses the
+        // same PagerDuty Events API client shape as the Finance module.
+        services.Configure<StuckSagaAlertOptions>(configuration.GetSection(StuckSagaAlertOptions.SectionName));
+        services.AddHttpClient("PagerDuty", client =>
+        {
+            client.BaseAddress = new Uri("https://events.pagerduty.com/v2/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddHostedService<StuckSagaAlertService>();
 
         // ============================================================================
         // Metrics & Observability

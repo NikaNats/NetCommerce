@@ -32,6 +32,13 @@ public sealed class StripeOptions
     public bool TestMode { get; set; } = true;
 
     /// <summary>
+    ///     Explicit acknowledgment that test mode is intentional in Production
+    ///     (e.g. a test merchant account). Required to boot Production with
+    ///     <see cref="TestMode"/> enabled; prevents silently processing fake money.
+    /// </summary>
+    public bool AllowTestModeInProduction { get; set; } = false;
+
+    /// <summary>
     ///     HTTP timeout for Stripe API calls in seconds.
     /// </summary>
     public int TimeoutSeconds { get; set; } = 30;

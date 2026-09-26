@@ -8,18 +8,27 @@ namespace NetCommerce.Ordering.Infrastructure.Services;
 
 /// <summary>
 ///     Simple promotion engine implementation with basic discount rules.
-///     In production, this would integrate with a sophisticated rules engine or marketing platform.
+///     Coupon rules come from <see cref="PromotionOptions"/> (config-overridable);
+///     Production-like environments must acknowledge them (see validator).
 /// </summary>
 public sealed class SimplePromotionEngine : IPromotionEngine
 {
-    // Simple coupon code table - in production, this would be in a database
-    private readonly Dictionary<string, CouponRule> _coupons = new(StringComparer.OrdinalIgnoreCase)
+    private readonly Dictionary<string, CouponRule> _coupons;
+
+    public SimplePromotionEngine()
+        : this(new PromotionOptions())
     {
-        ["WELCOME10"] = new CouponRule(0.10m, "Welcome 10% Off"),
-        ["SAVE20"] = new CouponRule(0.20m, "Save 20%"),
-        ["SUMMER15"] = new CouponRule(0.15m, "Summer Sale 15%"),
-        ["FIRSTORDER"] = new CouponRule(0.25m, "First Order 25% Off")
-    };
+    }
+
+    public SimplePromotionEngine(PromotionOptions options)
+    {
+        _coupons = new Dictionary<string, CouponRule>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (code, fraction) in options.Coupons)
+        {
+            options.CouponNames.TryGetValue(code, out var name);
+            _coupons[code] = new CouponRule(fraction, name ?? code);
+        }
+    }
 
     public Task<PromotionResult> CalculateDiscountAsync(
         Guid productId,

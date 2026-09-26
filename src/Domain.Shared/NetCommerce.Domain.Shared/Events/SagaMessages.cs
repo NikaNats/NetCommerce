@@ -84,6 +84,16 @@ public sealed record FailOrderCommand(
     Guid OrderId,
     string FailureReason) : ICommand;
 
+/// <summary>
+///     Command sent to stop a running fulfillment saga (customer cancel during
+///     the grace period, or admin force-cancel). Correlated to the live saga
+///     instance via <see cref="OrderId"/>. Without this, a cancelled order's
+///     saga would still fire its grace-period timeout and charge the customer.
+/// </summary>
+public sealed record CancelOrderFulfillmentCommand(
+    [property: SagaIdentity] Guid OrderId,
+    string Reason) : ICommand;
+
 #endregion
 
 #region Saga Events - Messages received FROM modules

@@ -93,6 +93,9 @@ public static class ZeroTrustAuthenticationExtensions
         // 3. Register JWT Bearer options configurator
         services.ConfigureOptions<ZeroTrustJwtBearerOptionsSetup>();
 
+        // 3b. Fail-fast on missing identity-provider configuration in Production-like envs
+        services.AddSingleton<IValidateOptions<ZeroTrustAuthOptions>, ZeroTrustAuthOptionsValidator>();
+
         // 4. Add Claims Transformation (Role Flattening)
         services.AddTransient<IClaimsTransformation, OidcRoleClaimsTransformation>();
 

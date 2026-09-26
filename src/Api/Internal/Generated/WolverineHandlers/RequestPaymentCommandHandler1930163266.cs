@@ -24,13 +24,13 @@ namespace Internal.Generated.WolverineHandlers
         {
             await using var serviceScope = _serviceScopeFactory.CreateAsyncScope();
             Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Wolverine.Runtime.ScopedMessageContextHolder>(serviceScope.ServiceProvider).Context = context;
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             
             /*
             * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext] Lifetime: Scoped ImplementationFactory: ?.?
             * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
             */
             var paymentsDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext>(serviceScope.ServiceProvider);
-            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             
             /*
             * Dependency: Descriptor: ServiceType: NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext Lifetime: Scoped ImplementationType: NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext

@@ -22,6 +22,10 @@ public static class StripeKernelExtensions
         // Bind Stripe options from configuration
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
 
+        // Fail-fast on missing/placeholder keys in Production-like environments.
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<StripeOptions>, StripeOptionsValidator>();
+        services.AddOptions<StripeOptions>().ValidateOnStart();
+
         // Register shared StripeClientFactory as singleton (thread-safe, configured once)
         services.AddSingleton<StripeClientFactory>();
 
