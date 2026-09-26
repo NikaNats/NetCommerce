@@ -52,6 +52,12 @@ public sealed class OrderFulfillmentSaga : Saga
     public Money TotalAmount { get; set; } = Money.Zero();
 
     /// <summary>
+    ///     Client-supplied payment method token (e.g. Stripe pm_ id).
+    ///     Empty when the order was created without one (legacy / grace-period flow).
+    /// </summary>
+    public string PaymentMethodId { get; set; } = string.Empty;
+
+    /// <summary>
     ///     Items in the order for inventory operations.
     /// </summary>
     public List<OrderItemReservation> Items { get; set; } = [];
@@ -139,6 +145,7 @@ public sealed class OrderFulfillmentSaga : Saga
             CustomerId = command.CustomerId,
             OrderNumber = command.OrderNumber,
             TotalAmount = command.TotalAmount,
+            PaymentMethodId = command.PaymentMethodId ?? string.Empty,
             Items = command.Items.ToList(),
             State = OrderFulfillmentState.ReservingInventory,
             StartedAt = DateTime.UtcNow
@@ -255,7 +262,8 @@ public sealed class OrderFulfillmentSaga : Saga
             Id,
             CustomerId,
             TotalAmount,
-            OrderNumber);
+            OrderNumber,
+            PaymentMethodId ?? string.Empty);
 
         var timeout = new PaymentTimeoutMessage { Id = Id };
 

@@ -1,8 +1,10 @@
 #region
 
 using Microsoft.Extensions.Logging;
+using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Domain.Shared.Events;
+using Wolverine;
 using Wolverine.Attributes;
 
 #endregion
@@ -37,6 +39,7 @@ public static class ProcessExternalPaymentConfirmationHandler
     public static async Task Handle(
         ProcessExternalPaymentConfirmation command,
         IPaymentTransactionRepository repository,
+        IMessageBus bus,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -122,11 +125,21 @@ public static class ProcessExternalPaymentConfirmationHandler
         // Save changes
         repository.Update(payment);
 
-        // Domain event (PaymentCompletedDomainEvent or PaymentFailedDomainEvent)
-        // will be published automatically by Wolverine and trigger saga continuation
+        // Drain domain events into Wolverine's transactional outbox so the
+        // saga continuation (PaymentCompletedDomainEvent -> PaymentSucceeded)
+        // is published atomically with the state change. Without this, the
+        // events raised by MarkAsCompleted/MarkAsFailed are silently lost
+        // because DomainEventDispatchInterceptor is not registered.
+        var domainEvents = ((IHasDomainEvents)payment).DomainEvents.ToList();
+        ((IHasDomainEvents)payment).ClearDomainEvents();
+        foreach (var domainEvent in domainEvents)
+        {
+            await bus.PublishAsync(domainEvent);
+        }
 
         logger.LogInformation(
-            "Payment {PaymentId} status updated. Domain events will trigger saga continuation.",
-            payment.Id);
+            "Payment {PaymentId} status updated. Published {Count} domain event(s) to trigger saga continuation.",
+            payment.Id,
+            domainEvents.Count);
     }
 }

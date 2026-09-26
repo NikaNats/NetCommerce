@@ -39,8 +39,21 @@ public class BasketEndpoints : IEndpointGroup
 
     private static string GetCustomerId(HttpContext context)
     {
-        return context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-               ?? throw new UnauthorizedAccessException("User not authenticated");
+        // MapInboundClaims=false preserves raw OIDC claims, so 'sub' is authoritative.
+        // Fall back to legacy mappings for tokens issued by other providers.
+        // NOTE: Must throw UnauthorizedAccessException (not BadHttpRequestException):
+        // GlobalExceptionHandler maps it to 401, anything else becomes 500.
+        var customerId = context.User.FindFirst("sub")?.Value
+            ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? context.User.FindFirst("preferred_username")?.Value;
+
+        if (string.IsNullOrWhiteSpace(customerId))
+        {
+            throw new UnauthorizedAccessException(
+                "User token lacks a valid subject ('sub') claim.");
+        }
+
+        return customerId;
     }
 
     private static async Task<IResult> GetBasket(

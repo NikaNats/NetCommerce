@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Domain.Shared.Events;
@@ -52,11 +53,26 @@ public static class SagaPaymentHandlers
 
             await repository.AddAsync(paymentTransaction);
 
+            // Use the real client-supplied payment method token when available.
+            // Fall back to the Stripe test token only for legacy/dev flows where
+            // the saga was started without one (e.g. grace-period initiator).
+            var paymentMethodToken = string.IsNullOrWhiteSpace(command.PaymentMethodId)
+                ? "tok_visa"
+                : command.PaymentMethodId;
+
+            if (string.IsNullOrWhiteSpace(command.PaymentMethodId))
+            {
+                logger.LogWarning(
+                    "RequestPaymentCommand for Order {OrderId} carries no PaymentMethodId. " +
+                    "Falling back to Stripe test token. Supply a real payment method id in production.",
+                    command.OrderId);
+            }
+
             // 2. Initiate payment with provider (returns Pending)
             var paymentRequest = new PaymentRequest(
                 OrderId: command.OrderId,
                 Amount: command.Amount,
-                PaymentMethodToken: "tok_visa",
+                PaymentMethodToken: paymentMethodToken,
                 IdempotencyKey: paymentTransaction.IdempotencyKey!,
                 Description: $"Payment for order {command.OrderNumber}");
 
@@ -68,6 +84,9 @@ public static class SagaPaymentHandlers
                 var errorMessage = result.Error?.Description ?? "Payment gateway error";
 
                 paymentTransaction.MarkAsFailed(errorMessage);
+                // The domain event raised above is intentionally discarded: saga
+                // continuation uses the returned PaymentFailed integration event.
+                ((IHasDomainEvents)paymentTransaction).ClearDomainEvents();
                 // Note: No repository.Update() needed — entity is already tracked via AddAsync().
                 // Calling Update() would override state from Added to Modified, causing
                 // DbUpdateConcurrencyException with xmin concurrency tokens.
@@ -89,6 +108,8 @@ public static class SagaPaymentHandlers
             if (paymentResult.Status == PaymentResultStatus.Failed)
             {
                 paymentTransaction.MarkAsFailed(paymentResult.ErrorMessage ?? "Payment declined");
+                // Discard the domain event; the returned PaymentFailed drives the saga.
+                ((IHasDomainEvents)paymentTransaction).ClearDomainEvents();
                 // Note: No repository.Update() needed — entity is already tracked via AddAsync().
 
                 logger.LogWarning(

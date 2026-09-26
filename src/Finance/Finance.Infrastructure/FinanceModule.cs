@@ -9,6 +9,7 @@ using NetCommerce.Finance.Domain.Webhooks;
 using NetCommerce.Finance.Infrastructure.Gateways;
 using NetCommerce.Finance.Infrastructure.Persistence;
 using NetCommerce.Finance.Infrastructure.Persistence.Repositories;
+using NetCommerce.Finance.Infrastructure.Services;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Compliance.Pii;
 using NetCommerce.Kernel.Core.Domain;
@@ -38,6 +39,10 @@ public static class FinanceModule
         services.AddScoped<IFinancialAuditRepository, FinancialAuditRepository>();
         services.AddScoped<IPiiVaultRepository<PiiVaultEntry>, PiiVaultRepository>();
         services.AddScoped<ISearchablePiiVaultRepository<PiiVaultEntry>, PiiVaultRepository>();
+
+        // Non-blocking PII access auditing: reads enqueue, background service flushes.
+        services.AddSingleton<PiiAccessAuditChannel>();
+        services.AddHostedService<PiiAccessAuditFlusher>();
 
         // ============================================================================
         // Alerting Configuration

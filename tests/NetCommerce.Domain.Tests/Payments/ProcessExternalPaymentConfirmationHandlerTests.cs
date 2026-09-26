@@ -5,6 +5,7 @@ using NetCommerce.Payments.Domain.Transactions;
 using NetCommerce.Payments.Infrastructure.Handlers;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
+using Wolverine;
 
 #endregion
 
@@ -18,11 +19,13 @@ public class ProcessExternalPaymentConfirmationHandlerTests
 {
     private readonly ILogger _mockLogger;
     private readonly IPaymentTransactionRepository _mockRepository;
+    private readonly IMessageBus _mockBus;
 
     public ProcessExternalPaymentConfirmationHandlerTests()
     {
         _mockRepository = Substitute.For<IPaymentTransactionRepository>();
         _mockLogger = Substitute.For<ILogger>();
+        _mockBus = Substitute.For<IMessageBus>();
     }
 
     [Fact]
@@ -45,6 +48,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -52,6 +56,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         payment.Status.ShouldBe(PaymentStatus.Completed);
         payment.CompletedAt.ShouldNotBeNull();
         _mockRepository.Received(1).Update(payment);
+        await _mockBus.Received(1).PublishAsync(Arg.Any<PaymentCompletedDomainEvent>());
     }
 
     [Fact]
@@ -74,6 +79,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -103,6 +109,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -138,6 +145,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -163,6 +171,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -197,6 +206,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -226,6 +236,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -266,6 +277,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command1,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 
@@ -276,6 +288,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command2,
             _mockRepository,
+            _mockBus,
             _mockLogger,
             default);
 

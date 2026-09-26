@@ -127,7 +127,7 @@ public sealed class DhlCourierAdapter : ICourierAdapter
             "DHL real API integration not yet implemented. " +
             "Configure Couriers:UseMockMode=true or implement API calls.");
 
-        throw new NotImplementedException(
+        throw new InvalidOperationException(
             "DHL API integration requires valid API credentials. " +
             "Set Couriers:UseMockMode=true for development.");
     }
@@ -146,7 +146,9 @@ public sealed class DhlCourierAdapter : ICourierAdapter
         }
 
         // Production: Call DHL API to cancel shipment
-        throw new NotImplementedException("DHL cancel API not implemented");
+        throw new InvalidOperationException(
+            "DHL cancel API requires valid API credentials. " +
+            "Set Couriers:UseMockMode=true for development.");
     }
 
     public async Task<CourierTrackingStatus> GetTrackingStatusAsync(
@@ -168,7 +170,9 @@ public sealed class DhlCourierAdapter : ICourierAdapter
         }
 
         // Production: Call DHL Tracking API
-        throw new NotImplementedException("DHL tracking API not implemented");
+        throw new InvalidOperationException(
+            "DHL tracking API requires valid API credentials. " +
+            "Set Couriers:UseMockMode=true for development.");
     }
 
     private static decimal CalculateShippingCost(decimal weightKg, string destinationCountry)
@@ -217,7 +221,9 @@ public sealed class FedExCourierAdapter : ICourierAdapter
             _logger.LogWarning(
                 "FedEx real API integration not yet implemented. " +
                 "Configure Couriers:UseMockMode=true or implement API calls.");
-            throw new NotImplementedException("FedEx API integration requires valid credentials.");
+            throw new InvalidOperationException(
+                "FedEx API integration requires valid credentials. " +
+                "Set Couriers:UseMockMode=true for development.");
         }
 
         await Task.Delay(100, cancellationToken);
@@ -245,7 +251,9 @@ public sealed class FedExCourierAdapter : ICourierAdapter
             return true;
         }
 
-        throw new NotImplementedException("FedEx cancel API not implemented");
+        throw new InvalidOperationException(
+            "FedEx cancel API requires valid credentials. " +
+            "Set Couriers:UseMockMode=true for development.");
     }
 
     public async Task<CourierTrackingStatus> GetTrackingStatusAsync(
@@ -266,6 +274,8 @@ public sealed class FedExCourierAdapter : ICourierAdapter
                 IsDelivered: false);
         }
 
-        throw new NotImplementedException("FedEx tracking API not implemented");
+        throw new InvalidOperationException(
+            "FedEx tracking API requires valid credentials. " +
+            "Set Couriers:UseMockMode=true for development.");
     }
 }

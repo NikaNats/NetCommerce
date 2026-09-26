@@ -14,7 +14,8 @@ public sealed record RequestPaymentCommand(
     Guid OrderId,
     Guid CustomerId,
     Money Amount,
-    string OrderNumber) : ICommand;
+    string OrderNumber,
+    string PaymentMethodId = "") : ICommand;
 
 /// <summary>
 ///     Command sent by webhook endpoint to process external payment confirmation.
@@ -225,7 +226,8 @@ public sealed record StartOrderFulfillmentCommand(
     Guid CustomerId,
     string OrderNumber,
     Money TotalAmount,
-    IReadOnlyList<OrderItemReservation> Items) : ICommand;
+    IReadOnlyList<OrderItemReservation> Items,
+    string PaymentMethodId = "") : ICommand;
 
 #endregion
 

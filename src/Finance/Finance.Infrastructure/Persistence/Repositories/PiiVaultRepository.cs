@@ -1,5 +1,6 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
+using NetCommerce.Finance.Infrastructure.Services;
 using NetCommerce.Kernel.Compliance.Pii;
 
 namespace NetCommerce.Finance.Infrastructure.Persistence.Repositories;
@@ -15,25 +16,25 @@ namespace NetCommerce.Finance.Infrastructure.Persistence.Repositories;
 public class PiiVaultRepository : IPiiVaultRepository<PiiVaultEntry>, ISearchablePiiVaultRepository<PiiVaultEntry>
 {
     private readonly FinanceDbContext _context;
+    private readonly PiiAccessAuditChannel? _auditChannel;
 
-    public PiiVaultRepository(FinanceDbContext context)
+    public PiiVaultRepository(FinanceDbContext context, PiiAccessAuditChannel? auditChannel = null)
     {
         _context = context;
+        _auditChannel = auditChannel;
     }
 
     public async Task<PiiVaultEntry?> FindByProfileIdAsync(Guid profileId, CancellationToken cancellationToken = default)
     {
+        // Purely read-only: no tracking, no row locks, no write contention.
+        // Access auditing is queued to a background channel and flushed in batches.
         var entry = await _context.Set<PiiVaultEntry>()
+            .AsNoTracking()
             .FirstOrDefaultAsync(e => e.ProfileId == profileId, cancellationToken);
 
         if (entry is not null)
         {
-            // The finance context defaults to NoTracking: attach before mutating,
-            // otherwise RecordAccess is silently lost on SaveChanges.
-            _context.Set<PiiVaultEntry>().Attach(entry);
-            entry.RecordAccess();
-            await _context.SaveChangesAsync(cancellationToken);
-            _context.Entry(entry).State = EntityState.Detached;
+            _auditChannel?.RecordAccess(profileId);
         }
 
         return entry;

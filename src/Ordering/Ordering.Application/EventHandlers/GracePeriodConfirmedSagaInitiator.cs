@@ -14,11 +14,13 @@ public static class GracePeriodConfirmedSagaInitiator
     /// <summary>
     ///     Starts the OrderFulfillmentSaga when an order's grace period is confirmed.
     ///     This bridges the domain event to the saga workflow.
+    ///     Loads the real order items so inventory reservation operates on actual data.
     /// </summary>
-    public static StartOrderFulfillmentCommand? Handle(
+    public static async Task<StartOrderFulfillmentCommand?> Handle(
         OrderGracePeriodConfirmedIntegrationEvent @event,
         IOrderRepository orderRepository,
-        ILogger<OrderGracePeriodConfirmedIntegrationEvent> logger)
+        ILogger<OrderGracePeriodConfirmedIntegrationEvent> logger,
+        CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
             "Grace period confirmed for Order {OrderId} ({OrderNumber}). " +
@@ -26,17 +28,29 @@ public static class GracePeriodConfirmedSagaInitiator
             @event.OrderId,
             @event.OrderNumber);
 
-        // In a real implementation, we would fetch the order items
-        // For now, we'll create a placeholder - in production this data
-        // should come from the domain event or be fetched from the repository
-        var items = new List<OrderItemReservation>
+        var order = await orderRepository.GetByIdAsync(@event.OrderId, cancellationToken);
+        if (order is null)
         {
-            // These would come from the actual order
-            // Example placeholder:
-            // new OrderItemReservation(productId, quantity, sku)
-        };
+            logger.LogWarning(
+                "Grace period confirmed for unknown Order {OrderId}. Saga will not start.",
+                @event.OrderId);
+            return null;
+        }
 
-        // Start the saga by returning the initiation command
+        var items = order.Items
+            .Select(i => new OrderItemReservation(i.ProductId, i.Quantity, i.Sku))
+            .ToList();
+
+        if (items.Count == 0)
+        {
+            logger.LogWarning(
+                "Order {OrderId} has no items. Saga will start and fail fast via inventory reservation.",
+                @event.OrderId);
+        }
+
+        // Order aggregate does not persist the client payment-method token,
+        // so the saga starts without one; the payment handler falls back to
+        // a dev mock token when PaymentMethodId is empty.
         return new StartOrderFulfillmentCommand(
             @event.OrderId,
             @event.CustomerId,
