@@ -3,6 +3,22 @@
   <PropertyGroup>
     <RootNamespace>NetCommerce.Api</RootNamespace>
     <UserSecretsId>netcommerce-api</UserSecretsId>
+    <!--
+      No packages lock file verification for the API host: its package graph is
+      intentionally configuration- AND OS-dependent, so no single lock file can
+      verify everywhere:
+        - Debug references WolverineFx.RuntimeCompilation; Release (PublishAot)
+          pulls Microsoft.DotNet.ILCompiler / Microsoft.NET.ILLink.Tasks instead;
+        - the AOT toolchain resolves a host-RID runtime pack (win-x64 on dev
+          machines vs linux-x64 in CI/Docker).
+      A committed lock fails every Release build/test (including no-restore
+      builds, which still validate the lock at build time) with NU1004 on any
+      host. A stale packages.lock.json may still sit on disk as a best-effort
+      restore record; it is not verified and must not be relied upon.
+      All other projects keep committed Debug-flavored locks. Direct versions
+      remain exactly pinned via Directory.Packages.props.
+    -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
 
     <!-- ======================================================================
          NATIVE AOT CONFIGURATION (Phase 1)

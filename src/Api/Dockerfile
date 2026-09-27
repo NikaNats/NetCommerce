@@ -15,7 +15,10 @@ RUN apt-get update \
 
 # Copy solution configuration files first for better layer caching
 # Changes to source code won't invalidate package restore cache
-COPY global.json Directory.Build.props Directory.Packages.props NetCommerce.slnx ./
+# NOTE: .editorconfig and .globalconfig MUST be copied: analyzer severities
+# (including per-folder suppressions for scaffolded migrations) must match
+# local builds exactly, otherwise Docker-only analyzer errors appear.
+COPY global.json Directory.Build.props Directory.Packages.props NetCommerce.slnx .editorconfig .globalconfig ./
 
 # Copy all project files to enable 'dotnet restore'
 COPY src/ ./src/

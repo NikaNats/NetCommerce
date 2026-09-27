@@ -127,12 +127,21 @@ jobs:
       - name: Restore Dependencies
         run: dotnet restore NetCommerce.slnx --locked-mode
 
+      - name: Build Integration Test Project
+        # NOTE: Build and test are split so no implicit restore ever runs in
+        # Release. NetCommerce.Api opts out of packages lock files (its graph is
+        # configuration- and OS-dependent: Debug-only WolverineFx.RuntimeCompilation
+        # vs Release-only AOT packages plus a host-RID runtime pack), and with
+        # CI=true any Release restore fails locked-mode verification (NU1004).
+        run: dotnet build tests/NetCommerce.Integration.Tests/NetCommerce.Integration.Tests.csproj -c Release --no-restore
+
       - name: Execute Migration Idempotency, Expand/Contract & Envelope Drift Tests
         run: |
           # Integration tests self-provision PostgreSQL + Redis via Testcontainers
           # (Docker is pre-installed on ubuntu-latest runners).
           dotnet test tests/NetCommerce.Integration.Tests/NetCommerce.Integration.Tests.csproj \
             -c Release \
+            --no-build \
             --filter "Category=DatabaseMigrations|Category=BlueGreenCompatibility|Category=WolverineDrift" \
             --logger "console;verbosity=normal"
 

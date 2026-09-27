@@ -46,6 +46,14 @@ dotnet_diagnostic.CA2252.severity = error # Preview features must be opted in
 dotnet_diagnostic.IL2026.severity = warning # RequiresUnreferencedCode
 dotnet_diagnostic.IL3050.severity = warning # RequiresDynamicCode
 
+# EF Core scaffolded migrations: one-shot DDL scripts, not hot paths.
+# CA1861 (constant arrays) fires inside CreateIndex column lists; newer SDK
+# analyzers flag previously-clean scaffolds, and CodeAnalysisTreatWarningsAsErrors
+# promotes them to Docker-breaking errors. Suppress per-folder so future
+# `dotnet ef migrations add` output can never break the build on SDK updates.
+[src/**/Migrations/*.cs]
+dotnet_diagnostic.CA1861.severity = none
+
 ###############################
 # Naming (dotnet/runtime)     #
 ###############################
