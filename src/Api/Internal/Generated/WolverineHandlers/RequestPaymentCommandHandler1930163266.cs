@@ -24,13 +24,6 @@ namespace Internal.Generated.WolverineHandlers
         {
             await using var serviceScope = _serviceScopeFactory.CreateAsyncScope();
             Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Wolverine.Runtime.ScopedMessageContextHolder>(serviceScope.ServiceProvider).Context = context;
-            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
-            
-            /*
-            * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext] Lifetime: Scoped ImplementationFactory: ?.?
-            * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
-            */
-            var paymentsDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext>(serviceScope.ServiceProvider);
             
             /*
             * Dependency: Descriptor: ServiceType: NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext Lifetime: Scoped ImplementationType: NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext
@@ -40,43 +33,47 @@ namespace Internal.Generated.WolverineHandlers
             */
             var paymentTransactionRepository = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Payments.Domain.Transactions.IPaymentTransactionRepository>(serviceScope.ServiceProvider);
             var paymentGateway = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Payments.Application.Gateways.IPaymentGateway>(serviceScope.ServiceProvider);
+            
+            /*
+            * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext] Lifetime: Scoped ImplementationFactory: ?.?
+            * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
+            */
+            var paymentsDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext>(serviceScope.ServiceProvider);
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             // The actual message body
             var requestPaymentCommand = (NetCommerce.Domain.Shared.Events.RequestPaymentCommand)context.Envelope.Message;
 
             
-            // Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
             var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(paymentsDbContext, context, domainEventScraperIEnumerable);
             await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
-            // Start the actual database transaction if one does not already exist
-            if (paymentsDbContext.Database.CurrentTransaction == null)
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Payments.Application.EventHandlers.SagaPaymentHandlers");
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Payments.Application.EventHandlers.SagaPaymentHandlers");
+            
+            // The actual message execution
+            var outgoing1 = await NetCommerce.Payments.Application.EventHandlers.SagaPaymentHandlers.Handle(requestPaymentCommand, paymentGateway, paymentTransactionRepository, context.Envelope, _loggerForMessage).ConfigureAwait(false);
+
+            
+            // Outgoing, cascaded message
+            await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await paymentsDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
             {
-                await paymentsDbContext.Database.BeginTransactionAsync(cancellation).ConfigureAwait(false);
+                await scraper.ScrapeEvents(paymentsDbContext, context).ConfigureAwait(false);
             }
 
-            try
+            // GH-3744: persist any envelopes the scrape just tracked
+            await paymentsDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (paymentsDbContext.Database.CurrentTransaction != null)
             {
-                System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Payments.Application.EventHandlers.SagaPaymentHandlers");
-                System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Payments.Application.EventHandlers.SagaPaymentHandlers");
-                
-                // The actual message execution
-                var outgoing1 = await NetCommerce.Payments.Application.EventHandlers.SagaPaymentHandlers.Handle(requestPaymentCommand, paymentGateway, paymentTransactionRepository, context.Envelope, _loggerForMessage).ConfigureAwait(false);
-
-                
-                // Outgoing, cascaded message
-                await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
-
-                
-                // Added by EF Core Transaction Middleware
-                var result_of_SaveChangesAsync = await paymentsDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
-
-                // Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)
-                await efCoreEnvelopeTransaction.CommitAsync(cancellation).ConfigureAwait(false);
-            }
-
-            catch (System.Exception)
-            {
-                await efCoreEnvelopeTransaction.RollbackAsync().ConfigureAwait(false);
-                throw;
+                await paymentsDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
             }
 
         }

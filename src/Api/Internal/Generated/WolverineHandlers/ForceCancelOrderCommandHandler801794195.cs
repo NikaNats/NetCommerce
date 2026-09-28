@@ -24,46 +24,43 @@ namespace Internal.Generated.WolverineHandlers
         {
             await using var serviceScope = _serviceScopeFactory.CreateAsyncScope();
             Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Wolverine.Runtime.ScopedMessageContextHolder>(serviceScope.ServiceProvider).Context = context;
-            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             
             /*
             * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext] Lifetime: Scoped ImplementationFactory: ?.?
             * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
             */
             var orderingDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext>(serviceScope.ServiceProvider);
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             // The actual message body
             var forceCancelOrderCommand = (NetCommerce.Api.Endpoints.Admin.ForceCancelOrderCommand)context.Envelope.Message;
 
             
-            // Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
             var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(orderingDbContext, context, domainEventScraperIEnumerable);
             await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
-            // Start the actual database transaction if one does not already exist
-            if (orderingDbContext.Database.CurrentTransaction == null)
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
+            
+            // The actual message execution
+            await NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers.Handle(forceCancelOrderCommand, orderingDbContext, context, _loggerForMessage, cancellation).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
             {
-                await orderingDbContext.Database.BeginTransactionAsync(cancellation).ConfigureAwait(false);
+                await scraper.ScrapeEvents(orderingDbContext, context).ConfigureAwait(false);
             }
 
-            try
+            // GH-3744: persist any envelopes the scrape just tracked
+            await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (orderingDbContext.Database.CurrentTransaction != null)
             {
-                System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
-                System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
-                
-                // The actual message execution
-                await NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers.Handle(forceCancelOrderCommand, orderingDbContext, context, _loggerForMessage, cancellation).ConfigureAwait(false);
-
-                
-                // Added by EF Core Transaction Middleware
-                var result_of_SaveChangesAsync = await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
-
-                // Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)
-                await efCoreEnvelopeTransaction.CommitAsync(cancellation).ConfigureAwait(false);
-            }
-
-            catch (System.Exception)
-            {
-                await efCoreEnvelopeTransaction.RollbackAsync().ConfigureAwait(false);
-                throw;
+                await orderingDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
             }
 
         }

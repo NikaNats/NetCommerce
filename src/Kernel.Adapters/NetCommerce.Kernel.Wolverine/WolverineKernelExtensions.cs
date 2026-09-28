@@ -27,7 +27,15 @@ public static class WolverineKernelExtensions
         // 1. Transactional Integrity
         // Ensures that your DB changes and your outgoing messages
         // (events) succeed or fail as a single atomic unit.
-        opts.UseEntityFrameworkCoreTransactions();
+        //
+        // Lightweight (not Eager): every module DbContext registers Npgsql
+        // EnableRetryOnFailure, whose execution strategy forbids the explicit
+        // BeginTransactionAsync that Eager mode emits. Wolverine 6.41+ fails
+        // code generation for that combination; Lightweight keeps outbox
+        // atomicity (single SaveChanges batch) while staying compatible with
+        // the retry strategy. Do NOT switch back to Eager without dropping
+        // EnableRetryOnFailure from NpgsqlPoolingExtensions first.
+        opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
 
         // 2. Durability & Idempotency (Docs Integration)
         // Set identity to include Destination. Vital for "Modular Monoliths"
@@ -109,13 +117,15 @@ public static class WolverineKernelExtensions
     /// <summary>
     ///     Configures Wolverine Transactional Outbox with EF Core.
     ///     Ensures messages are persisted atomically with database changes.
+    ///     Lightweight mode: see <see cref="ConfigureKernelDefaults{TDbContext}"/>
+    ///     for why Eager is incompatible with EnableRetryOnFailure.
     /// </summary>
     /// <typeparam name="TDbContext">The DbContext type.</typeparam>
     public static WolverineOptions ConfigureTransactionalOutbox<TDbContext>(
         this WolverineOptions opts)
         where TDbContext : DbContext
     {
-        opts.UseEntityFrameworkCoreTransactions();
+        opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
 
         return opts;
     }

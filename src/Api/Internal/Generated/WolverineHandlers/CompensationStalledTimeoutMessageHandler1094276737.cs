@@ -28,7 +28,7 @@ namespace Internal.Generated.WolverineHandlers
             var sagaStorageOfGuidAndOrderFulfillmentSaga_Slim = sagaStorageOfGuidAndOrderFulfillmentSaga;
             System.Guid sagaId = compensationStalledTimeoutMessage.Id;
             if (sagaId == default && !System.Guid.TryParse(context.Envelope.SagaId, out sagaId)) sagaId = compensationStalledTimeoutMessage.Id;
-            if (sagaId == System.Guid.Empty) throw new Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope);
+            if (sagaId == System.Guid.Empty) throw new Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof(NetCommerce.Ordering.Application.Sagas.OrderFulfillmentSaga), "Id");
             var orderFulfillmentSaga = await sagaStorageOfGuidAndOrderFulfillmentSaga.LoadAsync(sagaId, cancellation);
             if (orderFulfillmentSaga == null)
             {

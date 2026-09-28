@@ -38,6 +38,7 @@ using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Persistence;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Tracking;
@@ -187,8 +188,15 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // Use PostgreSQL persistence with outbox
                 opts.PersistMessagesWithPostgresql(PostgresConnectionString, "wolverine");
 
-                // Enable EF Core integration for transactional outbox
-                opts.UseEntityFrameworkCoreTransactions();
+                // Enable EF Core integration for transactional outbox.
+                // MUST mirror production (WolverineKernelExtensions.ConfigureKernelDefaults):
+                // Lightweight mode. Eager mode emits explicit BeginTransactionAsync,
+                // which Npgsql's EnableRetryOnFailure execution strategy forbids
+                // (Wolverine 6.41+ fails codegen for that combination), and routes
+                // envelope bookkeeping through Wolverine's own store instead of
+                // per-schema EF-mapped tables that EF migrations exclude.
+                opts.UseEntityFrameworkCoreTransactions(
+                    TransactionMiddlewareMode.Lightweight);
 
                 // Auto-apply transactions for handlers
                 opts.Policies.AutoApplyTransactions();

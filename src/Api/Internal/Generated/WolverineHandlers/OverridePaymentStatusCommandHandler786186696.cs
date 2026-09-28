@@ -35,35 +35,32 @@ namespace Internal.Generated.WolverineHandlers
             var overridePaymentStatusCommand = (NetCommerce.Api.Endpoints.Admin.OverridePaymentStatusCommand)context.Envelope.Message;
 
             
-            // Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
             var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(orderingDbContext, context, domainEventScraperIEnumerable);
             await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
-            // Start the actual database transaction if one does not already exist
-            if (orderingDbContext.Database.CurrentTransaction == null)
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
+            System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
+            
+            // The actual message execution
+            await NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers.Handle(overridePaymentStatusCommand, orderingDbContext, context, _loggerForMessage, cancellation).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
             {
-                await orderingDbContext.Database.BeginTransactionAsync(cancellation).ConfigureAwait(false);
+                await scraper.ScrapeEvents(orderingDbContext, context).ConfigureAwait(false);
             }
 
-            try
+            // GH-3744: persist any envelopes the scrape just tracked
+            await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (orderingDbContext.Database.CurrentTransaction != null)
             {
-                System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
-                System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers");
-                
-                // The actual message execution
-                await NetCommerce.Api.Handlers.AdminRecoveryCommandHandlers.Handle(overridePaymentStatusCommand, orderingDbContext, context, _loggerForMessage, cancellation).ConfigureAwait(false);
-
-                
-                // Added by EF Core Transaction Middleware
-                var result_of_SaveChangesAsync = await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
-
-                // Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)
-                await efCoreEnvelopeTransaction.CommitAsync(cancellation).ConfigureAwait(false);
-            }
-
-            catch (System.Exception)
-            {
-                await efCoreEnvelopeTransaction.RollbackAsync().ConfigureAwait(false);
-                throw;
+                await orderingDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
             }
 
         }
