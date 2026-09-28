@@ -381,7 +381,18 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(500);
+
+        // Poll for convergence instead of a fixed delay: on loaded CI agents
+        // the background task may need longer than any fixed sleep to run.
+        // Times out (and fails) after 10s if the job never processes the rows.
+        await WaitUntilAsync(async () =>
+        {
+            using var pollScope = provider.CreateScope();
+            var pollCtx = pollScope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+            var all = await pollCtx.StockReservations.ToListAsync();
+            return all.Count == 3 && all.All(r => r.Status == ReservationStatus.Released);
+        }, TimeSpan.FromSeconds(10), "all 3 reservations to be released");
+
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -460,7 +471,14 @@ public class ReservationCleanupJobTests : IDisposable
 
         // Act
         await job.StartAsync(cts.Token);
-        await Task.Delay(500);
+
+        // Poll for the expected log instead of a fixed delay: on loaded CI
+        // agents the background task may need longer than any fixed sleep.
+        await WaitUntilAsync(
+            () => Task.FromResult(HasLog(LogLevel.Information, "Cleaned up")),
+            TimeSpan.FromSeconds(10),
+            "the 'Cleaned up' processing summary log");
+
         await job.StopAsync(CancellationToken.None);
 
         // Assert
@@ -470,6 +488,35 @@ public class ReservationCleanupJobTests : IDisposable
             Arg.Is<object>(v => v.ToString()!.Contains("Cleaned up")),
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception?, string>>());
+    }
+
+    /// <summary>
+    ///     Polls until <paramref name="condition"/> holds or <paramref name="timeout"/>
+    ///     elapses. Replaces fixed <c>Task.Delay</c> waits around background workers,
+    ///     which are inherently racy on loaded CI agents.
+    /// </summary>
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout, string description)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (await condition())
+                return;
+
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException($"Condition not met within {timeout}: {description}.");
+    }
+
+    private bool HasLog(LogLevel level, string fragment)
+    {
+        return _logger.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(ILogger.Log))
+            .Select(c => c.GetArguments())
+            .Where(a => a.Length > 2 && (LogLevel)a[0] == level && a[2] is not null)
+            .Any(a => a[2]!.ToString()!.Contains(fragment, StringComparison.Ordinal));
     }
 
     // Helper to create the job with standard options
