@@ -153,7 +153,7 @@ jobs:
             --logger "console;verbosity=normal"
 
   native-runtime-smoke-test:
-    name: Execute Native Binary Runtime Smoke Suite
+    name: Execute Container Runtime Smoke Suite
     runs-on: ubuntu-latest
     needs: [compile-native-container]
     services:
@@ -242,6 +242,32 @@ jobs:
             sleep 1
           done
 
+      - name: Start Keycloak (OIDC Identity Provider)
+        run: |
+          # Seeds the smoke realm (tools/keycloak/netcommerce-realm.json) with a
+          # confidential M2M client used by the auth checkpoints below.
+          # Test-only credentials throughout; never used outside CI smoke.
+          docker run -d --name keycloak -p 8081:8080 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=smoke-admin-password-not-a-secret \
+            -v "${GITHUB_WORKSPACE}/tools/keycloak:/opt/keycloak/data/import" \
+            quay.io/keycloak/keycloak:26.7.4 \
+            start-dev --import-realm --health-enabled=true
+          # Wait for the REALM (not just the server): discovery 200 proves the
+          # import finished and the token endpoint is usable.
+          for i in $(seq 1 40); do
+            if curl -s -o /dev/null http://127.0.0.1:8081/realms/netcommerce/.well-known/openid-configuration; then
+              echo "Keycloak realm is up."
+              break
+            fi
+            if [ "$i" = "40" ]; then
+              echo "Keycloak realm failed to come up."
+              docker logs keycloak
+              exit 1
+            fi
+            sleep 5
+          done
+
       - name: Apply EF Core Schema Migrations (JIT Migration Runner)
         run: |
           echo "Applying all 6 module schemas to PostgreSQL..."
@@ -249,7 +275,7 @@ jobs:
           # dynamic model services stay available for the migration runner.
           dotnet run --project src/Api/NetCommerce.Api.csproj -c Debug --no-launch-profile -- --migrate-only
 
-      - name: Start Native AOT Container
+      - name: Start API Container
         run: |
           docker run -d \
             --name netcommerce-api-prod \
@@ -265,14 +291,24 @@ jobs:
             -e "ConnectionStrings__meilisearch=$CONNECTIONSTRINGS__MEILISEARCH" \
             -e "ConnectionStrings__blobs=$CONNECTIONSTRINGS__BLOBS" \
             -e "Auth__AdminElevated__ApiKey=production-strict-key-minimum-32-chars-long!" \
-            -e "Auth__AdminElevated__SecurityMode=DevelopmentOnly" \
+            -e "Keycloak__AuthServerUrl=http://127.0.0.1:8081" \
+            -e "Keycloak__Realm=netcommerce" \
+            -e "Auth__RequireHttpsMetadata=false" \
+            -e "Auth__ClientSecret=smoke-test-client-secret-not-a-secret" \
+            -e "Stripe__SecretKey=sk_test_smoke000000000000000000000000" \
+            -e "Stripe__WebhookSecret=whsec_smoke000000000000000000000000" \
+            -e "Stripe__AllowTestModeInProduction=true" \
+            -e "Couriers__AllowMockInProduction=true" \
+            -e "Ordering__Tax__AcknowledgedInProduction=true" \
+            -e "Ordering__Promotions__AcknowledgedInProduction=true" \
+            -e "Ordering__Email__AllowInMemoryInProduction=true" \
             -e "ASPNETCORE_ENVIRONMENT=Production" \
             -e "ASPNETCORE_URLS=http://+:8080" \
             ${{ env.IMAGE_NAME }}
 
-      - name: Verification Checkpoint 1 — Startup Latency & Zero Trim Faults
+      - name: Verification Checkpoint 1 — Startup Latency & Clean Boot
         run: |
-          echo "Waiting for Native AOT application startup..."
+          echo "Waiting for application startup..."
           SUCCESS=0
           for i in {1..30}; do
             LOGS=$(docker logs netcommerce-api-prod 2>&1 || true)
@@ -282,9 +318,9 @@ jobs:
               break
             fi
 
-            # Check for immediate Native AOT crashes
+            # Check for immediate runtime crashes
             if echo "$LOGS" | grep -qE "MissingMethodException|TypeLoadException|JsonException|PlatformNotSupportedException"; then
-              echo "FATAL CRASH DETECTED IN NATIVE AOT LOGS:"
+              echo "FATAL CRASH DETECTED IN CONTAINER LOGS:"
               echo "$LOGS"
               exit 1
             fi
@@ -292,7 +328,7 @@ jobs:
           done
 
           if [ $SUCCESS -eq 0 ]; then
-            echo "TIMEOUT: Native AOT container did not start listening within 15 seconds."
+            echo "TIMEOUT: Container did not start listening within 15 seconds."
             docker logs netcommerce-api-prod
             exit 1
           fi
@@ -315,9 +351,9 @@ jobs:
             exit 1
           fi
 
-      - name: Verification Checkpoint 3 — Read Flow (Catalog Serialization & EF Core Native Read)
+      - name: Verification Checkpoint 3 — Read Flow (Catalog Serialization & EF Core Read)
         run: |
-          echo "Querying /api/v1/products over Native HTTP Pipeline..."
+          echo "Querying /api/v1/products over HTTP Pipeline..."
           RESPONSE=$(curl -s -w "\n%{http_code}" http://127.0.0.1:8080/api/v1/products)
           STATUS=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
@@ -342,7 +378,7 @@ jobs:
           # which the smoke environment intentionally does not provide. An
           # unauthenticated request MUST be rejected with exactly 401: that proves
           # routing, rate limiting, and the authentication middleware all execute
-          # correctly in the native binary. A 500 here indicates an AOT trim crash.
+          # correctly in the container. A 500 here indicates a pipeline crash.
           ORDER_PAYLOAD=$(cat <<EOF
           {
             "customerId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
@@ -378,7 +414,7 @@ jobs:
 
           echo "Order creation (unauthenticated) status: $STATUS"
           if [ "$STATUS" = "500" ]; then
-            echo "CRITICAL: Mutative route triggered a 500 Internal Error under Native AOT!"
+            echo "CRITICAL: Mutative route triggered a 500 Internal Error!"
             docker logs netcommerce-api-prod
             exit 1
           fi
@@ -387,14 +423,61 @@ jobs:
             docker logs netcommerce-api-prod
             exit 1
           fi
-          echo "PASS: Auth middleware rejects unauthenticated writes with 401 (no trim crash)."
+          echo "PASS: Auth middleware rejects unauthenticated writes with 401 (pipeline healthy)."
+
+          # ── 4c. Positive M2M authentication (BFF + Keycloak, no browser) ──────
+          # client_credentials flows BFF -> Keycloak -> BFF. A 200 with an access
+          # token proves OIDC discovery, token issuance, proxying, and the
+          # source-generated TokenResponse serialization end to end.
+          STATUS=$(curl -s -o /tmp/token-response.json -w "%{http_code}" \
+            -X POST http://127.0.0.1:8080/api/v1/auth/token \
+            -H "Content-Type: application/json" \
+            -d '{"grant_type":"client_credentials"}')
+
+          echo "Auth token exchange (client_credentials) status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: Expected 200 with access token; got $STATUS."
+            echo "Response body: $(cat /tmp/token-response.json)"
+            docker logs netcommerce-api-prod
+            exit 1
+          fi
+
+          grep -q "access_token" /tmp/token-response.json || {
+            echo "FAIL: Token response contains no access_token."
+            exit 1
+          }
+          echo "PASS: BFF issued a Keycloak access token."
+
+          # ── 4d. Authenticated read (JWT validation + handler + Redis) ─────────
+          # GET /api/v1/basket requires authentication but no specific role, so a
+          # service-account token exercises JWT validation, claims handling, the
+          # handler pipeline, and the Redis basket repository in one call.
+          ACCESS_TOKEN=$(grep -o '"access_token":"[^"]*"' /tmp/token-response.json | cut -d'"' -f4)
+
+          STATUS=$(curl -s -o /tmp/basket-response.json -w "%{http_code}" \
+            http://127.0.0.1:8080/api/v1/basket \
+            -H "Authorization: Bearer $ACCESS_TOKEN")
+
+          echo "Authenticated basket read status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: Expected 200 for authenticated basket read; got $STATUS."
+            echo "Response body: $(cat /tmp/basket-response.json)"
+            docker logs netcommerce-api-prod
+            exit 1
+          fi
+
+          grep -q "customerId" /tmp/basket-response.json || {
+            echo "FAIL: Basket response is malformed."
+            exit 1
+          }
+          echo "PASS: Authenticated request validated JWT and executed handler."
 
           # ── 4b. Anonymous mutative flow: real deserialization + handler execution ──
           # POST /api/v1/auth/token is [AllowAnonymous]. An unsupported grant_type is
           # rejected AFTER the JSON body is deserialized via ApiJsonContext (source-gen)
           # and returns an AuthErrorResponse serialized by the source generator - a
           # deterministic write-path exercise that needs no Keycloak. Anything other
-          # than 400 means the native pipeline failed (500 = trim crash, 404 = routing).
+          # than 400 means the pipeline failed (500 = crash, 404 = routing).
           STATUS=$(curl -s -o /tmp/auth-response.json -w "%{http_code}" \
             -X POST http://127.0.0.1:8080/api/v1/auth/token \
             -H "Content-Type: application/json" \

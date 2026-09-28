@@ -51,16 +51,19 @@ ENV ConnectionStrings__OrderingDb="Host=dummy;Database=dummy;Username=dummy;Pass
 # (e.g. `|| echo`) here would ship a "successfully built" image with dropped handlers.
 RUN dotnet run -- codegen write
 
-# Publish with Native AOT (Release Mode)
+# Publish as self-contained JIT (Release Mode)
 # -c Release: Excludes WolverineFx.RuntimeCompilation (Roslyn) and optimizes binary size
 # -r linux-x64: Target Linux x64 native binary
-# /p:PublishAot=true: Ahead-of-Time compilation via ILC
+# --self-contained true: Ships CoreCLR so the image runs on runtime-deps
+# /p:PublishAot=false: NativeAOT is DISABLED ON PURPOSE. EF Core cannot build
+# models under PublishAot switches (no compiled models exist yet), which breaks
+# every data path at runtime. All release verification (600+ tests) runs JIT;
+# re-enable AOT only after EF compiled models land for all bounded contexts.
 # /p:StripSymbols=true: Strip symbols for ~40% smaller binary size
-# /p:IlcOptimizationPreference=Speed: Maximize runtime execution speed
 RUN dotnet publish -c Release -o /app/publish \
     -r linux-x64 \
     --self-contained true \
-    /p:PublishAot=true \
+    /p:PublishAot=false \
     /p:StripSymbols=true \
     /p:IlcOptimizationPreference=Speed \
     /p:IlcGenerateStackTraceData=false

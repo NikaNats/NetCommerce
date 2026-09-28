@@ -118,6 +118,16 @@ public static class ZeroTrustAuthenticationExtensions
         // 7. Add HttpContextAccessor for token retrieval
         services.AddHttpContextAccessor();
 
+        // 7b. Distributed-cache backing for TokenIntrospectionMiddleware.
+        // MANDATORY even when introspection is disabled: UseMiddleware resolves
+        // InvokeAsync parameters with GetRequiredService and does NOT honor C#
+        // optional-parameter defaults, so an unregistered IDistributedCache
+        // throws on EVERY request passing through the middleware (all
+        // authenticated traffic plus anonymous endpoints past authorization).
+        // In-memory backing preserves correctness (misses introspect live);
+        // swap for Redis-backed caching if cross-pod revocation caching matters.
+        services.AddDistributedMemoryCache();
+
         // 8. Register HttpUserContext as IUserContext (Kernel.Application interface)
         services.AddScoped<IUserContext, HttpUserContext>();
 
@@ -206,8 +216,10 @@ internal sealed class ZeroTrustJwtBearerOptionsSetup(
         options.MapInboundClaims = false;
 
         // Docker/K8s internal networking often uses HTTP
-        // In production, your Gateway handles TLS termination
-        options.RequireHttpsMetadata = !environment.IsDevelopment();
+        // In production, your Gateway handles TLS termination.
+        // Auth:RequireHttpsMetadata overrides the environment default when set
+        // (CI smoke tests against HTTP Keycloak are the only legitimate use).
+        options.RequireHttpsMetadata = auth.RequireHttpsMetadata ?? !environment.IsDevelopment();
 
         // Token Validation Rules (Zero-Trust: Validate Everything)
         options.TokenValidationParameters = new TokenValidationParameters

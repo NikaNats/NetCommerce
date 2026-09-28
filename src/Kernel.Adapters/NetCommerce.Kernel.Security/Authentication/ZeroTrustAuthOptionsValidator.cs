@@ -59,9 +59,10 @@ public sealed class ZeroTrustAuthOptionsValidator : IValidateOptions<ZeroTrustAu
         }
 
         _logger.LogInformation(
-            "Zero-trust auth validated: RealmUrl={RealmUrl}, Introspection={Introspection}",
+            "Zero-trust auth validated: RealmUrl={RealmUrl}, Introspection={Introspection}, RequireHttpsMetadata={RequireHttps}",
             options.RealmUrl,
-            options.IntrospectionEnabled);
+            options.IntrospectionEnabled,
+            options.RequireHttpsMetadata);
 
         return ValidateOptionsResult.Success;
     }

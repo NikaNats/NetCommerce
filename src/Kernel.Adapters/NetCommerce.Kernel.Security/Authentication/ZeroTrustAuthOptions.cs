@@ -113,4 +113,13 @@ public sealed class ZeroTrustAuthOptions
     ///     Default: "netcommerce-web".
     /// </summary>
     public string BffClientId { get; set; } = "netcommerce-web";
+
+    /// <summary>
+    ///     Overrides JWT bearer HTTPS metadata requirement.
+    ///     Null (default) preserves environment behavior: required everywhere
+    ///     except Development. Set explicitly to false ONLY for HTTP-only test
+    ///     environments (e.g. CI smoke tests against containerized Keycloak);
+    ///     never disable in real deployments.
+    /// </summary>
+    public bool? RequireHttpsMetadata { get; set; }
 }
