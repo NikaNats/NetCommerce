@@ -40,116 +40,147 @@ public class ReserveInventoryHandler
                 UnavailableProductIds: null);
         }
 
-        var reservedItems = new List<ReservedItem>();
-        var unavailableProducts = new List<Guid>();
+        // Execution-strategy transaction (NOT Wolverine Eager mode, which is
+        // incompatible with EnableRetryOnFailure): the SELECT ... FOR UPDATE
+        // below only holds row locks inside an explicit transaction. Without
+        // one (autocommit), concurrent reservers for the same product collide
+        // on xmin optimistic-concurrency checks instead of serializing.
+        // The strategy additionally retries the whole unit on transient faults.
+        var strategy = db.Database.CreateExecutionStrategy();
 
-        // Deterministic sort to avoid deadlocks when locking multiple rows
-        var sortedProductIds = command.Items
-            .Select(x => x.ProductId)
-            .Distinct()
-            .OrderBy(id => id)
-            .ToArray();
-
-        var stocks = await db.Stocks
-            .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({sortedProductIds}) ORDER BY s.product_id FOR UPDATE")
-            .Include(s => s.Reservations)
-            .ToListAsync(ct);
-
-        // CRITICAL FAIL-CLOSED: Verify we locked ALL requested items
-        // If we can't lock all, abort to prevent partial reservations during Redis outages
-        if (stocks.Count != sortedProductIds.Length)
+        return await strategy.ExecuteAsync(async () =>
         {
-            var missingIds = sortedProductIds.Except(stocks.Select(s => s.ProductId)).ToList();
-            logger.LogError(
-                "FAIL-CLOSED: Could not lock all requested products for Order {OrderId}. Missing: {MissingIds}. " +
-                "This indicates a critical database consistency issue or missing stock records.",
-                command.OrderId,
-                string.Join(", ", missingIds));
-
-            return new InventoryReservationFailed(
-                command.OrderId,
-                "Locking failed: Not all products could be locked for atomic reservation",
-                UnavailableProductIds: missingIds);
-        }
-
-        // ── Pass 1: Validate all items have sufficient stock ──────────────
-        // We must validate BEFORE modifying any entities, because Wolverine's
-        // [Transactional] middleware commits SaveChanges after the handler
-        // returns — even when returning InventoryReservationFailed.
-        // This ensures true atomic all-or-nothing reservation semantics.
-        foreach (var item in command.Items)
-        {
-            var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
-
-            if (stock is null)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            try
             {
-                logger.LogWarning(
-                    "Stock record not found for Product {ProductId}, Order {OrderId}",
-                    item.ProductId,
-                    command.OrderId);
+                var result = await ReserveAsync(command, db, logger, ct);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
 
-                unavailableProducts.Add(item.ProductId);
-                continue;
+    private static async Task<object> ReserveAsync(
+        ReserveInventoryCommand command,
+        InventoryDbContext db,
+        ILogger<ReserveInventoryHandler> logger,
+        CancellationToken ct)
+    {
+            var reservedItems = new List<ReservedItem>();
+            var unavailableProducts = new List<Guid>();
+
+            // Deterministic sort to avoid deadlocks when locking multiple rows
+            var sortedProductIds = command.Items
+                .Select(x => x.ProductId)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToArray();
+
+            var stocks = await db.Stocks
+                .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({sortedProductIds}) ORDER BY s.product_id FOR UPDATE")
+                .Include(s => s.Reservations)
+                .ToListAsync(ct);
+
+            // CRITICAL FAIL-CLOSED: Verify we locked ALL requested items
+            // If we can't lock all, abort to prevent partial reservations during Redis outages
+            if (stocks.Count != sortedProductIds.Length)
+            {
+                var missingIds = sortedProductIds.Except(stocks.Select(s => s.ProductId)).ToList();
+                logger.LogError(
+                    "FAIL-CLOSED: Could not lock all requested products for Order {OrderId}. Missing: {MissingIds}. " +
+                    "This indicates a critical database consistency issue or missing stock records.",
+                    command.OrderId,
+                    string.Join(", ", missingIds));
+
+                return new InventoryReservationFailed(
+                    command.OrderId,
+                    "Locking failed: Not all products could be locked for atomic reservation",
+                    UnavailableProductIds: missingIds);
             }
 
-            if (stock.GetAvailableQuantity() < item.Quantity)
+            // ── Pass 1: Validate all items have sufficient stock ──────────────
+            // Validation runs before any mutation, and the explicit transaction
+            // above commits only on full success — failed validations return
+            // without persisting anything (true all-or-nothing semantics).
+            foreach (var item in command.Items)
+            {
+                var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
+
+                if (stock is null)
+                {
+                    logger.LogWarning(
+                        "Stock record not found for Product {ProductId}, Order {OrderId}",
+                        item.ProductId,
+                        command.OrderId);
+
+                    unavailableProducts.Add(item.ProductId);
+                    continue;
+                }
+
+                if (stock.GetAvailableQuantity() < item.Quantity)
+                {
+                    logger.LogWarning(
+                        "Insufficient stock for Product {ProductId}, Order {OrderId}: " +
+                        "Requested {Requested}, Available {Available}",
+                        item.ProductId,
+                        command.OrderId,
+                        item.Quantity,
+                        stock.GetAvailableQuantity());
+
+                    unavailableProducts.Add(item.ProductId);
+                }
+            }
+
+            // Fail early — no entities were modified, nothing to roll back
+            if (unavailableProducts.Count > 0)
             {
                 logger.LogWarning(
-                    "Insufficient stock for Product {ProductId}, Order {OrderId}: " +
-                    "Requested {Requested}, Available {Available}",
+                    "Inventory reservation failed for Order {OrderId}. " +
+                    "Unavailable products: {Products}",
+                    command.OrderId,
+                    string.Join(", ", unavailableProducts));
+
+                return new InventoryReservationFailed(
+                    command.OrderId,
+                    $"Insufficient stock for {unavailableProducts.Count} product(s)",
+                    unavailableProducts);
+            }
+
+            // ── Pass 2: Reserve all items (all validated as available) ────────
+            foreach (var item in command.Items)
+            {
+                var stock = stocks.First(s => s.ProductId == item.ProductId);
+
+                var reservation = stock.Reserve(command.OrderId, item.Quantity);
+
+                reservedItems.Add(new ReservedItem(
+                    item.ProductId,
+                    reservation.Id,
+                    reservation.Quantity));
+
+                logger.LogInformation(
+                    "Reserved {Quantity} units of Product {ProductId} for Order {OrderId}. " +
+                    "ReservationId: {ReservationId}, Remaining Available: {Available}",
+                    item.Quantity,
                     item.ProductId,
                     command.OrderId,
-                    item.Quantity,
-                    stock.GetAvailableQuantity());
-
-                unavailableProducts.Add(item.ProductId);
+                    reservation.Id,
+                    stock.AvailableQuantity);
             }
-        }
-
-        // Fail early — no entities were modified, nothing to roll back
-        if (unavailableProducts.Count > 0)
-        {
-            logger.LogWarning(
-                "Inventory reservation failed for Order {OrderId}. " +
-                "Unavailable products: {Products}",
-                command.OrderId,
-                string.Join(", ", unavailableProducts));
-
-            return new InventoryReservationFailed(
-                command.OrderId,
-                $"Insufficient stock for {unavailableProducts.Count} product(s)",
-                unavailableProducts);
-        }
-
-        // ── Pass 2: Reserve all items (all validated as available) ────────
-        foreach (var item in command.Items)
-        {
-            var stock = stocks.First(s => s.ProductId == item.ProductId);
-
-            var reservation = stock.Reserve(command.OrderId, item.Quantity);
-
-            reservedItems.Add(new ReservedItem(
-                item.ProductId,
-                reservation.Id,
-                reservation.Quantity));
 
             logger.LogInformation(
-                "Reserved {Quantity} units of Product {ProductId} for Order {OrderId}. " +
-                "ReservationId: {ReservationId}, Remaining Available: {Available}",
-                item.Quantity,
-                item.ProductId,
+                "Inventory reservation successful for Order {OrderId}. Reserved {Count} items.",
                 command.OrderId,
-                reservation.Id,
-                stock.AvailableQuantity);
+                reservedItems.Count);
+
+            return new InventoryReserved(command.OrderId, reservedItems);
         }
-
-        logger.LogInformation(
-            "Inventory reservation successful for Order {OrderId}. Reserved {Count} items.",
-            command.OrderId,
-            reservedItems.Count);
-
-        return new InventoryReserved(command.OrderId, reservedItems);
-    }
 }
 
 /// <summary>
@@ -178,84 +209,127 @@ public class LockInventoryForPaymentHandler
                 UnavailableProductIds: null);
         }
 
-        var productIds = command.ReservedItems
-            .Select(x => x.ProductId)
-            .Distinct()
-            .OrderBy(id => id)
-            .ToArray();
+        // Same execution-strategy transaction rationale as ReserveAsync above:
+        // SELECT ... FOR UPDATE only serializes inside an explicit transaction.
+        // Commit happens solely on full success; partial locks are rolled back
+        // rather than persisted (the previous middleware-committed behavior
+        // could leave half-locked reservations behind on the failure path).
+        var strategy = db.Database.CreateExecutionStrategy();
 
-        var reservationIds = command.ReservedItems
-            .Select(x => x.ReservationId)
-            .Distinct()
-            .ToArray();
-
-        var stocks = await db.Stocks
-            .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
-            .Include(s => s.Reservations)
-            .ToListAsync(ct);
-
-        var missing = new List<Guid>();
-
-        foreach (var item in command.ReservedItems)
+        return await strategy.ExecuteAsync(async () =>
         {
-            var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
-
-            if (stock is null)
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            try
             {
-                logger.LogWarning(
-                    "Stock record not found while locking reservation {ReservationId} for Order {OrderId}, Product {ProductId}",
-                    item.ReservationId,
-                    command.OrderId,
-                    item.ProductId);
-                missing.Add(item.ProductId);
-                continue;
+                var result = await LockAsync(command, db, logger, ct);
+
+                // Commit only when every reservation locked; otherwise roll back
+                // the partial work so no half-locked state survives.
+                if (result is InventoryLocked)
+                {
+                    await db.SaveChangesAsync(ct);
+                    await transaction.CommitAsync(ct);
+                }
+                else
+                {
+                    await transaction.RollbackAsync(ct);
+                }
+
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
+
+    private static async Task<object> LockAsync(
+        LockInventoryForPaymentCommand command,
+        InventoryDbContext db,
+        ILogger<LockInventoryForPaymentHandler> logger,
+        CancellationToken ct)
+    {
+
+            var productIds = command.ReservedItems
+                .Select(x => x.ProductId)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToArray();
+
+            var reservationIds = command.ReservedItems
+                .Select(x => x.ReservationId)
+                .Distinct()
+                .ToArray();
+
+            var stocks = await db.Stocks
+                .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
+                .Include(s => s.Reservations)
+                .ToListAsync(ct);
+
+            var missing = new List<Guid>();
+
+            foreach (var item in command.ReservedItems)
+            {
+                var stock = stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
+
+                if (stock is null)
+                {
+                    logger.LogWarning(
+                        "Stock record not found while locking reservation {ReservationId} for Order {OrderId}, Product {ProductId}",
+                        item.ReservationId,
+                        command.OrderId,
+                        item.ProductId);
+                    missing.Add(item.ProductId);
+                    continue;
+                }
+
+                var reservation = stock.Reservations.FirstOrDefault(r => r.Id == item.ReservationId);
+                if (reservation is null)
+                {
+                    logger.LogWarning(
+                        "Reservation {ReservationId} not found for Order {OrderId}, Product {ProductId}",
+                        item.ReservationId,
+                        command.OrderId,
+                        item.ProductId);
+                    missing.Add(item.ProductId);
+                    continue;
+                }
+
+                if (reservation.Status != Domain.Stock.ReservationStatus.Active)
+                {
+                    logger.LogWarning(
+                        "Reservation {ReservationId} for Order {OrderId} cannot be locked from status {Status}",
+                        reservation.Id,
+                        command.OrderId,
+                        reservation.Status);
+                    missing.Add(item.ProductId);
+                    continue;
+                }
+
+                stock.LockReservationForPayment(item.ReservationId);
             }
 
-            var reservation = stock.Reservations.FirstOrDefault(r => r.Id == item.ReservationId);
-            if (reservation is null)
+            if (missing.Count > 0)
             {
                 logger.LogWarning(
-                    "Reservation {ReservationId} not found for Order {OrderId}, Product {ProductId}",
-                    item.ReservationId,
+                    "Locking reservations failed for Order {OrderId}. Missing or invalid reservations for {Count} product(s)",
                     command.OrderId,
-                    item.ProductId);
-                missing.Add(item.ProductId);
-                continue;
+                    missing.Count);
+
+                return new InventoryReservationFailed(
+                    command.OrderId,
+                    $"Could not lock reservations for {missing.Count} product(s)",
+                    missing);
             }
 
-            if (reservation.Status != Domain.Stock.ReservationStatus.Active)
-            {
-                logger.LogWarning(
-                    "Reservation {ReservationId} for Order {OrderId} cannot be locked from status {Status}",
-                    reservation.Id,
-                    command.OrderId,
-                    reservation.Status);
-                missing.Add(item.ProductId);
-                continue;
-            }
+            logger.LogInformation(
+                "Locked {Count} reservations for Order {OrderId} to proceed with payment",
+                command.ReservedItems.Count,
+                command.OrderId);
 
-            stock.LockReservationForPayment(item.ReservationId);
-        }
-
-        if (missing.Count > 0)
-        {
-            logger.LogWarning(
-                "Locking reservations failed for Order {OrderId}. Missing or invalid reservations for {Count} product(s)",
-                command.OrderId,
-                missing.Count);
-
-            return new InventoryReservationFailed(
-                command.OrderId,
-                $"Could not lock reservations for {missing.Count} product(s)",
-                missing);
-        }
-
-        logger.LogInformation(
-            "Locked {Count} reservations for Order {OrderId} to proceed with payment",
-            command.ReservedItems.Count,
-            command.OrderId);
-
-        return new InventoryLocked(command.OrderId, command.ReservedItems);
+            return new InventoryLocked(command.OrderId, command.ReservedItems);
     }
 }
 
