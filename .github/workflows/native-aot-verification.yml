@@ -87,11 +87,18 @@ jobs:
           fi
 
           echo "=== 2. Verifying Shell Absence (Chiseled Hardening) ==="
-          if docker run --rm ${{ env.IMAGE_NAME }} /bin/sh 2>&1 | grep -qE "not found|no such file"; then
-            echo "PASS: Zero interactive shell access verified."
-          else
+          # NOTE: --entrypoint is mandatory here. The image uses exec-form
+          # ENTRYPOINT (./NetCommerce.Api), so `docker run IMAGE /bin/sh` would
+          # execute the APP with "/bin/sh" as an argument instead of probing for
+          # a shell — and the app's output never matches an error-text grep,
+          # failing the check on images that provably contain no shell.
+          # Positive marker detection is used instead of matching daemon error
+          # text, which varies across runtimes/versions.
+          if docker run --rm --entrypoint /bin/sh ${{ env.IMAGE_NAME }} -c "echo SHELL_PRESENT" 2>/dev/null | grep -q "SHELL_PRESENT"; then
             echo "FAIL: Container contains interactive shell (/bin/sh)."
             exit 1
+          else
+            echo "PASS: Zero interactive shell access verified."
           fi
 
           echo "=== 3. Verifying Non-Root UID execution ==="

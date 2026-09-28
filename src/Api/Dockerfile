@@ -73,6 +73,10 @@ RUN dotnet publish -c Release -o /app/publish \
 # - No package manager (apt, apk) - Prevents post-exploitation tooling
 # - Non-root user - Runs as 'app' user (UID 1654) by default
 # - Minimal attack surface - Minimal dependencies (~70MB total container size)
+# NOTE: the '-extra' variant is REQUIRED (not plain 'chiseled'): it carries the
+# ICU libraries the app needs for non-English formatting (GEL/Georgian Lari;
+# see InvariantGlobalization=false in NetCommerce.Api.csproj). Verified: -extra
+# still ships zero shells - only ICU/data files on top of plain chiseled.
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra
 WORKDIR /app
 
