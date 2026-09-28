@@ -229,8 +229,10 @@ jobs:
         run: |
           # The services block cannot override the container command, and Azurite
           # must bind 0.0.0.0 to be reachable through the port mapping.
+          # NOTE: the image lives at azure-storage/azurite (not azure-storage-azurite)
+          # and is version-pinned: MCR keeps no 'latest' tag for this repository.
           docker run -d --name azurite -p 10000:10000 \
-            mcr.microsoft.com/azure-storage-azurite:latest \
+            mcr.microsoft.com/azure-storage/azurite:3.37.0 \
             azurite-blob --blobHost 0.0.0.0 --blobPort 10000
           for i in {1..20}; do
             if curl -s -o /dev/null http://127.0.0.1:10000/devstoreaccount1; then
@@ -416,7 +418,11 @@ jobs:
       - name: Print Diagnostics on Failure
         if: failure()
         run: |
+          # Resilient diagnostics: the container may not exist if an earlier step
+          # (e.g. Azurite startup) failed first. Never mask the root cause with a
+          # secondary failure here, and never fail this step itself.
           echo "=== DOCKER LOGS ==="
-          docker logs netcommerce-api-prod
+          docker logs netcommerce-api-prod 2>&1 || echo "(container netcommerce-api-prod does not exist - failure occurred before container start)"
           echo "=== CONTAINER STATE ==="
-          docker inspect netcommerce-api-prod
+          docker inspect netcommerce-api-prod 2>&1 || echo "(no inspect output - container was never created)"
+          exit 0
