@@ -155,12 +155,12 @@ public class ProductEndpoints : IEndpointGroup
         if (pageSize > MaxPageSize) pageSize = MaxPageSize;
 
         var query = new SearchProductsQuery(searchTerm, categoryId, minPrice, maxPrice, page, pageSize);
-        var result = await bus.InvokeAsync<Result<PagedResult<ProductDto>>>(query, cancellationToken);
+        var result = await bus.InvokeAsync<Result<PagedResult<ProductListItemDto>>>(query, cancellationToken);
 
         if (!result.IsSuccess) return result.ToApiResult();
 
         var paginatedResult = result.Value;
-        var response = PaginatedResponse<ProductDto>.Create(
+        var response = PaginatedResponse<ProductListItemDto>.Create(
             paginatedResult!.Items.ToList(),
             page,
             pageSize,

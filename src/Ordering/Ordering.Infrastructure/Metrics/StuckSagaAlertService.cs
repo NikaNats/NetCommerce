@@ -103,18 +103,19 @@ public sealed class StuckSagaAlertService : BackgroundService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
 
-        var stuck = await db.Set<OrderFulfillmentSaga>()
-            .AsNoTracking()
-            .Where(s => s.State == OrderFulfillmentState.ManualInterventionRequired)
+        var stuck = (await WolverineSagaStateReader.QuerySagasAsync(
+                db,
+                OrderFulfillmentState.ManualInterventionRequired,
+                cancellationToken: ct))
             .OrderBy(s => s.StartedAt)
             .Select(s => new StuckSagaInfo(
-                s.Id,
+                s.OrderId,
                 s.OrderNumber,
                 s.TotalAmount.Amount,
                 s.TotalAmount.Currency,
                 s.FailureReason,
                 s.StartedAt))
-            .ToListAsync(ct);
+            .ToList();
 
         // Forget resolved orders so a recurrence pages again.
         _alertedOrderIds.IntersectWith(stuck.Select(s => s.OrderId));

@@ -37,14 +37,10 @@ public static class AdminRecoveryCommandHandlers
             AdvanceOrderToDelivered(order, logger, command.OrderId);
         }
 
-        var saga = await db.Set<OrderFulfillmentSaga>()
-            .FirstOrDefaultAsync(s => s.Id == command.OrderId, ct);
-        if (saga is not null)
-        {
-            saga.State = OrderFulfillmentState.Completed;
-            saga.CompletedAt = DateTime.UtcNow;
-            db.Set<OrderFulfillmentSaga>().Remove(saga);
-        }
+        // Saga state lives in Wolverine's own store table, not in the EF model
+        // (see WolverineSagaStateReader): delete the saga row directly. Late
+        // messages for it land in the saga's NotFound handlers by design.
+        await WolverineSagaStateReader.DeleteSagaAsync(db, command.OrderId, ct);
 
         await bus.PublishAsync(
             new OrderStatusChanged(command.OrderId, "Success", "Order marked complete by administrator."));
@@ -163,13 +159,14 @@ public static class AdminRecoveryCommandHandlers
             return;
         }
 
-        var stuckIds = await db.Set<OrderFulfillmentSaga>()
-            .AsNoTracking()
-            .Where(s => s.State == targetState)
+        var stuckIds = (await WolverineSagaStateReader.QuerySagasAsync(
+                db,
+                targetState,
+                command.MaxOrdersToRetry,
+                ct))
             .OrderBy(s => s.StartedAt)
-            .Take(command.MaxOrdersToRetry)
-            .Select(s => s.Id)
-            .ToListAsync(ct);
+            .Select(s => s.OrderId)
+            .ToList();
 
         foreach (var orderId in stuckIds)
         {

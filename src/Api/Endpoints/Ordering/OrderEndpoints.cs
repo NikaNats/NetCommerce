@@ -90,22 +90,27 @@ public class OrderEndpoints : IEndpointGroup
         OrderingDbContext db,
         CancellationToken cancellationToken)
     {
-        var stuckSagas = await db.Set<OrderFulfillmentSaga>()
-            .AsNoTracking()
-            .Where(s => s.State == OrderFulfillmentState.ManualInterventionRequired)
+        // Saga state lives in Wolverine's own store table, not in the EF model
+        // (see WolverineSagaStateReader), so this reads it with raw SQL.
+        var stuckSagas = await WolverineSagaStateReader.QuerySagasAsync(
+            db,
+            OrderFulfillmentState.ManualInterventionRequired,
+            cancellationToken: cancellationToken);
+
+        var dtos = stuckSagas
             .OrderBy(s => s.StartedAt)
             .Select(s => new StuckSagaDto(
-                s.Id,
+                s.OrderId,
                 s.OrderNumber,
                 s.PaymentTransactionId ?? "N/A",
                 s.FailureReason ?? "Unknown reason",
                 s.StartedAt,
                 s.TotalAmount))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return Results.Ok(new StuckSagasResponse(
-            stuckSagas.Count,
-            stuckSagas));
+            dtos.Count,
+            dtos));
     }
 
     private static async Task<IResult> CancelOrder(

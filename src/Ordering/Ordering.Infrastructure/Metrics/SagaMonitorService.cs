@@ -74,45 +74,34 @@ public sealed class SagaMonitorService(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
 
-        // Use AsNoTracking and only select what's needed for efficiency.
-        // Wolverine stores sagas in the wolverine.wolverine_saga table,
-        // but we query via EF Core which maps OrderFulfillmentSaga.
-        var stats = await db.Set<OrderFulfillmentSaga>()
-            .AsNoTracking()
-            .GroupBy(x => x.State)
-            .Select(g => new { State = g.Key, Count = g.LongCount() })
-            .ToListAsync(ct);
+        // Saga state lives in Wolverine's own store table, not in the EF model
+        // (see WolverineSagaStateReader): count live sagas per state in memory.
+        // The live-saga table stays small (completed sagas are deleted).
+        var sagas = await WolverineSagaStateReader.QuerySagasAsync(db, cancellationToken: ct);
+
+        long Count(OrderFulfillmentState state) => sagas.LongCount(s => s.State == state);
 
         // Update the metrics singleton (thread-safe via Interlocked)
         // Active states
-        metrics.ReservingInventoryCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.ReservingInventory)?.Count ?? 0;
+        metrics.ReservingInventoryCount = Count(OrderFulfillmentState.ReservingInventory);
 
-        metrics.InGracePeriodCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.InGracePeriod)?.Count ?? 0;
+        metrics.InGracePeriodCount = Count(OrderFulfillmentState.InGracePeriod);
 
-        metrics.LockingInventoryCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.LockingInventory)?.Count ?? 0;
+        metrics.LockingInventoryCount = Count(OrderFulfillmentState.LockingInventory);
 
-        metrics.ProcessingPaymentCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.ProcessingPayment)?.Count ?? 0;
+        metrics.ProcessingPaymentCount = Count(OrderFulfillmentState.ProcessingPayment);
 
-        metrics.ConfirmingInventoryCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.ConfirmingInventory)?.Count ?? 0;
+        metrics.ConfirmingInventoryCount = Count(OrderFulfillmentState.ConfirmingInventory);
 
-        metrics.CompensatingCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.Compensating)?.Count ?? 0;
+        metrics.CompensatingCount = Count(OrderFulfillmentState.Compensating);
 
         // Terminal states
-        metrics.CompletedCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.Completed)?.Count ?? 0;
+        metrics.CompletedCount = Count(OrderFulfillmentState.Completed);
 
-        metrics.FailedCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.Failed)?.Count ?? 0;
+        metrics.FailedCount = Count(OrderFulfillmentState.Failed);
 
         // The "nightmare" state
-        metrics.ManualInterventionCount = stats
-            .FirstOrDefault(x => x.State == OrderFulfillmentState.ManualInterventionRequired)?.Count ?? 0;
+        metrics.ManualInterventionCount = Count(OrderFulfillmentState.ManualInterventionRequired);
 
         // Also update StuckOrdersCount to match ManualInterventionRequired for backwards compatibility
         metrics.StuckOrdersCount = metrics.ManualInterventionCount;
