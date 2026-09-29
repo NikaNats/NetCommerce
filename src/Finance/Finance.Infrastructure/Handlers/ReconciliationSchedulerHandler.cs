@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Application.Services;
+using NetCommerce.Finance.Infrastructure.Persistence;
 using Wolverine.Attributes;
 
 namespace NetCommerce.Finance.Infrastructure.Handlers;
@@ -16,7 +17,7 @@ public static class ReconciliationSchedulerHandler
     ///     Handle daily reconciliation command.
     ///     Scheduled via cron or called manually by admin.
     /// </summary>
-    [Transactional]
+    [Transactional(typeof(FinanceDbContext))]
     public static async Task Handle(
         CheckDailyReconciliation command,
         ReconciliationEngine engine,

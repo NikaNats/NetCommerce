@@ -20,7 +20,7 @@ public class AuditMiddlewareTests
     {
         // Arrange
         var command = new CancelOrderCommand(Guid.NewGuid(), "Customer requested refund - Item not as described");
-        var envelope = new Envelope { CorrelationId = "correlation_abc123" };
+        var envelope = new Envelope { CorrelationId = "correlation_abc123", Message = command };
 
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
@@ -29,7 +29,7 @@ public class AuditMiddlewareTests
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command, envelope, userContext, auditRepository, logger);
+        await AuditMiddleware.Before(envelope, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(1).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
@@ -51,7 +51,7 @@ public class AuditMiddlewareTests
 
         // Act & Assert - Compliance Rule: Audit failure must block execution
         await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await AuditMiddleware.Before(command, new Envelope(), userContext, auditRepository, logger));
+            await AuditMiddleware.Before(new Envelope { Message = command }, userContext, auditRepository, logger));
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class AuditMiddlewareTests
     {
         // Arrange
         var command = new CancelOrderCommand(Guid.NewGuid(), "Reason");
-        var envelope = new Envelope { CorrelationId = null }; // Missing
+        var envelope = new Envelope { CorrelationId = null, Message = command }; // Missing
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
         userContext.UserId.Returns("user_789");
@@ -67,7 +67,7 @@ public class AuditMiddlewareTests
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command, envelope, userContext, auditRepository, logger);
+        await AuditMiddleware.Before(envelope, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(1).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
@@ -79,7 +79,7 @@ public class AuditMiddlewareTests
         // Arrange
         var orderId = Guid.NewGuid();
         var command = new CancelOrderCommand(orderId, "Fraud Suspected");
-        var envelope = new Envelope();
+        var envelope = new Envelope { Message = command };
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
         userContext.UserId.Returns("user_fraud_check");
@@ -87,7 +87,7 @@ public class AuditMiddlewareTests
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command, envelope, userContext, auditRepository, logger);
+        await AuditMiddleware.Before(envelope, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(1).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
@@ -102,8 +102,8 @@ public class AuditMiddlewareTests
         var command1 = new CancelOrderCommand(orderId1, "Reason 1");
         var command2 = new CancelOrderCommand(orderId2, "Reason 2");
 
-        var envelope1 = new Envelope { CorrelationId = "corr1" };
-        var envelope2 = new Envelope { CorrelationId = "corr2" };
+        var envelope1 = new Envelope { CorrelationId = "corr1", Message = command1 };
+        var envelope2 = new Envelope { CorrelationId = "corr2", Message = command2 };
 
         var auditRepository = Substitute.For<IAuditRepository>();
         var userContext = Substitute.For<IUserContext>();
@@ -112,10 +112,27 @@ public class AuditMiddlewareTests
         var logger = Substitute.For<ILogger<AuditEntry>>();
 
         // Act
-        await AuditMiddleware.Before(command1, envelope1, userContext, auditRepository, logger);
-        await AuditMiddleware.Before(command2, envelope2, userContext, auditRepository, logger);
+        await AuditMiddleware.Before(envelope1, userContext, auditRepository, logger);
+        await AuditMiddleware.Before(envelope2, userContext, auditRepository, logger);
 
         // Assert
         await auditRepository.Received(2).StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AuditMiddleware_NonAuditableMessage_ShouldSkipWithoutStoring()
+    {
+        // Arrange - middleware is registered only for IAuditableCommand chains,
+        // but defensively no-ops for anything else carried by the envelope.
+        var envelope = new Envelope { Message = new object() };
+        var auditRepository = Substitute.For<IAuditRepository>();
+        var userContext = Substitute.For<IUserContext>();
+        var logger = Substitute.For<ILogger<AuditEntry>>();
+
+        // Act
+        await AuditMiddleware.Before(envelope, userContext, auditRepository, logger);
+
+        // Assert
+        await auditRepository.DidNotReceive().StoreAsync(Arg.Any<AuditEntry>(), Arg.Any<CancellationToken>());
     }
 }

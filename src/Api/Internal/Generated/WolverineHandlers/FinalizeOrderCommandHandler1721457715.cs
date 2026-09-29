@@ -10,11 +10,13 @@ namespace Internal.Generated.WolverineHandlers
     public sealed class FinalizeOrderCommandHandler1721457715 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _serviceScopeFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<NetCommerce.Domain.Shared.Events.FinalizeOrderCommand> _loggerForMessage;
         private readonly Microsoft.Extensions.Logging.ILogger<NetCommerce.Ordering.Application.Handlers.PublishOrderReadyForShippingHandler> _loggerOfPublishOrderReadyForShippingHandler;
 
-        public FinalizeOrderCommandHandler1721457715(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory serviceScopeFactory, Microsoft.Extensions.Logging.ILogger<NetCommerce.Ordering.Application.Handlers.PublishOrderReadyForShippingHandler> loggerOfPublishOrderReadyForShippingHandler)
+        public FinalizeOrderCommandHandler1721457715(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory serviceScopeFactory, Microsoft.Extensions.Logging.ILogger<NetCommerce.Domain.Shared.Events.FinalizeOrderCommand> loggerForMessage, Microsoft.Extensions.Logging.ILogger<NetCommerce.Ordering.Application.Handlers.PublishOrderReadyForShippingHandler> loggerOfPublishOrderReadyForShippingHandler)
         {
             _serviceScopeFactory = serviceScopeFactory;
+            _loggerForMessage = loggerForMessage;
             _loggerOfPublishOrderReadyForShippingHandler = loggerOfPublishOrderReadyForShippingHandler;
         }
 
@@ -26,6 +28,12 @@ namespace Internal.Generated.WolverineHandlers
             Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<Wolverine.Runtime.ScopedMessageContextHolder>(serviceScope.ServiceProvider).Context = context;
             
             /*
+            * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext] Lifetime: Scoped ImplementationFactory: ?.?
+            * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
+            */
+            var orderingDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext>(serviceScope.ServiceProvider);
+            
+            /*
             * Dependency: Descriptor: ServiceType: NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext Lifetime: Scoped ImplementationType: NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext
             * 
             * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext] Lifetime: Scoped ImplementationFactory: ?.?
@@ -35,12 +43,14 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var finalizeOrderCommand = (NetCommerce.Domain.Shared.Events.FinalizeOrderCommand)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Ordering.Application.Handlers.PublishOrderReadyForShippingHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Ordering.Application.Handlers.PublishOrderReadyForShippingHandler");
             var publishOrderReadyForShippingHandler = new NetCommerce.Ordering.Application.Handlers.PublishOrderReadyForShippingHandler(orderRepository, _loggerOfPublishOrderReadyForShippingHandler);
             
             // The actual message execution
             var outgoing1 = await publishOrderReadyForShippingHandler.Handle(finalizeOrderCommand, cancellation).ConfigureAwait(false);
+
+            
+            // The actual message execution
+            await NetCommerce.Ordering.Infrastructure.Handlers.SagaOrderCompletionHandlers.Handle(finalizeOrderCommand, orderingDbContext, _loggerForMessage).ConfigureAwait(false);
 
             
             // Outgoing, cascaded message

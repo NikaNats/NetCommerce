@@ -128,7 +128,22 @@ builder.Host.UseWolverineMessaging(
     typeof(ReserveStockCommand),
     typeof(CreateOrderCommand),
     typeof(RefundPaymentTransactionCommand),
-    typeof(CheckDailyReconciliation)
+    typeof(CheckDailyReconciliation),
+
+    // CRITICAL: Wolverine handler discovery is EXPLICIT — every assembly that
+    // hosts message handlers MUST be listed, or its handlers silently do not
+    // exist in Static (production) mode, and every message they handle fails
+    // with IndeterminateRoutesException. Development/Test runs use Auto
+    // discovery against this same assembly set. Keep this list in sync with
+    // the handler assemblies (see IntegrationTestFixture for the test mirror).
+    // Infrastructure assemblies (hosts all command/query handlers):
+    typeof(NetCommerce.Catalog.Infrastructure.Handlers.CreateProductHandler),
+    typeof(NetCommerce.Ordering.Infrastructure.Handlers.CreateOrderHandler),
+    typeof(NetCommerce.Inventory.Infrastructure.Handlers.CreateStockHandler),
+    typeof(NetCommerce.Payments.Infrastructure.Handlers.RefundPaymentTransactionHandler),
+    typeof(NetCommerce.Finance.Infrastructure.Handlers.ReconciliationSchedulerHandler),
+    // Shipping Application (hosts OrderReadyForShippingHandler):
+    typeof(NetCommerce.Shipping.Application.Handlers.OrderReadyForShippingHandler)
 );
 
 // Configure Wolverine options

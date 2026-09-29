@@ -174,9 +174,12 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
 
                 // Include Saga and handler assemblies (Application)
+                // MUST mirror production discovery in src/Api/Program.cs.
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Ordering.Application.Sagas.OrderFulfillmentSaga).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(NetCommerce.Payments.Application.Transactions.Commands.RefundPaymentTransactionCommand).Assembly);
+                opts.Discovery.IncludeAssembly(typeof(NetCommerce.Finance.Application.Commands.CheckDailyReconciliation).Assembly); // Finance.Application
+                opts.Discovery.IncludeAssembly(typeof(NetCommerce.Shipping.Application.Handlers.OrderReadyForShippingHandler).Assembly); // Shipping.Application
 
                 // Include Infrastructure assemblies where Wolverine handlers live
                 opts.Discovery.IncludeAssembly(typeof(CreateProductHandler).Assembly); // Catalog.Infrastructure

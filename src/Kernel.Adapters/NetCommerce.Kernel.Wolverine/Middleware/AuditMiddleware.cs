@@ -16,19 +16,25 @@ public static class AuditMiddleware
 {
     /// <summary>
     /// Wolverine 'Before' middleware: Runs automatically for any IAuditableCommand.
+    /// Takes only Envelope (no message parameter) so static codegen never needs to
+    /// bind an IAuditableCommand variable: JasperFx resolves only the exact message
+    /// type per chain, so both interface-typed and generic message parameters fail
+    /// 'codegen write' with UnResolvableVariableException. The auditable command is
+    /// recovered at runtime via Envelope.Message with an early return for safety.
     /// </summary>
-    /// <param name="command">The message being handled</param>
-    /// <param name="envelope">The wolverine metadata wrapper</param>
+    /// <param name="envelope">The wolverine metadata wrapper (carries the message)</param>
     /// <param name="userContext">Injected user context</param>
     /// <param name="auditRepository">Injected audit repository</param>
     /// <param name="logger">Standard ILogger</param>
     public static async Task Before(
-        AuditCommand command,
         Envelope envelope,
         IUserContext userContext,
         IAuditRepository auditRepository,
         ILogger<AuditEntry> logger)
     {
+        if (envelope.Message is not AuditCommand command)
+            return;
+
         try
         {
             var auditService = new AuditService(auditRepository, userContext);
