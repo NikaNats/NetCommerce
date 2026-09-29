@@ -325,12 +325,29 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     /// <summary>
     ///     Resets the database to a clean state using Respawn.
     ///     Call this before each test.
+    ///     Respawn issues multi-table DELETEs while Wolverine background workers
+    ///     (saga timeouts, outbox polling, cleanup jobs) may hold locks, so a
+    ///     transient 40P01 deadlock / 40001 serialization failure here is a
+    ///     test-isolation flake, not an app bug. Retry with backoff.
     /// </summary>
     public async Task ResetDatabaseAsync()
     {
-        await using var connection = new NpgsqlConnection(PostgresConnectionString);
-        await connection.OpenAsync();
-        await _respawner.ResetAsync(connection);
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await using var connection = new NpgsqlConnection(PostgresConnectionString);
+                await connection.OpenAsync();
+                await _respawner.ResetAsync(connection);
+                return;
+            }
+            catch (PostgresException ex) when (ex.SqlState is "40P01" or "40001" && attempt < maxAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(200 * attempt));
+            }
+        }
     }
 
     /// <summary>
