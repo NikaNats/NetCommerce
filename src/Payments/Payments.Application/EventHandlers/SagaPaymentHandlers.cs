@@ -198,7 +198,11 @@ public static class SagaPaymentHandlers
             }
             else
             {
-                var errorMessage = result.Error?.Description ?? "Refund processing failed";
+                // Prefer the gateway's own reason (transport succeeded, refund declined);
+                // result.Error is empty in that case and would swallow the "why".
+                var errorMessage = result.Value?.ErrorMessage
+                    ?? result.Error?.Description
+                    ?? "Refund processing failed";
                 logger.LogCritical(
                     "CRITICAL: Refund failed for Order {OrderId}. " +
                     "Customer may have been charged without service. Manual intervention required! Reason: {Reason}",

@@ -494,6 +494,14 @@ public class ReservationCleanupJobTests : IDisposable
     ///     Polls until <paramref name="condition"/> holds or <paramref name="timeout"/>
     ///     elapses. Replaces fixed <c>Task.Delay</c> waits around background workers,
     ///     which are inherently racy on loaded CI agents.
+    ///
+    ///     The condition is exception-safe by design: this suite shares ONE SQLite
+    ///     in-memory connection per test (required for DB lifetime), and SQLite connections
+    ///     reject overlapping operations. When the poll read races the job's write, the
+    ///     provider throws (locked/busy) instead of waiting — a transient store-contention
+    ///     signal, not a test failure. Swallowing anything broader here would mask real
+    ///     arrange/assert bugs, so only data-access contention is retried; anything else
+    ///     still fails fast, and persistent contention still trips the timeout below.
     /// </summary>
     private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout, string description)
     {
@@ -501,7 +509,18 @@ public class ReservationCleanupJobTests : IDisposable
 
         while (DateTime.UtcNow < deadline)
         {
-            if (await condition())
+            bool satisfied;
+            try
+            {
+                satisfied = await condition();
+            }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException
+                || ex is InvalidOperationException)
+            {
+                satisfied = false;
+            }
+
+            if (satisfied)
                 return;
 
             await Task.Delay(50);
