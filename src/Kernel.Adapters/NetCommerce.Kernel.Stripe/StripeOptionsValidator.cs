@@ -12,7 +12,7 @@ namespace NetCommerce.Kernel.Stripe;
 ///     Checks apply to Production-like environments (Production + Staging) only,
 ///     so local development, tests, and design-time codegen are unaffected.
 /// </summary>
-public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
+public sealed partial class StripeOptionsValidator : IValidateOptions<StripeOptions>
 {
     private readonly IHostEnvironment _environment;
     private readonly ILogger<StripeOptionsValidator> _logger;
@@ -32,10 +32,7 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
 
         if (string.IsNullOrWhiteSpace(options.SecretKey) || IsPlaceholder(options.SecretKey))
         {
-            _logger.LogCritical(
-                "FATAL: Stripe:SecretKey is missing or a placeholder in {Environment}. " +
-                "Payments cannot be processed. Set a real 'Stripe:SecretKey' before starting.",
-                _environment.EnvironmentName);
+            Log.SecretKeyMissing(_logger, _environment.EnvironmentName);
 
             return ValidateOptionsResult.Fail(
                 "Stripe:SecretKey must be configured with a real key in Production/Staging.");
@@ -43,10 +40,7 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
 
         if (string.IsNullOrWhiteSpace(options.WebhookSecret) || IsPlaceholder(options.WebhookSecret))
         {
-            _logger.LogCritical(
-                "FATAL: Stripe:WebhookSecret is missing or a placeholder in {Environment}. " +
-                "Webhook signatures cannot be verified. Set a real 'Stripe:WebhookSecret' before starting.",
-                _environment.EnvironmentName);
+            Log.WebhookSecretMissing(_logger, _environment.EnvironmentName);
 
             return ValidateOptionsResult.Fail(
                 "Stripe:WebhookSecret must be configured with a real value in Production/Staging.");
@@ -54,20 +48,13 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
 
         if (options.TestMode && _environment.IsProduction() && !options.AllowTestModeInProduction)
         {
-            _logger.LogCritical(
-                "FATAL: Stripe:TestMode is enabled in Production. Test keys move no real money — " +
-                "orders would be fulfilled without payment. Set 'Stripe:TestMode=false' with live keys, " +
-                "or explicitly acknowledge with 'Stripe:AllowTestModeInProduction=true'.");
+            Log.TestModeInProduction(_logger);
 
             return ValidateOptionsResult.Fail(
                 "Stripe:TestMode must be disabled in Production (or explicitly acknowledged via Stripe:AllowTestModeInProduction).");
         }
 
-        _logger.LogInformation(
-            "Stripe options validated: TestMode={TestMode}, Timeout={Timeout}s, MaxRetries={MaxRetries}",
-            options.TestMode,
-            options.TimeoutSeconds,
-            options.MaxRetryAttempts);
+        Log.OptionsValidated(_logger, options.TestMode, options.TimeoutSeconds, options.MaxRetryAttempts);
 
         return ValidateOptionsResult.Success;
     }
@@ -78,5 +65,28 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
             || value.Contains("PLACEHOLDER", StringComparison.OrdinalIgnoreCase)
             || value.Contains("dummy", StringComparison.OrdinalIgnoreCase)
             || value.Contains("CHANGEME", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Zero-allocation log messages (CA1848/CA1873): startup/validation paths use
+    ///     LoggerMessage source generation instead of LoggerExtensions overloads.
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 1, Level = LogLevel.Critical,
+            Message = "FATAL: Stripe:SecretKey is missing or a placeholder in {Environment}. Payments cannot be processed. Set a real 'Stripe:SecretKey' before starting.")]
+        public static partial void SecretKeyMissing(ILogger logger, string environment);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Critical,
+            Message = "FATAL: Stripe:WebhookSecret is missing or a placeholder in {Environment}. Webhook signatures cannot be verified. Set a real 'Stripe:WebhookSecret' before starting.")]
+        public static partial void WebhookSecretMissing(ILogger logger, string environment);
+
+        [LoggerMessage(EventId = 3, Level = LogLevel.Critical,
+            Message = "FATAL: Stripe:TestMode is enabled in Production. Test keys move no real money — orders would be fulfilled without payment. Set 'Stripe:TestMode=false' with live keys, or explicitly acknowledge with 'Stripe:AllowTestModeInProduction=true'.")]
+        public static partial void TestModeInProduction(ILogger logger);
+
+        [LoggerMessage(EventId = 4, Level = LogLevel.Information,
+            Message = "Stripe options validated: TestMode={TestMode}, Timeout={Timeout}s, MaxRetries={MaxRetries}")]
+        public static partial void OptionsValidated(ILogger logger, bool testMode, int timeout, int maxRetries);
     }
 }

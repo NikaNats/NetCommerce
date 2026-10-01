@@ -160,6 +160,8 @@
     <InternalsVisibleTo Include="NetCommerce.Integration.Tests"/>
     <!-- Architecture tests reflect over the internal ApiJsonContext to enforce AOT trim boundaries -->
     <InternalsVisibleTo Include="NetCommerce.Architecture.Tests"/>
+    <!-- LoadTests boots WebApplicationFactory<Program> for self-hosted Kestrel suites -->
+    <InternalsVisibleTo Include="NetCommerce.LoadTests"/>
   </ItemGroup>
 
 </Project>

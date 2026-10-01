@@ -13,8 +13,8 @@ public abstract class BaseRepository<[DynamicallyAccessedMembers(DynamicallyAcce
     where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {
-    protected readonly DbContext Context;
-    protected readonly DbSet<TAggregate> DbSet;
+    protected DbContext Context { get; }
+    protected DbSet<TAggregate> DbSet { get; }
 
     protected BaseRepository(DbContext context)
     {
@@ -24,7 +24,9 @@ public abstract class BaseRepository<[DynamicallyAccessedMembers(DynamicallyAcce
 
     public virtual async Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
     {
-        return await DbSet.FindAsync(id, cancellationToken);
+        // NOTE: [id] (not id) — FindAsync(params object?[]) would otherwise bind the
+        // CancellationToken itself as a second key value and never cancel. CA2016 caught this.
+        return await DbSet.FindAsync([id], cancellationToken);
     }
 
     public virtual async Task<IReadOnlyList<TAggregate>> GetAllAsync(CancellationToken cancellationToken = default)

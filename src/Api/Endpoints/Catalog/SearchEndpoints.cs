@@ -16,8 +16,8 @@ namespace NetCommerce.Api.Endpoints.Catalog;
 /// <summary>
 ///     Instant product search endpoints using Meilisearch.
 ///     Provides
-///     <50ms search latency with typo tolerance, faceting, and highlighting.
-///         Frontend can also query Meilisearch directly ( bypassing . NET API).
+///     &lt;50ms search latency with typo tolerance, faceting, and highlighting.
+///         Frontend can also query Meilisearch directly (bypassing the .NET API).
 /// </summary>
 public sealed class SearchEndpoints : IEndpointGroup
 {
@@ -32,13 +32,13 @@ public sealed class SearchEndpoints : IEndpointGroup
 
         group.MapGet("/", SearchProducts)
             .WithName("SearchProducts")
-            .WithSummary("Search products with instant <50ms latency")
+            .WithSummary("Search products with instant sub-50ms latency")
             .WithDescription("Meilisearch-powered search with typo tolerance, faceting, and highlighting");
     }
 
     /// <summary>
     ///     Search products with typo tolerance, faceting, and highlighting.
-    ///     Returns results in <50ms for excellent UX.
+    ///     Returns results in &lt;50ms for excellent UX.
     /// </summary>
     /// <param name="query">Search query (supports typos, e.g., "laptpo" finds "laptop")</param>
     /// <param name="filter">Meilisearch filter expression (e.g., "Price > 100 AND IsPublished = true")</param>

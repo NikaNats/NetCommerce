@@ -67,7 +67,7 @@ public static class DiscrepancyResolutionHandler
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(command.Action));
+                    throw new ArgumentOutOfRangeException(nameof(command), command.Action, "Unknown discrepancy resolution action.");
             }
 
             // Update session notes with resolution

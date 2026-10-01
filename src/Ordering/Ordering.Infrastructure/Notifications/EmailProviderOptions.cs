@@ -34,5 +34,5 @@ public sealed class EmailProviderOptions
     ///     acceptable in Production-like environments. Without this, booting
     ///     Production with the InMemory provider fails fast.
     /// </summary>
-    public bool AllowInMemoryInProduction { get; set; } = false;
+    public bool AllowInMemoryInProduction { get; set; }
 }

@@ -1,4 +1,5 @@
 #nullable enable
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Kernel.EfCore.Persistence;
@@ -56,7 +57,7 @@ public class OrderRepository : BaseRepository<Order, Guid>, IOrderRepository
     public async Task<string> GenerateOrderNumberAsync(CancellationToken cancellationToken = default)
     {
         // Format: ORD-YYYYMMDD-XXXXX
-        var today = DateTime.UtcNow.ToString("yyyyMMdd");
+        var today = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var prefix = $"ORD-{today}-";
 
         var lastOrder = await DbSet

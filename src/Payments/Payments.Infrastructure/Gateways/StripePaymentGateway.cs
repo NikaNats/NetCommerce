@@ -64,7 +64,7 @@ public class StripePaymentGateway : IPaymentGateway
             var createOptions = new PaymentIntentCreateOptions
             {
                 Amount = (long)(request.Amount.Amount * 100), // Stripe uses cents
-                Currency = request.Amount.Currency.ToLower(),
+                Currency = request.Amount.Currency.ToLowerInvariant(),
                 PaymentMethod = request.PaymentMethodToken,
                 Confirm = true, // Attempt immediate charge
                 CaptureMethod = "automatic", // Auto-capture if succeeded
@@ -264,7 +264,7 @@ public class StripePaymentGateway : IPaymentGateway
 
     private static string MapRefundReason(string? reason)
     {
-        return reason?.ToLower() switch
+        return reason?.ToLowerInvariant() switch
         {
             "duplicate" => "duplicate",
             "fraudulent" => "fraudulent",

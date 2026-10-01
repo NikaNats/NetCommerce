@@ -38,7 +38,7 @@ public sealed class ShippingService : IShippingService
     public async Task<Result<ShippingLabelDto>> CreateLabelAsync(
         Guid orderId,
         string orderNumber,
-        ShippingAddressDto addressDto,
+        ShippingAddressDto address,
         IReadOnlyList<ShippingItemDto> items,
         string? preferredCourier = null,
         CancellationToken cancellationToken = default)
@@ -65,18 +65,18 @@ public sealed class ShippingService : IShippingService
             var dimensions = new ShipmentDimensions(30, 20, 15);
 
             // Map DTO to domain Address
-            var address = new Address(
-                addressDto.RecipientName,
-                addressDto.Street,
-                addressDto.City,
-                addressDto.State,
-                addressDto.Country,
-                addressDto.PostalCode,
-                addressDto.Phone);
+            var domainAddress = new Address(
+                address.RecipientName,
+                address.Street,
+                address.City,
+                address.State,
+                address.Country,
+                address.PostalCode,
+                address.Phone);
 
             // Call courier API
             var labelResult = await adapter.CreateLabelAsync(
-                address,
+                domainAddress,
                 totalWeight,
                 dimensions,
                 cancellationToken);
@@ -86,7 +86,7 @@ public sealed class ShippingService : IShippingService
                 orderId,
                 labelResult.TrackingNumber,
                 adapter.CourierName,
-                address,
+                domainAddress,
                 totalWeight,
                 dimensions,
                 labelResult.EstimatedDeliveryDate);

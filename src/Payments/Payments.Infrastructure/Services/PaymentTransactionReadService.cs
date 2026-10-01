@@ -36,10 +36,10 @@ public sealed class PaymentTransactionReadService : IPaymentTransactionReadServi
     }
 
     public async Task<IReadOnlyList<PaymentTransactionSummary>> GetCompletedByDateAsync(
-        DateTime date,
+        DateTime businessDate,
         CancellationToken cancellationToken = default)
     {
-        var startOfDay = date.Date;
+        var startOfDay = businessDate.Date;
         var endOfDay = startOfDay.AddDays(1);
 
         return await _context.Set<PaymentTransaction>()

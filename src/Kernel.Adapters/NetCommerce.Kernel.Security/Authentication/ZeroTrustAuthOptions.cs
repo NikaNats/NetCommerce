@@ -54,7 +54,7 @@ public sealed class ZeroTrustAuthOptions
     ///     When true, every request validates the token against the identity provider.
     ///     Default: false (enable in production for 2025+ security standards).
     /// </summary>
-    public bool IntrospectionEnabled { get; set; } = false;
+    public bool IntrospectionEnabled { get; set; }
 
     /// <summary>
     ///     Gets or sets the introspection cache duration in seconds.

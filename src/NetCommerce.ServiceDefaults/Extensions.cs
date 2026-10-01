@@ -28,7 +28,10 @@ public static class Extensions
 
         // 1. Register a singleton to hold ActivitySource and Meter.
         // Documentation recommends a custom type to avoid type collisions and frequent recreation.
+        // CA2000 is a false positive here: ownership transfers to the DI container, which disposes singletons.
+#pragma warning disable CA2000 // Dispose objects before losing scope: owned by DI container
         builder.Services.AddSingleton(new ServiceInstrumentation(serviceName));
+#pragma warning restore CA2000
 
         // 2. Configure Unified OpenTelemetry SDK
         builder.Services.AddOpenTelemetry()

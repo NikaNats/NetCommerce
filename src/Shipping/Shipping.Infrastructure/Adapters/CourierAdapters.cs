@@ -29,7 +29,7 @@ public sealed class CourierOptions
     ///     Production (e.g. no courier contract yet). Without this, booting
     ///     Production-like environments with <see cref="UseMockMode"/> fails fast.
     /// </summary>
-    public bool AllowMockInProduction { get; set; } = false;
+    public bool AllowMockInProduction { get; set; }
 }
 
 public sealed class DhlOptions

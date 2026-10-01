@@ -208,6 +208,14 @@ public static class SagaPaymentHandlers
                 return new RefundFailed(command.OrderId, errorMessage);
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Shutdown/cancellation is NOT a refund outcome: rethrow so Wolverine re-delivers.
+            // Converting cancellation into RefundFailed would lie to the saga and trigger
+            // wrongful manual-intervention escalation.
+            throw;
+        }
+#pragma warning disable CA1031 // General catch is the saga contract: an unconfirmed refund must surface as RefundFailed so compensation escalates instead of stalling the saga forever
         catch (Exception ex)
         {
             logger.LogCritical(ex,
@@ -217,5 +225,6 @@ public static class SagaPaymentHandlers
 
             return new RefundFailed(command.OrderId, ex.Message);
         }
+#pragma warning restore CA1031
     }
 }

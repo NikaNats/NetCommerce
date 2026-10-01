@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -177,7 +178,7 @@ public sealed class AzureBlobStorageService : IStorageService
 
     private static string GenerateSafeKey(string folder, string safeFileName)
     {
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd");
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var sanitizedFolder = folder.Trim('/').Replace('\\', '/');
         return $"{sanitizedFolder}/{timestamp}/{safeFileName}";
     }

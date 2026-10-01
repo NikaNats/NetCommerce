@@ -36,8 +36,8 @@ public class PiiEncryptionConverter : ValueConverter<string, string>
     {
         if (string.IsNullOrEmpty(encrypted)) return string.Empty;
 
-        // Backward compatibility check
-        if (!encrypted.StartsWith("v")) return encrypted;
+        // Backward compatibility check (char overload is ordinal by definition)
+        if (!encrypted.StartsWith('v')) return encrypted;
 
         // FIX: Use Core namespace, not Compliance
         var data = NetCommerce.Kernel.Core.Encryption.EncryptedData.FromStorageFormat(encrypted);

@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Stripe;
@@ -36,7 +37,7 @@ public sealed class StripeOptions
     ///     (e.g. a test merchant account). Required to boot Production with
     ///     <see cref="TestMode"/> enabled; prevents silently processing fake money.
     /// </summary>
-    public bool AllowTestModeInProduction { get; set; } = false;
+    public bool AllowTestModeInProduction { get; set; }
 
     /// <summary>
     ///     HTTP timeout for Stripe API calls in seconds.
@@ -52,7 +53,7 @@ public sealed class StripeOptions
 /// <summary>
 ///     Shared Stripe client factory that configures Stripe SDK with proper settings.
 /// </summary>
-public sealed class StripeClientFactory : IDisposable
+public sealed partial class StripeClientFactory : IDisposable
 {
     private readonly ILogger<StripeClientFactory> _logger;
     private readonly StripeOptions _options;
@@ -72,10 +73,7 @@ public sealed class StripeClientFactory : IDisposable
             apiKey: _options.SecretKey,
             httpClient: new SystemNetHttpClient(maxNetworkRetries: _options.MaxRetryAttempts));
 
-        _logger.LogInformation(
-            "Stripe client initialized. TestMode={TestMode}, MaxRetries={MaxRetries}",
-            _options.TestMode,
-            _options.MaxRetryAttempts);
+        Log.ClientInitialized(_logger, _options.TestMode, _options.MaxRetryAttempts);
     }
 
     /// <summary>
@@ -119,7 +117,7 @@ public sealed class StripeClientFactory : IDisposable
     {
         if (string.IsNullOrEmpty(_options.WebhookSecret))
         {
-            _logger.LogWarning("Webhook secret not configured - skipping signature verification in test mode");
+            Log.WebhookSecretNotConfigured(_logger);
             return EventUtility.ParseEvent(json);
         }
 
@@ -129,11 +127,26 @@ public sealed class StripeClientFactory : IDisposable
     /// <summary>
     ///     Check if running in test mode.
     /// </summary>
-    public bool IsTestMode => _options.TestMode || _options.SecretKey.StartsWith("sk_test_");
+    public bool IsTestMode => _options.TestMode || _options.SecretKey.StartsWith("sk_test_", StringComparison.Ordinal);
 
     public void Dispose()
     {
         // StripeClient doesn't implement IDisposable but we might add cleanup here
+    }
+
+    /// <summary>
+    ///     Zero-allocation log messages (CA1848/CA1873): LoggerMessage source generation
+    ///     instead of LoggerExtensions overloads.
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(EventId = 1, Level = LogLevel.Information,
+            Message = "Stripe client initialized. TestMode={TestMode}, MaxRetries={MaxRetries}")]
+        public static partial void ClientInitialized(ILogger logger, bool testMode, int maxRetries);
+
+        [LoggerMessage(EventId = 2, Level = LogLevel.Warning,
+            Message = "Webhook secret not configured - skipping signature verification in test mode")]
+        public static partial void WebhookSecretNotConfigured(ILogger logger);
     }
 }
 

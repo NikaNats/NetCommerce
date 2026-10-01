@@ -40,8 +40,7 @@ public class RedisKillScriptTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         // Bind to standard Redis port 6379 so the running API's default connection string is targeted
-        _redisContainer = new RedisBuilder()
-            .WithImage("redis:8-alpine")
+        _redisContainer = new RedisBuilder("redis:8-alpine")
             .WithPortBinding(6379, 6379)
             .Build();
 

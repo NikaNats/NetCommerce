@@ -50,12 +50,12 @@ public class SimpleTemplateEngine : ITemplateEngine
         sb.AppendLine("<html>");
         sb.AppendLine("<head><title>Order Confirmation</title></head>");
         sb.AppendLine("<body style='font-family: Arial, sans-serif; padding: 20px;'>");
-        sb.AppendLine($"<h1>Thank you for your order, {customerName}!</h1>");
-        sb.AppendLine($"<p>Your order <strong>{orderNumber}</strong> has been confirmed.</p>");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"<h1>Thank you for your order, {customerName}!</h1>");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"<p>Your order <strong>{orderNumber}</strong> has been confirmed.</p>");
         sb.AppendLine("<div style='background-color: #f0f0f0; padding: 15px; margin: 20px 0;'>");
-        sb.AppendLine($"<p><strong>Order ID:</strong> {orderId}</p>");
-        sb.AppendLine($"<p><strong>Order Number:</strong> {orderNumber}</p>");
-        sb.AppendLine($"<p><strong>Total Amount:</strong> {formattedAmount} {currency}</p>");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"<p><strong>Order ID:</strong> {orderId}</p>");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"<p><strong>Order Number:</strong> {orderNumber}</p>");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"<p><strong>Total Amount:</strong> {formattedAmount} {currency}</p>");
         sb.AppendLine("</div>");
         sb.AppendLine("<p>We'll send you another email when your order ships.</p>");
         sb.AppendLine("<p>If you have any questions, please contact our support team.</p>");

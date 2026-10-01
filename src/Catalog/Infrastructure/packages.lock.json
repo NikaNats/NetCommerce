@@ -137,22 +137,6 @@
         "resolved": "4.0.0",
         "contentHash": "dms0JfLKC9AQbQX/EdpRjn59EjEvaCxIgv1z9YxbEQb5SiOVoo7vlIKdEySeEwUkWhN05rZnNpUpG+aw5VqPVQ=="
       },
-      "JasperFx": {
-        "type": "Transitive",
-        "resolved": "2.74.0",
-        "contentHash": "HAQNeLQ+sz5k2lUPZSTbIqY07cKOkX10PgMwkYZG0ldDjt7q9cTcUS+5KMb+mdUGEEpm2EBPIfPOB/jhfGFVsw==",
-        "dependencies": {
-          "FastExpressionCompiler": "5.4.1",
-          "ImTools": "4.0.0",
-          "Microsoft.Bcl.TimeProvider": "10.0.0",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
-          "Microsoft.Extensions.Hosting": "10.0.0",
-          "Microsoft.Extensions.ObjectPool": "10.0.0",
-          "Polly.Core": "8.6.5",
-          "Spectre.Console": "0.55.0"
-        }
-      },
       "JasperFx.Events": {
         "type": "Transitive",
         "resolved": "2.74.0",
@@ -868,6 +852,23 @@
         "requested": "[12.1.1, )",
         "resolved": "12.1.1",
         "contentHash": "EPpkIe1yh1a0OXyC100oOA8WMbZvqUu5plwhvYcb7oSELfyUZzfxV48BLhvs3kKo4NwG7MGLNgy1RJiYtT8Dpw=="
+      },
+      "JasperFx": {
+        "type": "CentralTransitive",
+        "requested": "[2.74.0, )",
+        "resolved": "2.74.0",
+        "contentHash": "HAQNeLQ+sz5k2lUPZSTbIqY07cKOkX10PgMwkYZG0ldDjt7q9cTcUS+5KMb+mdUGEEpm2EBPIfPOB/jhfGFVsw==",
+        "dependencies": {
+          "FastExpressionCompiler": "5.4.1",
+          "ImTools": "4.0.0",
+          "Microsoft.Bcl.TimeProvider": "10.0.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions": "10.0.0",
+          "Microsoft.Extensions.Hosting": "10.0.0",
+          "Microsoft.Extensions.ObjectPool": "10.0.0",
+          "Polly.Core": "8.6.5",
+          "Spectre.Console": "0.55.0"
+        }
       },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",

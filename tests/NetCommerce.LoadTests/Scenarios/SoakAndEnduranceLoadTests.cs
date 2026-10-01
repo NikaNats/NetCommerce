@@ -5,17 +5,90 @@ using System.Text;
 using System.Text.Json;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
+using NetCommerce.LoadTests.Fixtures;
 using Shouldly;
 
 namespace NetCommerce.LoadTests.Scenarios;
 
 /// <summary>
-///     2026 Production-Readiness Soak & Endurance Testing Suite.
+///     2026 Production-Readiness Soak &amp; Endurance Testing Suite.
 ///     Applies steady-state traffic (200-500 RPS) over extended durations (1h - 48h)
 ///     to detect memory leaks, Npgsql connection pool exhaustion, and Redis degradation.
 /// </summary>
+[Collection(nameof(LoadTestCollection))]
 public sealed class SoakAndEnduranceLoadTests
 {
+    private readonly LoadTestHostFixture _fixture;
+
+    public SoakAndEnduranceLoadTests(LoadTestHostFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    private static int EnvInt(string name, int @default) =>
+        int.TryParse(Environment.GetEnvironmentVariable(name), out var v) ? v : @default;
+
+    /// <summary>
+    ///     Automated endurance smoke: catalog reads at steady RPS against the
+    ///     self-bootstrapped host. Fast CI profile (10s/50rps) by default; scales via
+    ///     SOAK_DURATION_SECONDS / SOAK_TARGET_RPS for scheduled multi-hour runs.
+    ///     The full 24h mixed-profile suite below stays manual for staging.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "AutomatedLoadTest")]
+    public void ContinuousLoad_Smoke_ShouldMaintainResourceEquilibrium()
+    {
+        var soakSeconds = EnvInt("SOAK_DURATION_SECONDS", 10);
+        var targetRps = EnvInt("SOAK_TARGET_RPS", 50);
+
+        // Factory-routed client: full in-process pipeline (see fixture transport note).
+        using var httpClient = _fixture.CreateClient();
+
+        var poolErrors = 0;
+        var totalRequests = 0L;
+        var requestCounter = 0;
+        // Shard rate-limit partitions like distinct prod users (see fixture header doc).
+        var userPool = Math.Max(targetRps * 5, 50);
+
+        var catalogScenario = Scenario.Create("automated_catalog_soak", async context =>
+        {
+            var page = Random.Shared.Next(1, 5);
+            var n = Interlocked.Increment(ref requestCounter);
+            var request = Http.CreateRequest("GET", $"/api/v1/products?page={page}&pageSize=20")
+                .WithHeader(LoadTestHostFixture.LoadTestUserHeader, $"soak-user-{n % userPool}")
+                .WithHeader("X-Forwarded-For", LoadTestHostFixture.VirtualClientIp(n));
+
+            var response = await Http.Send(httpClient, request);
+            Interlocked.Increment(ref totalRequests);
+
+            if (response.IsError)
+            {
+                if (response.Message?.Contains("connection pool", StringComparison.OrdinalIgnoreCase) == true)
+                    Interlocked.Increment(ref poolErrors);
+
+                return Response.Fail(statusCode: response.StatusCode);
+            }
+
+            return Response.Ok(statusCode: response.StatusCode);
+        })
+        .WithoutWarmUp()
+        .WithLoadSimulations(
+            Simulation.Inject(
+                rate: targetRps,
+                interval: TimeSpan.FromSeconds(1),
+                during: TimeSpan.FromSeconds(soakSeconds))
+        );
+
+        var stats = NBomberRunner
+            .RegisterScenarios(catalogScenario)
+            .WithReportFolder(LoadTestHostFixture.ReportFolder("soak-smoke"))
+            .Run();
+
+        poolErrors.ShouldBe(0, $"Npgsql connection pool leak during {soakSeconds}s endurance smoke!");
+        stats.ScenarioStats[0].Fail.Request.Count.ShouldBe(0, "Failures during catalog soak smoke.");
+        totalRequests.ShouldBeGreaterThan(0, "Smoke generated no requests.");
+    }
+
     private static readonly string ApiBaseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5000";
     private static readonly int SoakDurationHours = int.TryParse(Environment.GetEnvironmentVariable("SOAK_DURATION_HOURS"), out var hours) ? hours : 24;
     private static readonly int TargetRps = int.TryParse(Environment.GetEnvironmentVariable("SOAK_TARGET_RPS"), out var rps) ? rps : 250;

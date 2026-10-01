@@ -39,9 +39,21 @@ namespace Internal.Generated.WolverineHandlers
             * The service registration for NetCommerce.Kernel.Application.IUnitOfWork is an 'opaque' lambda factory with the Scoped lifetime and requires service location
             */
             var shippingService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Shipping.Application.Services.IShippingService>(serviceScope.ServiceProvider);
+            
+            /*
+            * Dependency: Descriptor: ServiceType: Microsoft.EntityFrameworkCore.DbContextOptions"1[NetCommerce.Shipping.Infrastructure.Persistence.ShippingDbContext] Lifetime: Scoped ImplementationFactory: ?.?
+            * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Shipping.Infrastructure.Persistence.ShippingDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
+            */
+            var shippingDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Shipping.Infrastructure.Persistence.ShippingDbContext>(serviceScope.ServiceProvider);
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             // The actual message body
             var orderReadyForShipping = (NetCommerce.Domain.Shared.Events.OrderReadyForShipping)context.Envelope.Message;
 
+            
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
+            var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(shippingDbContext, context, domainEventScraperIEnumerable);
+            await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
             System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Shipping.Application.Handlers.OrderReadyForShippingHandler");
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Shipping.Application.Handlers.OrderReadyForShippingHandler");
             var orderReadyForShippingHandler = new NetCommerce.Shipping.Application.Handlers.OrderReadyForShippingHandler(shippingService, _loggerOfOrderReadyForShippingHandler);
@@ -52,6 +64,24 @@ namespace Internal.Generated.WolverineHandlers
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await shippingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
+            {
+                await scraper.ScrapeEvents(shippingDbContext, context).ConfigureAwait(false);
+            }
+
+            // GH-3744: persist any envelopes the scrape just tracked
+            await shippingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (shippingDbContext.Database.CurrentTransaction != null)
+            {
+                await shippingDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
+            }
 
         }
 

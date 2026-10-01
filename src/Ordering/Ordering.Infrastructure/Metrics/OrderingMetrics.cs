@@ -60,9 +60,14 @@ public sealed class OrderingMetrics
     private long _completedTotal; // Cumulative completed orders (since restart)
     private long _failedTotal; // Cumulative failed orders (since restart)
 
+    // CA2000: the Meter outlives the constructor (observable instruments callback into
+    // this instance for the process lifetime); ownership belongs to this singleton service.
+    private readonly Meter _meter;
+
     public OrderingMetrics(IMeterFactory meterFactory)
     {
-        var meter = meterFactory.Create(MeterName);
+        _meter = meterFactory.Create(MeterName);
+        var meter = _meter;
 
         // ═══════════════════════════════════════════════════════════════
         // Gauge #0: Total Active Sagas (Single Number for Dashboards)

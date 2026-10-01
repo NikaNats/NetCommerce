@@ -94,6 +94,14 @@ public class PaymentWebhookTests : IntegrationTestBase
         _client = _factory.CreateClient();
     }
 
+    // CA2213: own what you create — the factory and client are per-test server resources.
+    public override async ValueTask DisposeAsync()
+    {
+        _client.Dispose();
+        await _factory.DisposeAsync();
+        await base.DisposeAsync();
+    }
+
     [Fact(Skip = "Covered by PaymentWebhookContractTests")]
     public async Task WebhookEndpoint_ValidSignature_ShouldReturn200()
     {

@@ -29,11 +29,11 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<PaymentTransaction?> GetByExternalIdAsync(string externalTransactionId,
+    public async Task<PaymentTransaction?> GetByExternalIdAsync(string externalId,
         CancellationToken cancellationToken = default)
     {
         return await DbSet
-            .FirstOrDefaultAsync(pt => pt.ExternalTransactionId == externalTransactionId, cancellationToken);
+            .FirstOrDefaultAsync(pt => pt.ExternalTransactionId == externalId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<PaymentTransaction>> GetPendingPaymentsAsync(
@@ -48,10 +48,10 @@ public class PaymentTransactionRepository : BaseRepository<PaymentTransaction, G
     }
 
     public async Task<IReadOnlyList<PaymentTransaction>> GetCompletedByDateAsync(
-        DateTime date,
+        DateTime businessDate,
         CancellationToken cancellationToken = default)
     {
-        var startOfDay = date.Date;
+        var startOfDay = businessDate.Date;
         var endOfDay = startOfDay.AddDays(1);
 
         return await DbSet

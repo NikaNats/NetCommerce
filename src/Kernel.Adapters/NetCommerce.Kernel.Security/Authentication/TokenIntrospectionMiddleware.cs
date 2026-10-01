@@ -123,7 +123,7 @@ public sealed class TokenIntrospectionMiddleware
             var client = clientFactory.CreateClient("KeycloakIntrospection");
 
             // RFC 7662 compliant introspection request
-            var request = new HttpRequestMessage(HttpMethod.Post, options.IntrospectionEndpoint);
+            using var request = new HttpRequestMessage(HttpMethod.Post, options.IntrospectionEndpoint);
 
             var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {

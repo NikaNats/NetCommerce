@@ -1,4 +1,5 @@
 #nullable enable
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -56,7 +57,7 @@ public sealed record EncryptedData(
         // Parse version (first part, format: v{version})
         if (parts[0].StartsWith('v'))
         {
-            version = int.Parse(parts[0][1..]);
+            version = int.Parse(parts[0][1..], CultureInfo.InvariantCulture);
         }
 
         // Parse algorithm metadata (second part, format: a{algorithmType}:{algorithmVersion})
@@ -67,7 +68,7 @@ public sealed record EncryptedData(
             if (algorithmParts.Length == 2)
             {
                 algorithmType = algorithmParts[0];
-                algorithmVersion = int.Parse(algorithmParts[1]);
+                algorithmVersion = int.Parse(algorithmParts[1], CultureInfo.InvariantCulture);
             }
         }
 

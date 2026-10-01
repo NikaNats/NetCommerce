@@ -236,7 +236,7 @@ public static class CriticalFinancialAlertHandler
         try
         {
             await emailProvider.SendEmailAsync(
-                to: recipientEmail,
+                recipient: recipientEmail,
                 subject: subject,
                 htmlBody: htmlBody,
                 cancellationToken: ct);

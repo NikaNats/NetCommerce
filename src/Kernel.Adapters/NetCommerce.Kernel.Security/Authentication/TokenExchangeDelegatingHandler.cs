@@ -152,7 +152,7 @@ public sealed class TokenExchangeDelegatingHandler : DelegatingHandler
             var client = _clientFactory.CreateClient("KeycloakTokenExchange");
 
             // RFC 8693 Token Exchange request
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "urn:ietf:params:oauth:grant-type:token-exchange",
                 ["client_id"] = authOptions.ClientId,

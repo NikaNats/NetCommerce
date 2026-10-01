@@ -31,9 +31,15 @@ namespace Internal.Generated.WolverineHandlers
             * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
             */
             var paymentsDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Payments.Infrastructure.Persistence.PaymentsDbContext>(serviceScope.ServiceProvider);
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             // The actual message body
             var refundPaymentTransactionCommand = (NetCommerce.Payments.Application.Transactions.Commands.RefundPaymentTransactionCommand)context.Envelope.Message;
 
+            
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
+            var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(paymentsDbContext, context, domainEventScraperIEnumerable);
+            await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
             System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Payments.Infrastructure.Handlers.RefundPaymentTransactionHandler");
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Payments.Infrastructure.Handlers.RefundPaymentTransactionHandler");
             
@@ -43,6 +49,24 @@ namespace Internal.Generated.WolverineHandlers
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await paymentsDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
+            {
+                await scraper.ScrapeEvents(paymentsDbContext, context).ConfigureAwait(false);
+            }
+
+            // GH-3744: persist any envelopes the scrape just tracked
+            await paymentsDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (paymentsDbContext.Database.CurrentTransaction != null)
+            {
+                await paymentsDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
+            }
 
         }
 

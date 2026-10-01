@@ -8,6 +8,12 @@
     <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 
+  <!-- AspNetCore server types (ForwardedHeadersOptions for the load-test proxy trust).
+       The SDK-style test project otherwise lacks the shared framework. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
@@ -25,11 +31,17 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="NBomber" />
     <PackageReference Include="NBomber.Http" />
+
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NSubstitute" />
+    <!-- WebApplicationFactory + TestServer/TestHost for the self-bootstrapping fixture -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Oakton entry-point interop flag (JasperFxEnvironment.AutoStartHost) for WAF boot -->
+    <PackageReference Include="JasperFx" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Api\NetCommerce.Api.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Domain\Inventory.Domain.csproj" />
     <ProjectReference Include="..\..\src\Inventory\Inventory.Infrastructure\Inventory.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Kernel\NetCommerce.Kernel.Core\NetCommerce.Kernel.Core.csproj" />

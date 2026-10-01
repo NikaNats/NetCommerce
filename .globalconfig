@@ -7,8 +7,19 @@ is_global = true
 global_level = 100
 
 # Philosophy: Treat resource leaks, security flaws, and performance anti-patterns as build errors.
+# Pure style (IDE) rules are suggestions: enforced via `dotnet format`, never as compiler errors.
+# (Promoting style to errors is what forced the original blanket <NoWarn> suppression.)
 dotnet_analyzer_diagnostic.severity = default
-generated_code = true
+dotnet_analyzer_diagnostic.category-Style.severity = suggestion
+generated_code = false
+
+# VSTHRD (VS-threading analyzers target VS extensions with JoinableTaskFactory, not ASP.NET Core).
+# VSTHRD111 (ConfigureAwait) directly contradicts this repo's CA2007=none policy: ASP.NET Core has
+# no SynchronizationContext, so ConfigureAwait is noise. Disabled as misapplied, not suppressed as debt.
+dotnet_diagnostic.VSTHRD111.severity = none
+dotnet_diagnostic.VSTHRD003.severity = none
+dotnet_diagnostic.VSTHRD103.severity = none
+dotnet_diagnostic.VSTHRD200.severity = none
 
 #############################################
 # 1. STABILITY & RESOURCE MANAGEMENT
@@ -20,8 +31,8 @@ dotnet_diagnostic.CA2000.severity = error
 # CA1001, CA1063, CA2213, CA2215: IDisposable lifecycle integrity
 dotnet_diagnostic.CA1001.severity = warning
 dotnet_diagnostic.CA1063.severity = warning
-dotnet_diagnostic.CA2213.severity = warning
-dotnet_diagnostic.CA2215.severity = warning
+dotnet_diagnostic.CA2213.severity = error
+dotnet_diagnostic.CA2215.severity = error
 
 # CA2011: Do not assign property within its setter (Prevents StackOverflow)
 dotnet_diagnostic.CA2011.severity = error
@@ -116,6 +127,17 @@ dotnet_diagnostic.CA5394.severity = warning
 # 6. DATA INTEGRITY & EXCEPTIONS
 #############################################
 
+# CA1031: governed by .editorconfig — suggestion globally ([*.cs]), error in
+# Domain/Application. Background loops already implement OCE-first + boundary catch.
+dotnet_diagnostic.CA1031.severity = suggestion
+
+# CA1848/CA1873: LoggerMessage zero-alloc logging. Suggestion (not error): the 100+ existing
+# call sites are cold paths (startup validators, health probes, auth fallbacks); migration is
+# tracked perf backlog, enforced for new hot-path code in review. Suggestion keeps every site
+# VISIBLE in the IDE — unlike <NoWarn>, which blinded them entirely.
+dotnet_diagnostic.CA1848.severity = suggestion
+dotnet_diagnostic.CA1873.severity = suggestion
+
 # CA2201: Do not throw reserved exception types (e.g. System.Exception, System.ApplicationException)
 dotnet_diagnostic.CA2201.severity = warning
 
@@ -153,6 +175,13 @@ dotnet_diagnostic.CA1416.severity = error
 dotnet_diagnostic.IL3000.severity = error
 dotnet_diagnostic.IL3001.severity = error
 
+# IL2026/IL3050: Trimming & AOT boundaries (do not hide - build blockers for executables)
+dotnet_diagnostic.IL2026.severity = error
+dotnet_diagnostic.IL3050.severity = error
+dotnet_diagnostic.IL2070.severity = warning
+dotnet_diagnostic.IL2071.severity = warning
+dotnet_diagnostic.IL2075.severity = warning
+
 #############################################
 # 9. EXPLICITLY DISABLED (NOISE CONTROL)
 #############################################
@@ -160,3 +189,8 @@ dotnet_diagnostic.IL3001.severity = error
 dotnet_diagnostic.CA1014.severity = none  # CLSCompliant is legacy
 dotnet_diagnostic.CA1040.severity = none  # Empty marker interfaces are valid
 dotnet_diagnostic.CA1062.severity = none  # Handled by NRT (CS8600-CS8604)
+dotnet_diagnostic.CA1000.severity = none  # Static factories / static abstracts on generics (Pagination<T>, IStronglyTypedId<T>) are the architecture's pattern, not a flaw
+dotnet_diagnostic.CA1716.severity = none  # C#-only codebase: Shared/Module/Error are established DDD ubiquitous language; cross-language keyword compat has zero value here
+dotnet_diagnostic.CA1711.severity = none  # Wolverine *EventHandler/*Handler + domain ProductAttribute naming are framework/ubiquitous conventions, not .NET-attribute confusion
+dotnet_diagnostic.AV0011.severity = none  # Explicit DefaultApiVersion=1.0 + AssumeDefaultVersionWhenUnspecified is intentional
+dotnet_diagnostic.ASPIRE010.severity = none  # Aspire CLI bundle intentionally disabled; AppHost runs without it

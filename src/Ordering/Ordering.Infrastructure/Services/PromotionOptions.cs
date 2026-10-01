@@ -38,5 +38,5 @@ public sealed class PromotionOptions
     ///     Explicit acknowledgment that the active coupon table has been reviewed
     ///     by marketing/finance for Production use.
     /// </summary>
-    public bool AcknowledgedInProduction { get; set; } = false;
+    public bool AcknowledgedInProduction { get; set; }
 }

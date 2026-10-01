@@ -122,7 +122,7 @@ public sealed class AdminElevatedAuthorizationHandler
             Encoding.UTF8.GetBytes(_options.ApiKey));
     }
 
-    private bool HasFreshAuthTime(
+    private static bool HasFreshAuthTime(
         AuthorizationHandlerContext context,
         AdminElevatedRequirement requirement)
     {
@@ -165,10 +165,12 @@ public sealed class AdminElevatedEndpointFilter : IEndpointFilter
         _logger = logger;
     }
 
-    // Backward compat overload
+    // Backward compat overload (intentionally consumes obsolete AdminApiKeyOptions during migration window)
+#pragma warning disable CS0618 // Type is obsolete: compat shim only, will be removed in v2.0
     public AdminElevatedEndpointFilter(
         IOptions<AdminApiKeyOptions> apiKeyOptions,
         int maxAuthAgeMinutes = 15)
+#pragma warning restore CS0618
     {
         _options = new AdminElevatedAuthOptions
         {

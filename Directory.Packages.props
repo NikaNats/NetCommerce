@@ -7,6 +7,8 @@
   <ItemGroup Label="Core">
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.10.0" />
     <PackageVersion Include="Oakton" Version="6.3.0" />
+    <!-- JasperFx host-bootstrap interop for WebApplicationFactory suites (matches transitively resolved 2.74.0) -->
+    <PackageVersion Include="JasperFx" Version="2.74.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Process" Version="1.18.0-rc.1" />
     <PackageVersion Include="OpenTelemetry.Resources.Process" Version="1.18.0-rc.1" />
     <PackageVersion Include="WolverineFx" Version="6.41.0" />

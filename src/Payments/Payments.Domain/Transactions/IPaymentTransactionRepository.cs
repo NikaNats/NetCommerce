@@ -26,6 +26,6 @@ public interface IPaymentTransactionRepository : IRepository<PaymentTransaction,
     /// Used by Financial Reconciliation System for comparing internal vs external ledgers.
     /// </summary>
     Task<IReadOnlyList<PaymentTransaction>> GetCompletedByDateAsync(
-        DateTime date,
+        DateTime businessDate,
         CancellationToken cancellationToken = default);
 }

@@ -115,11 +115,19 @@ public sealed class ReconciliationEngine
             await PublishCriticalAlertsAsync(session, ct);
 
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Graceful shutdown: mark failed (not completed) so the next T+1 run picks
+            // this date up again. Do NOT rethrow: the session must still be persisted below.
+            session.MarkAsFailed("Cancelled during shutdown.");
+        }
+#pragma warning disable CA1031 // Job boundary: the session audit must persist even on unexpected failure; an unhandled throw would lose the audit trail and poison the schedule
         catch (Exception ex)
         {
             _logger.LogError(ex, "Reconciliation failed for {Date}", date);
             session.MarkAsFailed(ex.Message);
         }
+#pragma warning restore CA1031
 
         // 8. Save session regardless of outcome
         await _sessionRepo.AddAsync(session, ct);
@@ -128,7 +136,7 @@ public sealed class ReconciliationEngine
         await _unitOfWork.SaveChangesAsync(ct);
     }
 
-    private async Task PerformInternalToExternalComparisonAsync(
+    private static async Task PerformInternalToExternalComparisonAsync(
         IReadOnlyList<PaymentTransactionSummary> internalTxns,
         IReadOnlyList<ExternalTransaction> externalTxns,
         ReconciliationSession session,

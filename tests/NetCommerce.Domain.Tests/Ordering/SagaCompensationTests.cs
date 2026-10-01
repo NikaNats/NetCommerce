@@ -91,6 +91,7 @@ public class SagaCompensationTests
         // Assert - The NIGHTMARE scenario - saga stays in DB
         saga.State.ShouldBe(OrderFulfillmentState.ManualInterventionRequired);
         saga.CompletedAt.ShouldBeNull(); // CRITICAL: NOT completed!
+        saga.FailureReason.ShouldNotBeNull();
         saga.FailureReason.ShouldContain("Refund failed");
         saga.FailureReason.ShouldContain("Stripe API");
     }

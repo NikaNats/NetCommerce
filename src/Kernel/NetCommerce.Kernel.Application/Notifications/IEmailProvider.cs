@@ -10,10 +10,10 @@ public interface IEmailProvider
     /// <summary>
     ///     Sends an email asynchronously.
     /// </summary>
-    /// <param name="to">Recipient email address</param>
+    /// <param name="recipient">Recipient email address</param>
     /// <param name="subject">Email subject line</param>
     /// <param name="htmlBody">HTML-formatted email body</param>
     /// <param name="cancellationToken">Cancellation token for resilience</param>
     /// <returns>Task representing the async operation</returns>
-    Task SendEmailAsync(string to, string subject, string htmlBody, CancellationToken cancellationToken = default);
+    Task SendEmailAsync(string recipient, string subject, string htmlBody, CancellationToken cancellationToken = default);
 }

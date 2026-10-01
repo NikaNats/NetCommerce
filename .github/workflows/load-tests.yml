@@ -1,0 +1,67 @@
+name: Automated Load Suite
+
+# Self-bootstrapping NBomber suites (Testcontainers + Kestrel, no manual setup).
+# Fast smoke profile on PRs; full multi-hour soak on the weekly schedule.
+on:
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  run-automated-load-tests:
+    name: Execute NBomber Concurrency Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore NetCommerce.slnx
+
+      - name: Build Load Test Project
+        run: dotnet build tests/NetCommerce.LoadTests/NetCommerce.LoadTests.csproj -c Release --no-restore
+
+      - name: Run Automated Load Suite (Fast CI Mode)
+        if: github.event_name == 'pull_request'
+        env:
+          SOAK_DURATION_SECONDS: 10
+          SOAK_TARGET_RPS: 50
+          # Absolute path: NBomber resolves relative folders against the test process CWD,
+          # so the upload step needs the deterministic location (see ReportFolder()).
+          LOAD_TEST_REPORTS_DIR: ${{ github.workspace }}/artifacts/load-test-reports
+        run: |
+          dotnet test tests/NetCommerce.LoadTests/NetCommerce.LoadTests.csproj \
+            -c Release \
+            --no-build \
+            --filter "Category=AutomatedLoadTest" \
+            --logger "console;verbosity=normal"
+
+      - name: Run Full 2-Hour Soak Suite (Scheduled Weekly)
+        if: github.event_name == 'schedule'
+        env:
+          SOAK_DURATION_SECONDS: 7200
+          SOAK_TARGET_RPS: 250
+          LOAD_PS5_STOCK: 100
+          LOAD_PS5_USERS: 1000
+          LOAD_PS5_SECONDS: 30
+          LOAD_SATURATION_REQUESTS: 5000
+          LOAD_SATURATION_SECONDS: 10
+          LOAD_TEST_REPORTS_DIR: ${{ github.workspace }}/artifacts/load-test-reports
+        run: |
+          dotnet test tests/NetCommerce.LoadTests/NetCommerce.LoadTests.csproj \
+            -c Release \
+            --no-build \
+            --filter "Category=AutomatedLoadTest" \
+            --logger "console;verbosity=normal"
+
+      - name: Archive Load Test Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nbomber-reports
+          path: ./artifacts/load-test-reports/

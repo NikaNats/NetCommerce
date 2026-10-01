@@ -7,6 +7,7 @@ using System.Text.Json;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
 using NetCommerce.LoadTests.Assertions;
+using NetCommerce.LoadTests.Fixtures;
 using Shouldly;
 using Xunit;
 
@@ -40,29 +41,45 @@ namespace NetCommerce.LoadTests.Scenarios;
 ///     <code>dotnet test --filter "FullyQualifiedName~ContentionStressTests"</code>
 ///     </para>
 /// </summary>
+[Collection(nameof(LoadTestCollection))]
 public class ContentionStressTests
 {
+    private readonly LoadTestHostFixture _fixture;
+
+    public ContentionStressTests(LoadTestHostFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    private static int EnvInt(string name, int @default) =>
+        int.TryParse(Environment.GetEnvironmentVariable(name), out var v) ? v : @default;
+
+    // Base URL for the still-manual scenarios below (external API).
+    // The automated saturation test above uses _fixture.CreateClient() instead.
     private static readonly string ApiBaseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5000";
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // TEST 1: SINGLE-KEY SATURATION ("ZERO-LOCK" BENCHMARK)
+    // TEST 1: SINGLE-KEY SATURATION ("ZERO-LOCK" BENCHMARK) — AUTOMATED
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    ///     Sends 5,000 ReserveInventoryCommand requests in a 10-second burst,
-    ///     all targeting the exact same ProductId (the PS5 Launch Scenario).
+    ///     Sends a burst of ReserveInventoryCommand requests all targeting the exact same
+    ///     ProductId (the PS5 Launch Scenario). Automated via <see cref="LoadTestHostFixture"/>.
+    ///     Scales via LOAD_SATURATION_REQUESTS / LOAD_SATURATION_SECONDS.
     /// </summary>
-    [Fact(Skip = "Run manually - requires running API (e.g. dotnet run --project src/Api)")]
+    [Fact]
     [Trait("Category", "LoadTest")]
+    [Trait("Category", "AutomatedLoadTest")]
     public async Task SingleKeySaturation_5000Requests_SameProductId_ShouldHaveZeroDeadlocks()
     {
-        // ═══════════════════════════════════════════════════════════════
-        // CONFIGURATION
-        // ═══════════════════════════════════════════════════════════════
-        const int totalRequests = 5_000;
-        const int burstDurationSeconds = 10;
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CONFIGURATION (fast CI profile by default; scale up for staging)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        var totalRequests = EnvInt("LOAD_SATURATION_REQUESTS", 300);
+        var burstDurationSeconds = EnvInt("LOAD_SATURATION_SECONDS", 5);
+        var warmupSeconds = EnvInt("LOAD_WARMUP_SECONDS", 3);
 
-        // THE HOT KEY: All 5,000 requests target this single ProductId
+        // THE HOT KEY: all burst requests target this single ProductId
         var hotProductId = Guid.NewGuid();
 
         // Metrics collectors
@@ -72,11 +89,21 @@ public class ContentionStressTests
         var successCount = 0;
         var stockDepletedCount = 0;
 
-        using var httpClient = new HttpClient
+        // Factory-routed client: full in-process pipeline (see fixture transport note).
+        using var httpClient = _fixture.CreateClient();
+
+        // Seed ample stock so the burst measures queuing/locking, not depletion
+        var seedPayload = JsonSerializer.Serialize(new
         {
-            BaseAddress = new Uri(ApiBaseUrl),
-            Timeout = TimeSpan.FromSeconds(60) // Long timeout for queue depth
-        };
+            productId = hotProductId,
+            sku = "HOT-KEY-SATURATION",
+            initialQuantity = totalRequests + 1_000,
+            lowStockThreshold = 10
+        });
+        var seedResponse = await httpClient.PostAsync(
+            "/api/v1/inventory",
+            new StringContent(seedPayload, Encoding.UTF8, "application/json"));
+        seedResponse.EnsureSuccessStatusCode();
 
         // ═══════════════════════════════════════════════════════════════
         // WARM-UP PHASE (30 seconds)
@@ -104,12 +131,12 @@ public class ContentionStressTests
         })
             .WithoutWarmUp()
             .WithLoadSimulations(
-                Simulation.Inject(10, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(30))
+                Simulation.Inject(5, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(warmupSeconds))
             );
 
         NBomberRunner
             .RegisterScenarios(warmupScenario)
-            .WithReportFolder("./load-test-reports/warmup")
+            .WithReportFolder(LoadTestHostFixture.ReportFolder("warmup"))
             .Run();
 
         // ═══════════════════════════════════════════════════════════════
@@ -117,13 +144,17 @@ public class ContentionStressTests
         // ═══════════════════════════════════════════════════════════════
         var requestsPerSecond = totalRequests / burstDurationSeconds;
 
+        var saturationCounter = 0;
+
         var scenario = Scenario.Create("single_key_saturation", async context =>
         {
             var orderId = Guid.NewGuid();
             var stopwatch = Stopwatch.StartNew();
+            var n = Interlocked.Increment(ref saturationCounter);
 
             var request = Http.CreateRequest("POST", "/api/v1/inventory/reserve")
                 .WithHeader("X-Idempotency-Key", Guid.NewGuid().ToString())
+                .WithHeader("X-Forwarded-For", LoadTestHostFixture.VirtualClientIp(n))
                 .WithHeader("Content-Type", "application/json")
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
@@ -140,13 +171,15 @@ public class ContentionStressTests
 
             latencies.Add(stopwatch.Elapsed.TotalMilliseconds);
 
-            // Categorize response
+            // Categorize response. NOTE: NBomber's StatusCode carries the REASON PHRASE
+            // ("InternalServerError"), not the numeric code ("500") — HttpStatusCode.ToString()
+            // semantics. Numeric comparisons silently never match (verified failure mode).
             if (response.IsError)
             {
                 var statusCode = response.StatusCode ?? "";
 
                 // Database timeout detection
-                if (statusCode.StartsWith("5") ||
+                if (statusCode == "InternalServerError" ||
                     response.Message?.Contains("timeout", StringComparison.OrdinalIgnoreCase) == true)
                 {
                     Interlocked.Increment(ref dbTimeoutErrors);
@@ -162,7 +195,7 @@ public class ContentionStressTests
                 }
 
                 // Stock depleted (expected business error)
-                if (statusCode is "409" or "400")
+                if (statusCode is "Conflict" or "BadRequest")
                 {
                     Interlocked.Increment(ref stockDepletedCount);
                     return Response.Ok("STOCK_DEPLETED", statusCode: statusCode);
@@ -181,7 +214,7 @@ public class ContentionStressTests
 
         var stats = NBomberRunner
             .RegisterScenarios(scenario)
-            .WithReportFolder("./load-test-reports/single-key-saturation")
+            .WithReportFolder(LoadTestHostFixture.ReportFolder("single-key-saturation"))
             .Run();
 
         // ═══════════════════════════════════════════════════════════════
@@ -210,7 +243,7 @@ public class ContentionStressTests
             "Expected < 10 for linear queue behavior. May indicate contention leakage.");
 
         // METRIC 3: Saga Leak Detection
-        await stats.AssertNoSagaLeaksAsync(ApiBaseUrl);
+        await _fixture.AssertNoSagaLeaksAsync();
 
         // Output detailed metrics for analysis
         Console.WriteLine("═══════════════════════════════════════════════════════════════");

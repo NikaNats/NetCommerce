@@ -78,6 +78,14 @@ public static class ReserveStockHandler
                 "Reserved {Quantity} units for order {OrderId}, reservation {ReservationId}",
                 command.Quantity, command.OrderId, reservation.Id);
 
+            // Save inside the handler (same pattern as PartitionedStockHandlers): the
+            // Wolverine postprocessor SaveChanges runs AFTER the handler returns, so a
+            // concurrent-modification conflict (stale xmin) would otherwise escape as an
+            // unhandled 500. Saving here surfaces it inside this try, where it maps to a
+            // retryable 409 Conflict. The postprocessor save becomes a harmless no-op and
+            // outbox atomicity is preserved (single enlisted batch).
+            await db.SaveChangesAsync(cancellationToken);
+
             return reservation.Id;
         }
         catch (InvalidOperationException ex)

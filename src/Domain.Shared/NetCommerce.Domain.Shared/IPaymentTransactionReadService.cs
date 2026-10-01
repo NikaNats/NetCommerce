@@ -18,7 +18,7 @@ public interface IPaymentTransactionReadService
     ///     Get completed payment transactions for a specific date.
     ///     Used by Financial Reconciliation System for comparing internal vs external ledgers.
     /// </summary>
-    Task<IReadOnlyList<PaymentTransactionSummary>> GetCompletedByDateAsync(DateTime date, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PaymentTransactionSummary>> GetCompletedByDateAsync(DateTime businessDate, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

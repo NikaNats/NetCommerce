@@ -19,11 +19,11 @@ public sealed class ProblemDetailsOptions
     /// Gets or sets whether to include stack traces in problem details.
     /// Should be false in production for security reasons.
     /// </summary>
-    public bool IncludeStackTrace { get; set; } = false;
+    public bool IncludeStackTrace { get; set; }
 
     /// <summary>
     /// Gets or sets whether to include exception details in problem details.
     /// Should be false in production for security reasons.
     /// </summary>
-    public bool IncludeExceptionDetails { get; set; } = false;
+    public bool IncludeExceptionDetails { get; set; }
 }

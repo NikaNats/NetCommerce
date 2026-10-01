@@ -147,9 +147,11 @@ public static class ZeroTrustAuthenticationExtensions
             .Bind(configuration.GetSection(AdminElevatedAuthOptions.SectionName))
             .ValidateOnStart();
 
-        // Backward compat: keep old section bound as well for migration
+        // Backward compat: keep old section bound as well for migration (intentional obsolete use)
+#pragma warning disable CS0618 // Type is obsolete: compat shim only, will be removed in v2.0
         services.AddOptions<AdminApiKeyOptions>()
             .Bind(configuration.GetSection(AdminApiKeyOptions.SectionName));
+#pragma warning restore CS0618
 
         services.AddSingleton<IValidateOptions<AdminElevatedAuthOptions>, AdminElevatedAuthOptionsValidator>();
 

@@ -23,15 +23,15 @@ public class InMemoryEmailProvider : IEmailProvider
         _logger = logger;
     }
 
-    public Task SendEmailAsync(string to, string subject, string htmlBody,
+    public Task SendEmailAsync(string recipient, string subject, string htmlBody,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
             "[IN-MEMORY EMAIL] To: {To}, Subject: {Subject}",
-            to, subject);
+            recipient, subject);
 
         var email = new SentEmail(
-            to,
+            recipient,
             subject,
             htmlBody,
             DateTimeOffset.UtcNow);

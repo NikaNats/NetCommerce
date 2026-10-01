@@ -32,6 +32,7 @@ namespace Internal.Generated.WolverineHandlers
             * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
             */
             var orderingDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Ordering.Infrastructure.Persistence.OrderingDbContext>(serviceScope.ServiceProvider);
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             
             /*
             * The service registration for NetCommerce.Kernel.Compliance.Audit.IAuditRepository is an 'opaque' lambda factory with the Scoped lifetime and requires service location
@@ -42,6 +43,11 @@ namespace Internal.Generated.WolverineHandlers
             var cancelOrderCommand = (NetCommerce.Ordering.Application.Orders.Commands.CancelOrderCommand)context.Envelope.Message;
 
             await NetCommerce.Kernel.Wolverine.Middleware.AuditMiddleware.Before(context.Envelope, userContext, auditRepository, _loggerOfAuditEntry).ConfigureAwait(false);
+            
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
+            var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(orderingDbContext, context, domainEventScraperIEnumerable);
+            await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
             System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Ordering.Infrastructure.Handlers.CancelOrderHandler");
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Ordering.Infrastructure.Handlers.CancelOrderHandler");
             
@@ -51,6 +57,24 @@ namespace Internal.Generated.WolverineHandlers
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
+            {
+                await scraper.ScrapeEvents(orderingDbContext, context).ConfigureAwait(false);
+            }
+
+            // GH-3744: persist any envelopes the scrape just tracked
+            await orderingDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (orderingDbContext.Database.CurrentTransaction != null)
+            {
+                await orderingDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
+            }
 
         }
 

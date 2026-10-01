@@ -89,8 +89,7 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
     ///     Shadow orders are created directly in Paid status with the external transaction ID.
     /// </summary>
     /// <param name="externalTxnId">The PSP transaction ID from the discrepancy.</param>
-    /// <param name="amount">The charged amount from the PSP.</param>
-    /// <param name="currency">The currency of the charge.</param>
+    /// <param name="amount">The charged amount from the PSP (currency carried by Money).</param>
     /// <param name="shippingAddress">Minimal shipping address (may be partial for reconciliation).</param>
     /// <param name="resolvedBy">The admin who resolved the discrepancy.</param>
     /// <param name="notes">Audit notes explaining why this shadow order was created.</param>
@@ -293,7 +292,7 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
     private static string GenerateOrderNumber(string? prefix = null)
     {
         var prefixPart = string.IsNullOrEmpty(prefix) ? "ORD" : prefix;
-        return $"{prefixPart}-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+        return $"{prefixPart}-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpperInvariant()}";
     }
 }
 

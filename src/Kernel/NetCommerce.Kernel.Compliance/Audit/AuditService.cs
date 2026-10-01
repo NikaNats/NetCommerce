@@ -14,6 +14,16 @@ public class AuditService
     private readonly IAuditRepository _auditRepository;
     private readonly IUserContext _userContext;
 
+    /// <summary>
+    ///     Cached serializer options (CA1869): audit serialization must not allocate
+    ///     a new JsonSerializerOptions instance per call.
+    /// </summary>
+    private static readonly JsonSerializerOptions s_auditJsonOptions = new()
+    {
+        WriteIndented = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public AuditService(IAuditRepository auditRepository, IUserContext userContext)
     {
         _auditRepository = auditRepository;
@@ -33,8 +43,7 @@ public class AuditService
             .Replace("Query", string.Empty);
 
         var commandType = command.GetType();
-        var contextJson = JsonSerializer.Serialize(command, commandType,
-            new JsonSerializerOptions { WriteIndented = false, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        var contextJson = JsonSerializer.Serialize(command, commandType, s_auditJsonOptions);
 
         var auditEntry = AuditEntry.Create(
             _userContext.UserId,
@@ -63,7 +72,7 @@ public class AuditService
         CancellationToken cancellationToken = default)
     {
         var contextJson = context is not null
-            ? JsonSerializer.Serialize(context, new JsonSerializerOptions { WriteIndented = false, PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+            ? JsonSerializer.Serialize(context, s_auditJsonOptions)
             : "{}";
 
         var auditEntry = AuditEntry.Create(

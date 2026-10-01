@@ -4,6 +4,7 @@ using System.Net.Mime;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using NetCommerce.Api.Serialization;
 using NetCommerce.Kernel.AspNetCore;
 
@@ -21,12 +22,19 @@ public sealed class GlobalExceptionHandler(
     {
         var traceId = Activity.Current?.Id ?? httpContext.TraceIdentifier;
 
-        // 1. Map Exception to status code and Machine-Readable Error Codes
+        // 1. Map Exception to status code and Machine-Readable Error Codes.
+        // NOTE: DbUpdateConcurrencyException derives from DbUpdateException, which derives
+        // DIRECTLY from System.Exception (NOT InvalidOperationException) — without this explicit
+        // arm it falls through to 500. An optimistic-concurrency loss is a retryable client
+        // conflict (409), verified under burst load: concurrent reserves lose xmin races and
+        // must surface as conflicts, not internal errors. Base DbUpdateException stays 500
+        // deliberately: unique/FK violations can mask real integrity bugs and must stay loud.
         var (statusCode, errorCode) = exception switch
         {
             ValidationException => (StatusCodes.Status400BadRequest, "VALIDATION_FAILED"),
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "UNAUTHORIZED"),
             KeyNotFoundException => (StatusCodes.Status404NotFound, "RESOURCE_NOT_FOUND"),
+            DbUpdateConcurrencyException => (StatusCodes.Status409Conflict, "CONCURRENCY_CONFLICT"),
             InvalidOperationException => (StatusCodes.Status409Conflict, "BUSINESS_RULE_VIOLATION"),
             OperationCanceledException => (StatusCodes.Status408RequestTimeout, "REQUEST_TIMEOUT"),
             _ => (StatusCodes.Status500InternalServerError, "INTERNAL_SERVER_ERROR")
@@ -124,6 +132,7 @@ public sealed class GlobalExceptionHandler(
     {
         UnauthorizedAccessException => "Unauthorized Access",
         KeyNotFoundException => "Resource Not Found",
+        DbUpdateConcurrencyException => "Concurrency Conflict",
         InvalidOperationException => "Business Rule Violation",
         _ => "Internal Server Error"
     };

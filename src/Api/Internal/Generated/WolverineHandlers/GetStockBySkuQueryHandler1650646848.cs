@@ -30,9 +30,15 @@ namespace Internal.Generated.WolverineHandlers
             * The service registration for Microsoft.EntityFrameworkCore.DbContextOptions<NetCommerce.Inventory.Infrastructure.Persistence.InventoryDbContext> is an 'opaque' lambda factory with the Scoped lifetime and requires service location
             */
             var inventoryDbContext = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<NetCommerce.Inventory.Infrastructure.Persistence.InventoryDbContext>(serviceScope.ServiceProvider);
+            var domainEventScraperIEnumerable = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<System.Collections.Generic.IEnumerable<Wolverine.EntityFrameworkCore.IDomainEventScraper>>(serviceScope.ServiceProvider);
             // The actual message body
             var getStockBySkuQuery = (NetCommerce.Inventory.Application.Stock.Queries.GetStockBySkuQuery)context.Envelope.Message;
 
+            
+            // GH-3291: enroll the DbContext & IMessagingContext in the outbox so cascaded messages buffer
+            // and flush AFTER SaveChangesAsync commits. No explicit transaction is started (Lightweight mode).
+            var efCoreEnvelopeTransaction = new Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction(inventoryDbContext, context, domainEventScraperIEnumerable);
+            await context.EnlistInOutboxAsync(efCoreEnvelopeTransaction).ConfigureAwait(false);
             System.Diagnostics.Activity.Current?.SetTag("message.handler", "NetCommerce.Inventory.Infrastructure.Handlers.GetStockBySkuHandler");
             System.Diagnostics.Activity.Current?.SetTag("handler.type", "NetCommerce.Inventory.Infrastructure.Handlers.GetStockBySkuHandler");
             
@@ -42,6 +48,24 @@ namespace Internal.Generated.WolverineHandlers
             
             // Outgoing, cascaded message
             await context.EnqueueCascadingAsync(outgoing1).ConfigureAwait(false);
+
+            
+            // Added by EF Core Transaction Middleware
+            var result_of_SaveChangesAsync = await inventoryDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+
+            // GH-4630: scrape any domain events out of the DbContext (mirrors EfCoreEnvelopeTransaction.CommitAsync)
+            foreach (var scraper in domainEventScraperIEnumerable)
+            {
+                await scraper.ScrapeEvents(inventoryDbContext, context).ConfigureAwait(false);
+            }
+
+            // GH-3744: persist any envelopes the scrape just tracked
+            await inventoryDbContext.SaveChangesAsync(cancellation).ConfigureAwait(false);
+            // An unmapped DbContext writes envelopes with raw ADO inside a transaction it opens itself
+            if (inventoryDbContext.Database.CurrentTransaction != null)
+            {
+                await inventoryDbContext.Database.CommitTransactionAsync(cancellation).ConfigureAwait(false);
+            }
 
         }
 

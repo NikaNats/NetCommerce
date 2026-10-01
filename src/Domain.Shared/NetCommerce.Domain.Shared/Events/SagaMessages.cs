@@ -210,9 +210,9 @@ public sealed record InventoryConfirmationTimeoutMessage : TimeoutMessage
 }
 
 /// <summary>
-///     Fires 4 hours after the saga enters the <see cref="OrderFulfillmentState.Compensating"/> state.
+///     Fires 4 hours after the saga enters the <c>Compensating</c> state (see OrderFulfillmentState in Ordering.Application).
 ///     If still compensating by then (refund/release stalled in DLQ), the saga is escalated to
-///     <see cref="OrderFulfillmentState.ManualInterventionRequired"/> so the operations team is notified.
+///     <c>ManualInterventionRequired</c> so the operations team is notified.
 ///
 ///     Design rationale: Wolverine's transactional outbox guarantees at-least-once delivery of the
 ///     ReleaseInventory / RefundPayment commands.  The pod-crash scenario is handled automatically

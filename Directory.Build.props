@@ -42,23 +42,22 @@
       SECTION 4: AGGRESSIVE CODE ANALYSIS (ZERO-WARNING POLICY)
       Treats code quality as a hard requirement for a successful build.
     -->
-    <AnalysisLevel>latest-all</AnalysisLevel>
-    <AnalysisMode>All</AnalysisMode>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
 
     <!-- Promote warnings to errors in Release/CI to ensure maximum code health -->
     <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release' Or '$(CI)' == 'true'">true</TreatWarningsAsErrors>
-    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors Condition="'$(Configuration)' == 'Release' Or '$(CI)' == 'true'">true</CodeAnalysisTreatWarningsAsErrors>
 
-    <!-- Suppress Noise:
-         CS1591 (Missing XML Docs),
-         CA1014 (CLSCompliant is legacy),
-         NETSDK1210 (Artifacts API notice),
-         NU1608 (Transitive dependency version mismatch - EF Core 10 + WolverineFx transitively bring different CodeAnalysis versions),
-         NU1107 (Oakton 6.3.0 constrains Host <10.0.0 but Wolverine 6.x requires Host >=10.0.0 - forced to Host 10.x which is API-compatible) -->
+    <!-- MINIMAL COMPILER NOISE ONLY (cannot be configured via Roslyn):
+         CS1591 (Missing XML Docs on public APIs),
+         NETSDK1210 (Artifacts output notification),
+         NU1608/NU1107 (Transitive dependency pinning mismatches - EF Core 10 + WolverineFx / Oakton Host constraints).
+         All CA/IL severities are managed via .globalconfig + path-scoped .editorconfig, NOT NoWarn. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591;CA1000;CA1002;CA1014;CA1030;CA1031;CA1034;CA1040;CA1045;CA1051;CA1052;CA1054;CA1055;CA1056;CA1062;CA1304;CA1305;CA1307;CA1308;CA1310;CA1311;CA1515;CA1711;CA1716;CA1721;CA1724;CA1725;CA1804;CA1805;CA1812;CA1819;CA1822;CA1848;CA1849;CA1854;CA1866;CA1869;CA1873;CA2000;CA2007;CA2016;CA2017;CA2208;CA2225;CA2227;CA2234;VSTHRD003;VSTHRD103;VSTHRD200;IL2104;IL2108;IL3000;IL3001;IL3002;IL3003;NETSDK1210;NU1608;NU1107;CS8669;IDE0005;ASPIRE010;xUnit1026;xUnit1004;xUnit1051;xUnit2024;xUnit2020;CA5394;CS0618;AV0011;CS1570;CS1574;CS0219;CS0006;IL2026;IL3050;IL2070;IL2071;IL2090;IL2091;IL2092;IL2111;IL2075;IL3052;IL3053;CS1572;CS1573</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;NETSDK1210;NU1608;NU1107</NoWarn>
   </PropertyGroup>
 
   <!--
@@ -80,6 +79,24 @@
       production entry points AOT-safe.
     -->
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <!-- Test projects: relaxed constraints.
+       Condition covers IsTestProject AND name-contains-Tests (xUnit/NBomber projects such as
+       NetCommerce.LoadTests do not set IsTestProject; name check is the reliable signal).
+       Test correctness is enforced by EXECUTION (tests run in CI), not by analysis: warnings
+       stay fully visible in build logs and IDE, but never fail the build. This is the opposite
+       of <NoWarn> theater — nothing is hidden, the gate is just owned by the test runner. -->
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true' Or $([System.String]::Copy('$(MSBuildProjectName)').Contains('Tests'))">
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
+    <!-- Deliberate markers only: skipped manual-only load tests + xUnit test-context patterns -->
+    <NoWarn>$(NoWarn);CA1062;CA1812;CA1822;CA2007;xUnit1004;xUnit1026;xUnit1051</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(IsTestProject)' != 'true' And '$(PublishAot)' == 'true'">

@@ -12,7 +12,7 @@ public sealed class PiiSensitiveAttribute : Attribute
     ///     Whether to use deterministic encryption (enables equality searches).
     ///     Default: false (probabilistic encryption for maximum security).
     /// </summary>
-    public bool IsDeterministic { get; set; } = false;
+    public bool IsDeterministic { get; set; }
 
     /// <summary>
     ///     Optional blind index column name for searchable encrypted fields.

@@ -216,7 +216,7 @@ public class PaymentWebhookEndpoints : IEndpoint
             "Payment succeeded for PaymentIntent {PaymentIntentId}, Amount: {Amount} {Currency}",
             intent.Id,
             intent.Amount / 100.0m,
-            intent.Currency.ToUpper());
+            intent.Currency.ToUpperInvariant());
 
         return new ProcessExternalPaymentConfirmation(
             intent.Id,

@@ -28,13 +28,13 @@ public sealed class SendGridEmailProvider : IEmailProvider
     }
 
     public async Task SendEmailAsync(
-        string to,
+        string recipient,
         string subject,
         string htmlBody,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(to))
-            throw new ArgumentException("Recipient email is required.", nameof(to));
+        if (string.IsNullOrWhiteSpace(recipient))
+            throw new ArgumentException("Recipient email is required.", nameof(recipient));
 
         var client = _httpClientFactory.CreateClient("SendGrid");
 
@@ -45,7 +45,7 @@ public sealed class SendGridEmailProvider : IEmailProvider
         {
             personalizations = new[]
             {
-                new { to = new[] { new { email = to } } }
+                new { to = new[] { new { email = recipient } } }
             },
             from = new { email = _options.FromEmail, name = _options.FromName },
             subject,
@@ -62,12 +62,12 @@ public sealed class SendGridEmailProvider : IEmailProvider
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError(
                 "SendGrid rejected email to {To} (subject: {Subject}). Status: {StatusCode}, Body: {Body}",
-                to, subject, response.StatusCode, body);
+                recipient, subject, response.StatusCode, body);
 
             throw new InvalidOperationException(
                 $"SendGrid email send failed with status {(int)response.StatusCode} ({response.StatusCode}).");
         }
 
-        _logger.LogInformation("Order email sent via SendGrid to {To} (subject: {Subject})", to, subject);
+        _logger.LogInformation("Order email sent via SendGrid to {To} (subject: {Subject})", recipient, subject);
     }
 }

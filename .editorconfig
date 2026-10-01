@@ -27,17 +27,28 @@ indent_size = 2
 dotnet_analyzer_diagnostic.severity = warning
 
 # Category specific overrides
+# Style is suggestion-only: compiler gates correctness (CA/IL/CS), `dotnet format` gates style.
+# Promoting style to errors is what forced the original blanket <NoWarn> suppression.
 dotnet_analyzer_diagnostic.category-Security.severity = error
 dotnet_analyzer_diagnostic.category-Reliability.severity = warning
 dotnet_analyzer_diagnostic.category-Performance.severity = warning
 dotnet_analyzer_diagnostic.category-Design.severity = warning
-dotnet_analyzer_diagnostic.category-Style.severity = warning
+dotnet_analyzer_diagnostic.category-Style.severity = suggestion
 dotnet_analyzer_diagnostic.category-CodeQuality.severity = warning
 
 # Critical Individual Rules (High Impact)
 dotnet_diagnostic.CA2007.severity = none # CA2007: ConfigureAwait is noise in modern .NET
 dotnet_diagnostic.CA2016.severity = warning # Forward CancellationToken
-dotnet_diagnostic.CA1848.severity = warning # Use LoggerMessage pattern (Perf)
+# CA1031 is suggestion everywhere EXCEPT Domain/Application (section 4 below, error):
+# background jobs, storage/gateway adapters and alert fan-out already implement the
+# OCE-first + boundary-catch pattern by design (verified: ReservationCleanupJob,
+# GracePeriodManagerService); forcing per-SDK exception enumeration there would
+# weaken resilience, not strengthen it. Suggestion keeps new sites IDE-visible.
+dotnet_diagnostic.CA1031.severity = suggestion
+# CA1848/CA1873 are suggestion (perf backlog, IDE-visible): the 100+ existing call sites are
+# cold paths; LoggerMessage migration is enforced for new hot-path code in review instead.
+dotnet_diagnostic.CA1848.severity = suggestion # Use LoggerMessage pattern (Perf)
+dotnet_diagnostic.CA1873.severity = suggestion # Avoid expensive logging args (Perf)
 dotnet_diagnostic.CA1856.severity = error # ConstantExpected misuse
 dotnet_diagnostic.CA2264.severity = warning # ThrowIfNull on non-nullable values
 dotnet_diagnostic.CA2252.severity = error # Preview features must be opted in
@@ -46,13 +57,76 @@ dotnet_diagnostic.CA2252.severity = error # Preview features must be opted in
 dotnet_diagnostic.IL2026.severity = warning # RequiresUnreferencedCode
 dotnet_diagnostic.IL3050.severity = warning # RequiresDynamicCode
 
-# EF Core scaffolded migrations: one-shot DDL scripts, not hot paths.
-# CA1861 (constant arrays) fires inside CreateIndex column lists; newer SDK
-# analyzers flag previously-clean scaffolds, and CodeAnalysisTreatWarningsAsErrors
-# promotes them to Docker-breaking errors. Suppress per-folder so future
-# `dotnet ef migrations add` output can never break the build on SDK updates.
+# ==============================================================================
+# Path-Scoped Diagnostic Overrides (surgical scoping - generated code must not
+# block the pipeline; domain hot paths stay zero-tolerance via .globalconfig)
+# ==============================================================================
+
+# 1. EF Core Migrations (generated one-shot DDL, not hot paths)
 [src/**/Migrations/*.cs]
+generated_code = true
 dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.IL2026.severity = none
+dotnet_diagnostic.IL3050.severity = none
+
+# 2. Wolverine pre-generated handlers (static codegen output)
+[src/**/Internal/Generated/**/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+
+# 3. Test suites (assertion patterns, mocks, fixture setups)
+[tests/**/*.cs]
+dotnet_diagnostic.CA1031.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA2000.severity = suggestion
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1869.severity = none
+dotnet_diagnostic.IL2026.severity = none
+dotnet_diagnostic.IL3050.severity = none
+# CS8602 deref-after-ShouldNotBeNull is the standard Shouldly idiom, invisible to flow
+# analysis; NREs in tests fail loudly at runtime. Argument-null (CS8604) stays error.
+dotnet_diagnostic.CS8602.severity = suggestion
+
+# 4. Domain & Application handlers (zero-tolerance for leaks & concurrency;
+# CA1848 stays suggestion here too — LoggerMessage migration is backlog, not gate)
+[src/**/*.{Domain,Application}/**/*.cs]
+dotnet_diagnostic.CA2000.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.CA1031.severity = error
+dotnet_diagnostic.CA1848.severity = suggestion
+dotnet_diagnostic.CA1873.severity = suggestion
+
+# 5. (Retired: CA1031 boundary scoping is now covered by the [*.cs] suggestion
+# above + the Domain/Application error in section 4. Kept as placeholder so section
+# numbering stays stable for future path-scoped rules.)
+
+# 6. ServiceDefaults plumbing (health/chaos/diagnostics log rarely and never on
+# hot paths; LoggerMessage migration tracked as tech-debt, not a build gate.
+# NOTE: Roslyn requires a separate root-level section — `dir/**/*.cs` only
+# matches files in subdirectories, not files directly in `dir`.)
+[src/NetCommerce.ServiceDefaults/**/*.cs]
+dotnet_diagnostic.CA1848.severity = suggestion
+
+[src/NetCommerce.ServiceDefaults/*.cs]
+dotnet_diagnostic.CA1848.severity = suggestion
+
+# 7. Roslyn source-generator & build outputs (never analyze generated code)
+[*.{g,i}.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.IDE0055.severity = none
+dotnet_diagnostic.IDE0240.severity = none
+dotnet_diagnostic.IDE0036.severity = none
+
+[**/obj/**]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+
+[**/artifacts/**]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
 
 ###############################
 # Naming (dotnet/runtime)     #

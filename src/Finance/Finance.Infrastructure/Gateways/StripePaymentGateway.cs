@@ -54,7 +54,7 @@ public class StripeReconciliationGateway : IPaymentGateway
                     tx.Amount / 100m, // Convert from cents
                     tx.Net / 100m,    // Net after fees
                     tx.Fee / 100m,
-                    tx.Currency.ToUpper(),
+                    tx.Currency.ToUpperInvariant(),
                     tx.Created,
                     tx.Description));
             }
@@ -96,7 +96,7 @@ public class StripeReconciliationGateway : IPaymentGateway
                 tx.Amount / 100m,
                 tx.Net / 100m,
                 tx.Fee / 100m,
-                tx.Currency.ToUpper(),
+                tx.Currency.ToUpperInvariant(),
                 tx.Created,
                 tx.Description);
         }

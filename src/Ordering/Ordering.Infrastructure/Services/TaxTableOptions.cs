@@ -43,5 +43,5 @@ public sealed class TaxTableOptions
     ///     Explicit acknowledgment that the configured (or default) rate tables
     ///     have been reviewed by finance/tax for Production use.
     /// </summary>
-    public bool AcknowledgedInProduction { get; set; } = false;
+    public bool AcknowledgedInProduction { get; set; }
 }

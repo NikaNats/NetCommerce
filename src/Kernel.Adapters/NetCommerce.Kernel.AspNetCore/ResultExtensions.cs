@@ -120,8 +120,14 @@ public static class ResultExtensions
             var generator = httpContext.RequestServices.GetService(typeof(ProblemDetailsUriGenerator)) as ProblemDetailsUriGenerator;
             return generator?.BaseUri ?? DefaultProblemBaseUri;
         }
-        catch
+        catch (ObjectDisposedException)
         {
+            // RequestServices disposed during shutdown races: fall back to default URI.
+            return DefaultProblemBaseUri;
+        }
+        catch (InvalidOperationException)
+        {
+            // Service provider misconfiguration: fall back rather than fail the error response itself.
             return DefaultProblemBaseUri;
         }
     }
