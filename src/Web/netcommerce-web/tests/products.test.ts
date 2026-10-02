@@ -22,8 +22,18 @@ describe('productHref', () => {
     expect(productHref({ slug: 'walnut-desk', id: 'abc' })).toBe('/products/walnut-desk');
   });
 
-  it('falls back to the id route when slug is null', () => {
-    expect(productHref({ slug: null, id: 'abc' })).toBe('/products/id/abc');
+  // The API uses DefaultIgnoreCondition = WhenWritingNull, so an absent slug
+  // arrives as UNDEFINED, not null. Verified by running the real serializer
+  // options. These two cases are the ones that were previously untested, and the
+  // undefined case is the one the wire actually produces.
+  it('falls back to the id route when slug is undefined', () => {
+    expect(productHref({ id: 'abc' })).toBe('/products/id/abc');
+  });
+
+  it('still tolerates an explicit null slug', () => {
+    expect(productHref({ slug: null as unknown as undefined, id: 'abc' })).toBe(
+      '/products/id/abc',
+    );
   });
 
   it('URL-encodes a slug so a slash cannot forge a path segment', () => {
@@ -31,7 +41,7 @@ describe('productHref', () => {
   });
 
   it('returns null only when neither identifier exists', () => {
-    expect(productHref({ slug: null, id: '' })).toBeNull();
+    expect(productHref({ id: '' })).toBeNull();
   });
 
   it('treats an empty-string slug as absent rather than linking to /products/', () => {
@@ -95,17 +105,18 @@ describe('list projection field asymmetry', () => {
     sku: 'WD-1',
     price: 1299,
     currency: 'USD',
-    primaryImageUrl: null,
     status: 'Published',
     slug: 'walnut-desk',
   };
 
   it('carries primaryImageUrl and slug, which the detail DTO does not', () => {
-    expect(listItem.primaryImageUrl).toBeNull();
+    // Absent, exactly as the API sends it when the image is null
+    // (WhenWritingNull omits the key rather than emitting null).
+    expect(listItem.primaryImageUrl).toBeUndefined();
     expect(productHref(listItem)).toBe('/products/walnut-desk');
   });
 
   it('yields no href when a server row has neither slug nor id', () => {
-    expect(productHref({ slug: null, id: '' })).toBeNull();
+    expect(productHref({ id: '' })).toBeNull();
   });
 });

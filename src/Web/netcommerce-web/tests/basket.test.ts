@@ -13,10 +13,8 @@ import {
 const item = (overrides: Partial<BasketItem> = {}): BasketItem => ({
   productId: 'p1',
   productName: 'Walnut Desk',
-  sku: 'WD-1',
   price: 1299,
   quantity: 1,
-  imageUrl: null,
   ...overrides,
 });
 

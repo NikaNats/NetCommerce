@@ -34,9 +34,19 @@ export interface Product {
   categoryId: string;
   categoryName: string;
   status: string;
-  slug: string | null;
-  seoTitle: string | null;
-  seoDescription: string | null;
+  /**
+   * MAY BE ABSENT, not merely null.
+   *
+   * The API serializes with DefaultIgnoreCondition = WhenWritingNull
+   * (ApiJsonContext.cs:179), verified by running the real serializer options: a
+   * null string is OMITTED from the payload entirely. So `product.seoTitle` is
+   * `undefined` at runtime, and `product.slug` is undefined when the product has
+   * no slug — NOT null. Declaring these `| null` alone would type-check against a
+   * value that never arrives.
+   */
+  slug?: string;
+  seoTitle?: string;
+  seoDescription?: string;
   images: ProductImage[];
   attributes: ProductAttribute[];
 }
@@ -54,9 +64,11 @@ export interface ProductListItem {
   sku: string;
   price: number;
   currency: string;
-  primaryImageUrl: string | null;
+  /** OMITTED when null (WhenWritingNull) — see Product.slug. */
+  primaryImageUrl?: string;
   status: string;
-  slug: string | null;
+  /** OMITTED when the product has no slug — see Product.slug. */
+  slug?: string;
 }
 
 export interface PaginationMetadata {
@@ -85,7 +97,7 @@ export const MAX_PAGE_SIZE = 100;
  * where a card genuinely cannot link anywhere.
  */
 export function productHref(product: {
-  slug: string | null;
+  slug?: string;
   id: string;
 }): string | null {
   if (product.slug) return `/products/${encodeURIComponent(product.slug)}`;

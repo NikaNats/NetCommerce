@@ -40,10 +40,13 @@ export async function addToCartAction(
 ): Promise<AddToCartState> {
   const productId = String(formData.get('productId') ?? '');
   const productName = String(formData.get('productName') ?? '');
-  const sku = String(formData.get('sku') ?? '') || null;
+  // The API omits null fields (WhenWritingNull) and AddBasketItemRequest takes
+  // nullable string?, but a JSON null and an absent key are different on the wire.
+  // Normalize to undefined so the field is simply not sent.
+  const sku = String(formData.get('sku') ?? '') || undefined;
   const unitPriceRaw = String(formData.get('unitPrice') ?? '');
   const quantityRaw = String(formData.get('quantity') ?? '1');
-  const imageUrl = String(formData.get('imageUrl') ?? '') || null;
+  const imageUrl = String(formData.get('imageUrl') ?? '') || undefined;
 
   // A signed-out visitor is redirected to login and returns here afterwards.
   await requireSession(`/products/${productId}`);
