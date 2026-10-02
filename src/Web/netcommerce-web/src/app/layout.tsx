@@ -23,6 +23,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Net<em>Commerce</em>
               </p>
             </a>
+            <nav className="masthead__nav" aria-label="Primary">
+              <a href="/catalog">Catalog</a>
+              <a href="/basket">Basket</a>
+            </nav>
             <p className="field-label">Webhook-first commerce</p>
           </div>
 

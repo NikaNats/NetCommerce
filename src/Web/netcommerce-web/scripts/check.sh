@@ -50,4 +50,11 @@ echo "### rendered-output design invariants"
 bash scripts/verify-render.sh
 
 echo
+echo "### storefront route behaviour (API deliberately down)"
+# Runs LAST: it boots a dev server, and these assertions cover graceful
+# degradation. A product page that 500s when the API is unreachable, or that
+# claims the item "does not exist", passed `next build` and failed here.
+bash scripts/check-routes.sh "$PWD"
+
+echo
 echo "ALL CHECKS PASSED"

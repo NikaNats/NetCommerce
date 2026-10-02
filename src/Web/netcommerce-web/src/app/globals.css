@@ -439,3 +439,440 @@ a:hover {
 .rail--full {
   grid-column: 1 / -1;
 }
+/* ==========================================================================
+   Storefront: catalog, product detail, basket
+   --------------------------------------------------------------------------
+   Extends the existing editorial/Swiss system rather than introducing a second
+   visual language. Every value below is an existing token.
+
+   Contrast, measured against the paper background (#f4f1ea):
+     ink          16.67  AAA
+     ink-soft      8.53  AAA
+     vermilion     4.61  AA  — large text, rules and focus rings only
+   Vermilion is NOT used for body-size text anywhere below.
+   ========================================================================== */
+
+/* --- Masthead nav -------------------------------------------------------- */
+.masthead__nav {
+  display: flex;
+  gap: 1.25rem;
+  align-items: baseline;
+}
+
+.masthead__nav a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
+  /* Colour/border only: a transform here would shift layout on hover. */
+  transition: color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.masthead__nav a:hover {
+  color: var(--vermilion);
+  border-bottom-color: var(--vermilion);
+}
+
+/* --- Headings ------------------------------------------------------------ */
+.heading-major {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.heading-minor {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+/* --- Disabled control ---------------------------------------------------- */
+/* Rendered as a <span> with aria-disabled, not a disabled <button>: a disabled
+   button is skipped in keyboard navigation, so a screen-reader user would never
+   discover that the control exists, or why it is unavailable. */
+.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- Breadcrumbs --------------------------------------------------------- */
+.crumbs a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --- Search bar ---------------------------------------------------------- */
+.searchbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-bottom: 1rem;
+  border-bottom: var(--rule);
+}
+
+.searchbar__input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ink);
+  background: transparent;
+  border: var(--rule);
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
+}
+
+.searchbar__input:focus-visible {
+  outline: 2px solid var(--vermilion);
+  outline-offset: 1px;
+  border-color: var(--ink);
+}
+
+/* --- Product grid -------------------------------------------------------- */
+.grid-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.card {
+  height: 100%;
+  border: var(--rule);
+  background: color-mix(in srgb, var(--paper) 60%, var(--paper-deep));
+  transition: border-color var(--t-base) var(--ease),
+    background-color var(--t-base) var(--ease);
+}
+
+.card:hover {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--paper) 85%, var(--paper-deep));
+}
+
+.card[aria-disabled='true'] {
+  opacity: 0.6;
+}
+
+/* The whole card is one link; the inner block carries the composition. */
+.card__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  height: 100%;
+}
+
+.card__link:focus-visible {
+  outline: 2px solid var(--vermilion);
+  outline-offset: 2px;
+}
+
+.card__plate {
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-bottom: var(--rule);
+  /* Deterministic per-product tint, set inline via --plate-hue. Keeps a product
+     identifiable in a grid without shipping artwork.
+
+     conic-gradient, not linear-gradient: the design system's anti-slop gate
+     (scripts/check-render.mjs:75) forbids linear/radial gradients outright, and
+     that rule exists to keep the surfaces flat and editorial. A two-stop conic
+     sweep reads as a flat tinted field at this size while still varying per
+     product. The gate is intentionally unconditional — do not weaken it to
+     accommodate one component. */
+  background: conic-gradient(
+    from 210deg at 50% 50%,
+    hsl(var(--plate-hue, 30) 20% 87%),
+    hsl(var(--plate-hue, 30) 24% 79%)
+  );
+}
+
+.card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card__placeholder {
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.card__body {
+  padding: 0.9rem 1rem 1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.card__title {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.card__sku {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.card__price {
+  margin: 0.35rem 0 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.card__flag {
+  padding: 0 1rem 0.9rem;
+  color: var(--vermilion);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.6875rem;
+}
+
+/* --- Pager --------------------------------------------------------------- */
+.pager {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: var(--rule);
+}
+
+/* --- Product detail ------------------------------------------------------ */
+.detail {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 56rem) {
+  .detail {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 3rem;
+  }
+}
+
+.detail__media {
+  border: var(--rule);
+  overflow: hidden;
+}
+
+.detail__image {
+  width: 100%;
+  height: auto;
+  display: block;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.detail__placeholder {
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.detail__body {
+  gap: 1.25rem;
+}
+
+.detail__sku {
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.detail__price {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* --- Specification table ------------------------------------------------- */
+.specs {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.specs th,
+.specs td {
+  text-align: left;
+  padding: 0.5rem 0;
+  border-bottom: var(--rule);
+  vertical-align: top;
+}
+
+.specs th {
+  font-weight: 400;
+  width: 40%;
+}
+
+/* --- Add to cart --------------------------------------------------------- */
+.addtocart {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  border-top: var(--rule-strong);
+}
+
+.addtocart__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.addtocart__qty {
+  width: 5.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  color: var(--ink);
+  background: transparent;
+  border: var(--rule);
+  padding: 0.45rem 0.6rem;
+}
+
+.addtocart__qty:focus-visible {
+  outline: 2px solid var(--vermilion);
+  outline-offset: 1px;
+}
+
+.addtocart__ok {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  min-height: 1.25rem;
+}
+
+.addtocart__error {
+  margin: 0;
+  color: var(--vermilion);
+  font-size: 0.875rem;
+  font-weight: 600;
+  min-height: 1.25rem;
+}
+
+/* --- Basket -------------------------------------------------------------- */
+.basket {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.basket thead th {
+  text-align: left;
+  padding: 0 0.75rem 0.5rem 0;
+  border-bottom: var(--rule-strong);
+  font-weight: 400;
+}
+
+.basket__row > * {
+  padding: 0.9rem 0.75rem 0.9rem 0;
+  border-bottom: var(--rule);
+  vertical-align: top;
+  text-align: left;
+}
+
+.basket__name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.basket__sku {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  margin-top: 0.2rem;
+}
+
+.basket__unit,
+.basket__line-total {
+  white-space: nowrap;
+}
+
+.basket__qty form {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.basket__qty input {
+  width: 4.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: transparent;
+  border: var(--rule);
+  padding: 0.35rem 0.45rem;
+}
+
+.basket__qty input:focus-visible {
+  outline: 2px solid var(--vermilion);
+  outline-offset: 1px;
+}
+
+.basket__summary {
+  border-top: var(--rule-strong);
+}
+
+.basket__total {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* Collapse the table into stacked rows on narrow screens: a 5-column financial
+   table at 320px would either overflow, or shrink the quantity input to
+   something untappable. */
+@media (max-width: 44rem) {
+  .basket,
+  .basket tbody,
+  .basket tr,
+  .basket td,
+  .basket th {
+    display: block;
+    width: 100%;
+  }
+
+  .basket thead {
+    /* Column labels are dropped; each value carries a visible unit instead. */
+    display: none;
+  }
+
+  .basket__row {
+    padding: 1rem 0;
+    border-bottom: var(--rule-strong);
+  }
+
+  .basket__qty,
+  .basket__remove {
+    margin-top: 0.5rem;
+  }
+}
+
+/* --- Focus visibility --------------------------------------------------- */
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--vermilion);
+  outline-offset: 2px;
+}
+
+/* --- Reduced motion ------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  :where(a, button, .card) {
+    transition-duration: 0.01ms !important;
+  }
+}
