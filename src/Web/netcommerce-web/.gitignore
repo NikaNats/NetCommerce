@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# Local env
+.env
+.env.local
+.env.*.local
+
+# Test output
+coverage/
+.vitest/
+
+# Editor / OS
+.DS_Store
+Thumbs.db

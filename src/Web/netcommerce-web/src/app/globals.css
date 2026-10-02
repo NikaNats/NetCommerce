@@ -1,0 +1,441 @@
+/* ============================================================================
+   NetCommerce — editorial/Swiss direction.
+
+   Rationale: this storefront fronts a system whose defining property is
+   financial integrity (webhook-first payments, idempotency keys, a documented
+   grace period). So the design leans editorial and ledger-like rather than
+   "retail friendly": warm paper, near-black ink, one vermilion signal, and
+   monospace for every number. Prices, SKUs and status codes are set in mono so
+   they align in columns and read as figures rather than marketing copy.
+
+   No Inter / Roboto / Arial / system stack. No purple-on-white gradient.
+   No emoji as icons — inline SVG only.
+
+   Contrast is MEASURED, not assumed. WCAG ratios computed before this file was
+   written:
+     ink on paper          16.67  AAA
+     ink-soft on paper      8.53  AAA
+     vermilion on paper     4.61  AA
+   Vermilion is therefore restricted to LARGE text (>=24px), rules and focus
+   rings. It is never used for body copy on --paper-deep (4.06) nor ink on
+   vermilion (3.62) — both fall below the 4.5 body threshold.
+   ========================================================================= */
+
+/* Bodoni Moda, not Fraunces: the Impeccable detector flags Fraunces as one of
+   the faces AI-generated UIs converge on. A didone carries more editorial
+   authority and suits the ledger world better — and unlike Fraunces it has real
+   stroke contrast, which survives at the display sizes used here.
+   Archivo stays for body text; IBM Plex Mono stays for tabular data only. */
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400;1,6..96,600&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces — warm paper, not white. */
+  --paper: #f4f1ea;
+  --paper-deep: #e8e3d7;
+  --ink: #14110f;
+  --ink-soft: #4a443c;
+
+  /* The single signal. Large text, rules and focus rings only. */
+  --vermilion: #c2401a;
+  --vermilion-lift: #e2683f;
+
+  --rule: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  --rule-strong: 2px solid var(--ink);
+
+  --font-display: 'Bodoni Moda', 'Didot', Georgia, serif;
+  --font-body: 'Archivo', 'Helvetica Neue', sans-serif;
+  /* No system-ui/ui-monospace here: the mono stack should name the face we
+     actually want, with a concrete fallback rather than deferring to the OS. */
+  --font-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace;
+
+  --t-fast: 160ms;
+  --t-base: 240ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14110f;
+    --paper-deep: #1e1a17;
+    --ink: #f4f1ea;
+    --ink-soft: #b8b0a4;
+    --vermilion: #e2683f;
+    --vermilion-lift: #f08a63;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  font-feature-settings: 'kern' 1;
+}
+
+/* Every figure is set in mono so columns align and numbers read as data. */
+.figure {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* --------------------------------------------------------------------------
+   Layout: asymmetric editorial grid — a narrow rail for metadata, a wide
+   measure for content. Deliberately not a centered SaaS card stack.
+   -------------------------------------------------------------------------- */
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+  max-width: 84rem;
+  margin: 0 auto;
+  padding: 2rem clamp(1.25rem, 4vw, 4rem) 6rem;
+}
+
+@media (min-width: 64rem) {
+  .shell {
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: 4.5rem;
+    padding-top: 3rem;
+  }
+}
+
+.masthead {
+  border-bottom: var(--rule-strong);
+  padding-bottom: 1rem;
+  margin-bottom: 2.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  /* A didone's hairlines vanish at small optical sizes; 700 keeps the wordmark
+     solid while the italic stays lighter by contrast. */
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin: 0;
+}
+
+.wordmark em {
+  font-style: italic;
+  color: var(--vermilion);
+}
+
+/* No .eyebrow class.
+   A kicker/eyebrow above a heading is refused by the design system: the heading
+   must carry its own weight. Where a small uppercase label is genuinely needed
+   as a FIELD label (a <dt> naming a value), use .field-label, which is set in
+   the body face — mono is reserved for real data, never used as costume. */
+
+.field-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* Small uppercase label for an actual section heading's supporting line, not
+   a kicker. Used only where the label IS the heading (e.g. "Not signed in"). */
+.heading-minor {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.lede {
+  font-family: var(--font-display);
+  font-size: clamp(1.375rem, 2.6vw, 1.875rem);
+  font-weight: 400;
+  line-height: 1.28;
+  letter-spacing: -0.02em;
+  max-width: 34ch;
+  margin: 0 0 2rem;
+}
+
+/* --------------------------------------------------------------------------
+   Components
+   -------------------------------------------------------------------------- */
+.panel {
+  border: var(--rule);
+  border-radius: 2px; /* near-square: editorial, not pill-shaped */
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--paper-deep) 45%, transparent);
+}
+
+.panel--flush {
+  background: transparent;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.6875rem 1.375rem;
+  border: var(--rule-strong);
+  border-radius: 2px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+
+.btn:hover {
+  background: var(--vermilion);
+  border-color: var(--vermilion);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+}
+
+.btn--ghost:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Stable hover: colour only. A scaling card shifts layout and makes a grid
+   feel unstable. */
+.lift {
+  transition:
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.lift:hover {
+  border-color: var(--vermilion);
+  background: color-mix(in srgb, var(--vermilion) 7%, transparent);
+}
+
+.lift:focus-within {
+  outline: 3px solid var(--vermilion);
+  outline-offset: 2px;
+}
+
+/* Status. The label is prose about an order, so it is set in the BODY face —
+   mono is reserved for real data (ids, prices, codes), not used as costume for
+   anything that merely looks technical. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.status__mark {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.status[data-tone='live'] .status__mark {
+  background: var(--vermilion);
+  animation: pulse 1.8s var(--ease) infinite;
+}
+
+.status[data-tone='good'] .status__mark {
+  background: var(--ink);
+}
+
+.status[data-tone='alert'] .status__mark {
+  background: var(--vermilion);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%); /* triangle: distinct shape */
+  border-radius: 0;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Callout. Depth comes from an offset + soft-blur shadow, NOT a thick coloured
+   left border — a >1px accent rule on a callout is refused. The vermilion lives
+   in the label's glyph and colour instead. */
+.notice {
+  border: var(--rule);
+  border-radius: 2px;
+  padding: 1rem 1.25rem;
+  background: color-mix(in srgb, var(--vermilion) 6%, transparent);
+  box-shadow:
+    2px 2px 0 -1px color-mix(in srgb, var(--ink) 12%, transparent),
+    0 6px 18px -10px color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
+.notice strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--vermilion);
+}
+
+a {
+  color: inherit;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  color: var(--vermilion);
+}
+
+/* --------------------------------------------------------------------------
+   Browser surfaces.
+   Text selection, the caret and scrollbars ship with defaults that belong to no
+   design system. Left alone they are the clearest tell that a page was
+   assembled rather than designed, so they are themed from the palette here.
+   -------------------------------------------------------------------------- */
+::selection {
+  background: color-mix(in srgb, var(--vermilion) 28%, transparent);
+  color: var(--ink);
+}
+
+:root {
+  caret-color: var(--vermilion);
+}
+
+* {
+  scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink) 26%, transparent);
+  border: 3px solid var(--paper);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+/* Prose measure: 65-75ch is the readable band for body copy. */
+.prose {
+  max-width: 68ch;
+}
+
+.panel p,
+.notice p {
+  max-width: 68ch;
+}
+
+:focus-visible {
+  outline: 3px solid var(--vermilion);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.75rem 1.25rem;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* --------------------------------------------------------------------------
+   Responsive rail.
+   Above 64rem the shell is a two-column grid with a narrow metadata rail, so
+   content sits in column 2. Below that the rail collapses and content spans
+   the full width — a hard-coded grid-column would push content off-screen on
+   mobile, which is why this is a class rather than an inline style.
+   -------------------------------------------------------------------------- */
+.rail {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 64rem) {
+  .rail {
+    grid-column: 2;
+  }
+}
+
+.rail--full {
+  grid-column: 1 / -1;
+}

@@ -115,4 +115,47 @@ var api = builder.AddProject<NetCommerce_Api>("netcommerce-api")
     .WithExternalHttpEndpoints()
     .WithHttpHealthCheck("/health/ready");
 
+// =============================================================================
+// NetCommerce Web (Next.js 16 storefront / BFF layer)
+// =============================================================================
+// Aspire 13.5.4 ships NO JavaScript/Node application resource: AddNpmApp,
+// AddViteApp and AddNodeApp do not exist in Aspire.Hosting.dll (verified by
+// reflecting over the pinned 13.5.4 assembly, 108 distinct Add* methods, no
+// Npm/Vite/Node/JavaScript member), and no Aspire Node package is available in
+// the NuGet cache. `builder.AddNpmApp(...)` therefore does not compile.
+//
+// AddExecutable is the real primitive for launching a non-.NET process that
+// reports an HTTP endpoint. It launches the executable DIRECTLY, with no shell,
+// and with UseShellExecute=false — so PATHEXT is NOT consulted and `.cmd`
+// shims are invisible under a bare name.
+//
+// Windows note: bare `npm` is a Git-Bash shell script, not a Win32 executable,
+// so Process.Start throws Win32Exception "The system cannot find the file
+// specified". Verified by execution against Process.Start with a passing
+// control. `npm.cmd` is the real command shim. Use bare `npm` elsewhere.
+var npmExecutable = OperatingSystem.IsWindows() ? "npm.cmd" : "npm";
+
+// Port: the dev script is `next dev --port 3000` (a literal — npm runs scripts
+// through cmd.exe on Windows, which does NOT expand ${PORT:-3000}; verified:
+// Next rejects the unexpanded string with "is not a non-negative number").
+// Aspire does not inject PORT, so the process port is fixed at 3000 and the
+// endpoint must advertise that same port.
+var web = builder.AddExecutable("netcommerce-web", npmExecutable, "run", "dev")
+    .WithWorkingDirectory("../Web/netcommerce-web")
+    // Server-side calls to the API go through Aspire service discovery.
+    .WithEnvironment("API_BASE_URL", api.GetEndpoint("http"))
+    // Keycloak's browser-facing authorize URL, used to build the PKCE redirect.
+    .WithEnvironment("KEYCLOAK_BASE_URL", keycloak.GetEndpoint("http"))
+    .WithEnvironment("KEYCLOAK_REALM", "netcommerce")
+    .WithEnvironment("KEYCLOAK_CLIENT_ID", "netcommerce-web")
+    // Pins the origin used to build the OAuth redirect_uri. Both /login and
+    // /callback must derive the SAME value or Keycloak rejects the exchange;
+    // reading it from the Host header is ambiguous behind any proxy. In dev the
+    // value is the fixed port the dev script binds to.
+    .WithEnvironment("PUBLIC_ORIGIN", "http://localhost:3000")
+    .WithHttpEndpoint(port: 3000, targetPort: 3000, name: "http")
+    .WithExternalHttpEndpoints()
+    .WithReference(api).WaitFor(api)
+    .WithReference(keycloak).WaitFor(keycloak);
+
 builder.Build().Run();

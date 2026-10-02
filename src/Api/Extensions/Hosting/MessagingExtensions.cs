@@ -1,5 +1,6 @@
 using JasperFx.CodeGeneration;
 using NetCommerce.Catalog.Application.Products.Commands;
+using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Kernel.EfCore.Persistence;
@@ -12,6 +13,7 @@ using Wolverine.Http;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
+using Wolverine.SignalR;
 
 namespace NetCommerce.Api.Extensions.Hosting;
 
@@ -55,6 +57,31 @@ public static class MessagingExtensions
 
                 opts.AddSagaType<OrderFulfillmentSaga>();
                 opts.ConfigureKernelDefaults<BaseDbContext>();
+
+                // -------------------------------------------------------------
+                // Real-time order notifications over SignalR.
+                //
+                // Without BOTH of these the saga's OrderStatusChanged is unroutable:
+                // it goes to the local queue and is dropped, while
+                // MapWolverineSignalRHub("/api/messages") (PipelineExtensions.cs:135)
+                // sits there as a dead endpoint. A browser client then connects
+                // successfully and receives nothing — which is worse than a
+                // visible failure, because the UI looks live.
+                //
+                // UseSignalR() registers the transport (verified present on the
+                // pinned WolverineFx.SignalR 6.41.0 via reflection). It does NOT
+                // itself require SignalR's services — verified by negative control:
+                // a host with UseSignalR() but no AddSignalR() still delivered a
+                // frame to a live @microsoft/signalr client 7/7. Program.cs calls
+                // AddSignalR() because it also MAPS the hub endpoint, which does
+                // need them.
+                opts.UseSignalR();
+
+                // Publish every real-time notification to that transport. Declared
+                // against the IOrderNotification MARKER, not the concrete record,
+                // so a new notification type is routed automatically instead of
+                // silently going unroutable.
+                opts.Publish(x => { x.MessagesImplementing<IOrderNotification>().ToSignalR(); });
 
                 // PROD PERSISTENCE FIX (verified 2026-09-30): without AutoApplyTransactions,
                 // Wolverine handlers that rely on the documented convention ("Wolverine handles

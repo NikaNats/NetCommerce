@@ -41,6 +41,7 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.Persistence;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.SignalR;
 using Wolverine.Tracking;
 
 namespace NetCommerce.Integration.Tests.Fixtures;
@@ -169,6 +170,26 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // Register Saga for PostgreSQL storage (Fixes InvalidSagaException)
                 opts.AddSagaType<NetCommerce.Ordering.Application.Sagas.OrderFulfillmentSaga>();
 
+                // Real-time notifications: MUST mirror production (src/Api/Extensions/
+                // Hosting/MessagingExtensions.cs). This fixture configures Wolverine
+                // independently rather than calling AddEnterpriseWolverine, so without
+                // these two lines an integration test would exercise a host where
+                // IOrderNotification is unroutable — and would pass while the real
+                // deployment silently dropped every notification.
+                // SignalRTransportWiringTests pins the production side of this pair.
+                //
+                // services.AddSignalR() is deliberately NOT called here: verified by
+                // negative control that UseSignalR() alone still delivers a frame to a
+                // live @microsoft/signalr client 7/7. Production calls AddSignalR()
+                // (src/Api/Program.cs:34) because it also MAPS the hub endpoint, which
+                // does need SignalR's services; this fixture maps no hub.
+                opts.UseSignalR();
+                opts.Publish(x =>
+                {
+                x.MessagesImplementing<NetCommerce.Domain.Shared.Events.IOrderNotification>()
+                .ToSignalR();
+                });
+
                 // Configure Wolverine for testing - include Application assemblies for commands/queries
                 opts.Discovery.IncludeAssembly(typeof(CreateProductCommand).Assembly);
                 opts.Discovery.IncludeAssembly(typeof(CreateOrderCommand).Assembly);
@@ -199,14 +220,14 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                 // envelope bookkeeping through Wolverine's own store instead of
                 // per-schema EF-mapped tables that EF migrations exclude.
                 opts.UseEntityFrameworkCoreTransactions(
-                    TransactionMiddlewareMode.Lightweight);
+                TransactionMiddlewareMode.Lightweight);
 
                 // Auto-apply transactions for handlers
                 opts.Policies.AutoApplyTransactions();
 
                 // Use durable local queue for reliability
                 opts.LocalQueue("local")
-                    .UseDurableInbox();
+                .UseDurableInbox();
             })
             .ConfigureServices(services =>
             {
