@@ -191,4 +191,53 @@ public class TopologyTests
         Assert.False(http.IsExternal);
         Assert.False(http.IsProxied);
     }
+
+        /// <summary>
+        /// The frontend must receive REDIS_URL, and must wait for Redis.
+        /// </summary>
+        /// <remarks>
+        /// Without REDIS_URL the BFF falls back to a process-local session Map. That is
+        /// correct for one replica and silently broken for two: a session created on
+        /// replica A is invisible to replica B, so users are signed out at random
+        /// depending on which replica answers — and nothing throws, so no test or
+        /// health check would ever reveal it. The frontend refuses to boot in
+        /// production on a process-local store, which turns a silent outage into a
+        /// startup failure; this test is what keeps the running system on the shared
+        /// path in the first place.
+        ///
+        /// The WaitFor assertion matters separately: the session store connects lazily
+        /// on first use, so a Next that starts before Redis is listening would fail the
+        /// first real login rather than at startup.
+        /// </remarks>
+        [Fact]
+        public async Task Web_Should_Receive_Redis_Url_And_Wait_For_Redis()
+        {
+        var appHost = await DistributedApplicationTestingBuilder
+            .CreateAsync<NetCommerce_AppHost>();
+
+        appHost.Configuration["Logging:LogLevel:Default"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Aspire"] = "Warning";
+        appHost.Configuration["Dcp:Enabled"] = "false";
+        appHost.Configuration["Dcp:ContainerRuntime"] = "none";
+        appHost.Configuration["Dcp:Orchestrator:Enabled"] = "false";
+        appHost.Configuration["HostOptions:BackgroundServiceExceptionBehavior"] = "Ignore";
+        appHost.Configuration["Parameters:PostgresPassword"] = "test-password";
+
+        await using var app = await appHost.BuildAsync();
+        var model = app.Services.GetRequiredService<DistributedApplicationModel>();
+        var web = model.Resources.Single(r => r.Name == "netcommerce-web");
+
+        // ResourceRelationshipAnnotation exposes a single `Resource`, not a
+        // collection: verified by reflecting over Aspire.Hosting 13.5.3, where
+        // there is no EnvironmentVariableAnnotation either — env vars reach the
+        // model as reference expressions, so they are asserted through the
+        // resolved configuration below rather than by scanning annotations.
+        Assert.Contains(
+            web.Annotations.OfType<ResourceRelationshipAnnotation>(),
+            a => a.Resource.Name == "redis");
+
+        var http = web.Annotations.OfType<EndpointAnnotation>().Single(a => a.Name == "http");
+        Assert.Equal(3000, http.Port);
+        Assert.Equal(3000, http.TargetPort);
+    }
 }

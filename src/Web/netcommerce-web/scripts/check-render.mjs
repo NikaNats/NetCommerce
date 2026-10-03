@@ -9,7 +9,38 @@ import { writeFileSync } from 'node:fs';
  */
 const BASE = process.env.RENDER_BASE_URL ?? 'http://localhost:3000';
 
-const res = await fetch(BASE + '/');
+/**
+ * Fetch with retry.
+ *
+ * `next dev` reports "Ready" before the first route has compiled, and that first
+ * request can close the socket mid-response. A single unguarded fetch made this
+ * gate flaky — it failed with UND_ERR_SOCKET on a clean tree, which is worse than
+ * no gate, because a red build trains people to ignore it.
+ *
+ * Bounded and explicit: a genuine failure still fails, just not on the very first
+ * cold compile.
+ */
+async function fetchWithRetry(url, attempts = 5, delayMs = 1000) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetch(url);
+    } catch (cause) {
+      lastError = cause;
+      if (attempt < attempts) {
+        console.log(
+          `  (retry ${attempt}/${attempts - 1} after ${cause.message})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+const res = await fetchWithRetry(BASE + '/');
 const html = await res.text();
 
 console.log(`=== HTTP ${res.status}, ${html.length} bytes of HTML ===`);

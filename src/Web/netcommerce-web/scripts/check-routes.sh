@@ -12,6 +12,16 @@ cd "${1:?pass the app directory}" || exit 1
 NEXT_PID=$!
 trap 'kill $NEXT_PID 2>/dev/null' EXIT
 
+# Same guard as verify-render.sh: a stale server holding :3000 makes the readiness
+# wait below match a stranger's log line while this Next has already exited on
+# EADDRINUSE. check.sh runs verify-render.sh first, so this catches a leftover
+# from an earlier run or from a manual `next dev`.
+if command -v netstat >/dev/null 2>&1 && netstat -ano 2>/dev/null | grep -q ':3000 .*LISTENING'; then
+  echo "ABORT: port 3000 is already in use."
+  netstat -ano 2>/dev/null | grep ':3000 .*LISTENING'
+  exit 1
+fi
+
 echo "waiting for :3000"
 for i in $(seq 1 90); do
   if node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" >/dev/null 2>&1; then

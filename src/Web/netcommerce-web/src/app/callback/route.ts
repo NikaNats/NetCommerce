@@ -9,7 +9,11 @@ import {
   shouldUseSecureCookie,
 } from '@/lib/auth/session-cookie';
 import { readConfig, publicOrigin } from '@/lib/config';
-import { destroySessionById, getSessionById, registerSession } from '@/lib/auth/server-session';
+import {
+  destroySessionById,
+  persistSession,
+  registerSession,
+} from '@/lib/auth/server-session';
 import { isValidPkceValue } from '@/lib/auth/pkce';
 import { safeReturnTo } from '@/lib/auth/return-to';
 
@@ -59,7 +63,7 @@ export async function GET(request: Request): Promise<never> {
   }
 
   const config = readConfig();
-  const session = registerSession();
+  const session = await registerSession();
 
   try {
     await session.tokens.exchangeAuthorizationCode({
@@ -71,13 +75,19 @@ export async function GET(request: Request): Promise<never> {
     console.error('[auth] token exchange failed', cause);
     // Drop the half-created session. Registering it before the exchange means a
     // failure here would otherwise strand an entry holding no tokens, reachable
-    // by nobody, until the 8h sweep.
-    destroySessionById(session.id);
+    // by nobody, until the 8h TTL.
+    await destroySessionById(session.id);
     redirect('/login?error=token_exchange_failed');
   }
 
-  if (!getSessionById(session.id)?.tokens.current()) {
-    destroySessionById(session.id);
+  // Persist the exchanged pair BEFORE setting the cookie. The cookie is what
+  // makes this session reachable, so a cookie set against an unpersisted
+  // session would look signed in and 401 on the very next request — the failure
+  // only visible after the redirect completes.
+  await persistSession(session);
+
+  if (!session.tokens.current()) {
+    await destroySessionById(session.id);
     redirect('/login?error=token_exchange_failed');
   }
 

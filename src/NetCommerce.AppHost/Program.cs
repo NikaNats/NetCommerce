@@ -167,6 +167,29 @@ var web = builder.AddExecutable("netcommerce-web", npmExecutable, "run", "dev")
     // reading it from the Host header is ambiguous behind any proxy. In dev the
     // value is the fixed port the dev script binds to.
     .WithEnvironment("PUBLIC_ORIGIN", "http://localhost:3000")
+    // Session store. Aspire's supported idiom for sharing a connection string is
+        // .WithReference(resource), which injects ConnectionStrings__<name>. The
+        // frontend reads a plain REDIS_URL, so it is configured from the same
+        // resource — via the IResourceWithConnectionString interface, which is the
+        // only public accessor (BuildConnectionString on RedisResource is private;
+        // verified by reflecting over Aspire.Hosting.Redis 13.5.3).
+        //
+        // Without it the BFF falls back to a process-local Map: correct for one
+        // replica, silently broken for two, because a session created on one replica
+        // is invisible to the next. The frontend refuses to boot in production on a
+        // process-local store, so this reference is what keeps the running system on
+        // the shared path.
+        .WithReference(redis)
+                // ReferenceExpression is the supported way to forward a resource's
+                // connection string under another env-var name: it defers evaluation to
+                // runtime, so no connection is opened while the AppHost is still
+                // composing its model. BuildConnectionString/GetConnectionStringAsync are
+                // not usable here — the former is private on RedisResource (verified by
+                // reflection over Aspire.Hosting.Redis 13.5.3), the latter would resolve
+                // the endpoint during composition.
+                .WithEnvironment(
+                    "REDIS_URL",
+                    redis.Resource.ConnectionStringExpression)
     // NOTE: isProxied: false is LOAD-BEARING, not a preference.
     // EndpointAnnotation.IsProxied defaults to TRUE, so omitting it (or adding
     // .WithExternalHttpEndpoints()) makes DCP proxy this endpoint — and for a
@@ -180,6 +203,10 @@ var web = builder.AddExecutable("netcommerce-web", npmExecutable, "run", "dev")
     // TopologyTests.Web_Should_Use_Direct_Fixed_Port_Endpoint pins this.
     .WithHttpEndpoint(port: 3000, targetPort: 3000, name: "http", isProxied: false)
     .WithReference(api).WaitFor(api)
-    .WithReference(keycloak).WaitFor(keycloak);
+    .WithReference(keycloak).WaitFor(keycloak)
+    // The session store connects lazily on first use, so a Next that starts
+    // before Redis is listening would fail the first real login rather than at
+    // startup — the worst place to discover it.
+    .WaitFor(redis);
 
 builder.Build().Run();

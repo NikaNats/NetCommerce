@@ -35,13 +35,36 @@ function check(label, ok, detail = '') {
 
 console.log('=== control: is the server actually up? ===');
 let controlStatus = 0;
-try {
-  controlStatus = (await fetch(`${BASE}/`)).status;
-} catch (cause) {
-  console.log(`  FAIL  server unreachable: ${cause.message}`);
+let controlAttempts = 0;
+let lastError = null;
+
+// `next dev` reports "Ready" before the first route has compiled, and that first
+// request can close the socket mid-response. Retry the control specifically:
+// every assertion below depends on the server being genuinely up, so a single
+// cold-compile hiccup would otherwise fail the whole run for the wrong reason.
+while (controlAttempts < 5) {
+  controlAttempts += 1;
+  try {
+    controlStatus = (await fetch(`${BASE}/`)).status;
+    lastError = null;
+    break;
+  } catch (cause) {
+    lastError = cause;
+    console.log(`  (retry ${controlAttempts}/5 after ${cause.message})`);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
+if (lastError) {
+  console.log(`  FAIL  server unreachable: ${lastError.message}`);
   process.exit(1);
 }
-check('GET / returns 200', controlStatus === 200, `status=${controlStatus}`);
+
+check(
+  'GET / returns 200',
+  controlStatus === 200,
+  `status=${controlStatus}${controlAttempts > 1 ? ` after ${controlAttempts} attempts` : ''}`,
+);
 
 console.log('\n=== route status (API DOWN: must degrade, not 500) ===');
 for (const path of PATHS) {
