@@ -92,6 +92,19 @@ export interface SessionStore {
   ): Promise<{ acquired: true; value: T } | { acquired: false; value: null }>;
   /** Release any resources. Safe to call more than once. */
   close(): Promise<void>;
+  /**
+   * Is a refresh lock currently held for this session, by ANY holder?
+   *
+   * Lets a waiter distinguish "the winner is still rotating" from "the winner
+   * finished without rotating". The second case is the thundering-herd case: a
+   * transient upstream failure means no new token pair is ever written, so a
+   * waiter polling for one spins until its own timeout for nothing.
+   *
+   * MUST fail SAFE — return true when the answer cannot be established (a store
+   * error, or an implementation with no shared lock). A false negative would make
+   * a waiter abandon a rotation that is genuinely still in flight.
+   */
+  isRefreshLockHeld?(id: string): Promise<boolean>;
 }
 
 /* ------------------------------------------------------------------ *

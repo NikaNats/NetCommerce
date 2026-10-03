@@ -165,19 +165,52 @@ export async function getSessionById(
  * Returning that gave the caller an access token inside the refresh window, which
  * the API then rejects with a 401 for a user who is genuinely signed in.
  *
- * So: re-read until the refresh token CHANGES, bounded by the same window a
- * rotation can reasonably take. Returning the original record on timeout is
- * correct — a still-valid refresh token beats a fabricated failure.
+ * ## Why it must not spin on a lock that no longer exists
+ *
+ * The loop waits for the refresh token to CHANGE. When the winner's refresh fails
+ * TRANSIENTLY — AuthStrict returns 429 under load, which is the expected outcome
+ * of a login burst, not an exceptional case — the winner keeps the session and
+ * writes NOTHING. The condition this loop watches for can then never become true,
+ * so without an exit it polls for the entire ROTATION_WAIT_MS: with N concurrent
+ * requests that is 40N Redis GETs per second, every caller held at maximum
+ * latency, and the same race re-running on the next request.
+ *
+ * So the loop also asks whether the lock is STILL HELD. Once it is gone, the
+ * winner has finished; if no new pair appeared, none ever will, and continuing to
+ * poll is provably futile.
+ *
+ * `isLockHeld` returns true when the answer cannot be established (an
+ * implementation without a shared lock, or a store error). Failing towards "keep
+ * waiting" preserves the original behaviour where the exit signal is unavailable,
+ * rather than abandoning a rotation that may still land.
  */
+export interface WaitForRotationOptions {
+  /** Clock, injectable for tests. */
+  now?: () => number;
+  /** How long to wait for the winner's write before giving up. */
+  waitMs?: number;
+  /** Sleep between polls, injectable for tests. */
+  sleep?: (ms: number) => Promise<void>;
+  /**
+   * Is a rotation still in flight? Defaults to "assume yes", which preserves the
+   * original always-wait behaviour where no answer is available.
+   */
+  isLockHeld?: (id: string) => Promise<boolean>;
+}
+
 async function waitForRotation(
   store: SessionStore,
   id: string,
   original: StoredSession,
-  now: () => number = () => Date.now(),
-  waitMs: number = ROTATION_WAIT_MS,
-  sleep: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms)),
+  options: WaitForRotationOptions = {},
 ): Promise<StoredSession | null> {
+  const {
+    now = () => Date.now(),
+    waitMs = ROTATION_WAIT_MS,
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    isLockHeld = async () => true,
+  } = options;
+
   const deadline = now() + waitMs;
   const intervalMs = 25;
 
@@ -196,8 +229,40 @@ async function waitForRotation(
       return current;
     }
 
+    // The winner has released the lock without rotating (a transient upstream
+    // failure). Nothing else can write this pair, so waiting longer cannot help.
+    if (!(await isLockHeld(id))) {
+      return current;
+    }
+
     await sleep(intervalMs);
   }
+}
+
+/**
+ * Test seam for {@link waitForRotation}.
+ *
+ * Exported so the polling behaviour can be asserted directly — including the read
+ * COUNT, which is the only observable symptom of the thundering herd. A test that
+ * only checked the return value would pass against the broken version, because
+ * the caller gets its record either way.
+ */
+export const waitForRotationForTest = waitForRotation;
+
+/**
+ * Bind a store's lock-held check into the shape waitForRotation expects.
+ *
+ * Stores that cannot answer (a process-local store, or one without the optional
+ * method) report "held", which restores the original always-wait behaviour. That
+ * is the correct failure direction: without a shared lock there is no cross-process
+ * winner to wait for anyway, and a wrong `false` would abandon a rotation that is
+ * still in flight.
+ */
+function lockHeld(store: SessionStore): (id: string) => Promise<boolean> {
+  return async (id: string) => {
+    if (!store.isRefreshLockHeld) return true;
+    return store.isRefreshLockHeld(id);
+  };
 }
 
 /**
@@ -320,7 +385,9 @@ export async function getSession(): Promise<ServerSession | undefined> {
     if (!(cause instanceof RefreshLockLostError)) throw cause;
 
     // Re-read for whoever does hold it now.
-    const reloaded = await waitForRotation(store, id, stored, Date.now, ROTATION_WAIT_MS);
+    const reloaded = await waitForRotation(store, id, stored, {
+      isLockHeld: lockHeld(store),
+    });
     if (!reloaded) return { acquired: false as const, value: null };
     return { acquired: true as const, value: reloaded };
   });
@@ -328,7 +395,9 @@ export async function getSession(): Promise<ServerSession | undefined> {
   if (!outcome.acquired) {
     // Lock lost: another replica is rotating right now. Re-read for its result
     // rather than starting a competing rotation.
-    const reloaded = await waitForRotation(store, id, stored);
+    const reloaded = await waitForRotation(store, id, stored, {
+      isLockHeld: lockHeld(store),
+    });
     if (!reloaded) return undefined;
 
     const reloadedTokens = reloaded.tokens;

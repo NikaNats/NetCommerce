@@ -31,6 +31,7 @@
  */
 
 import type { SessionStore, StoredSession } from '@/lib/auth/session-store';
+import { SESSION_ABSOLUTE_TTL_MS } from '@/lib/auth/session-store-ttl';
 import {
   RefreshLockLostError,
   type RefreshLockGuard,
@@ -169,12 +170,39 @@ export class RedisSessionStore implements SessionStore {
   }
 
   async put(session: StoredSession): Promise<void> {
-    // The Redis TTL is the session's absolute expiry, so a crashed process
-    // leaves nothing behind and no sweeper is needed.
+    // The TTL is the session's ABSOLUTE expiry, so a crashed process leaves
+    // nothing behind and no sweeper is needed.
+    //
+    // It must be the REMAINING lifetime, not a fresh full TTL. Writing the
+    // constant `ttlSeconds` on every rotation silently converted this absolute
+    // cap into a SLIDING one: an actively-browsing user rotates every 5-15
+    // minutes, each write pushing expiry out to a full 8 hours from that moment,
+    // so the session never expired however long it stayed active.
+    //
+    // The damage was invisible to the user only because server-session.ts also
+    // checks `createdAt` in memory on read. That check is defence in depth, not a
+    // substitute: the record itself lingered in Redis, holding a live refresh
+    // token past its intended lifetime.
+    //
+    // Clamped at BOTH ends. The lower clamp means an already-expired session is
+    // written with an imminent expiry and cleared by Redis rather than being
+    // given another 8 hours. The upper clamp is the one a first pass missed: a
+    // record whose createdAt is in the FUTURE — clock skew between replicas, or a
+    // restored backup — makes `remainingMs` LARGER than the cap, so the session
+    // would be granted more than 8 hours. That is the same class of bug this
+    // method exists to prevent, in the opposite direction, and it is reachable
+    // rather than theoretical: nothing enforces monotonic time across replicas.
+    const remainingMs = session.createdAt + SESSION_ABSOLUTE_TTL_MS - Date.now();
+    const capSeconds = Math.ceil(SESSION_ABSOLUTE_TTL_MS / 1000);
+    const remainingSec = Math.min(
+      capSeconds,
+      Math.max(1, Math.ceil(remainingMs / 1000)),
+    );
+
     await this.client.set(
       this.sessionKey(session.id),
       JSON.stringify(session),
-      { EX: this.ttlSeconds },
+      { EX: remainingSec },
     );
   }
 
@@ -262,6 +290,21 @@ export class RedisSessionStore implements SessionStore {
       await this.client
         .eval(RELEASE_IF_OWNER, { keys: [key], arguments: [owner] })
         .catch(() => undefined);
+    }
+  }
+
+  /**
+   * Is any holder rotating this session right now?
+   *
+   * True on a Redis error rather than false: a waiter uses this to decide whether
+   * waiting is still worthwhile, and treating an unreachable Redis as "no lock"
+   * would make every waiter abandon a rotation that is genuinely in flight.
+   */
+  async isRefreshLockHeld(id: string): Promise<boolean> {
+    try {
+      return (await this.client.get(this.lockKey(id))) !== null;
+    } catch {
+      return true;
     }
   }
 
