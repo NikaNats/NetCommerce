@@ -49,6 +49,15 @@ export interface ServerSession {
   createdAt: number;
 }
 
+/**
+ * How long a lock loser waits for the winner's rotated pair to land.
+ *
+ * Must comfortably exceed a normal token round trip but stay far below the
+ * request timeout, so a genuinely stuck winner fails fast instead of hanging the
+ * request.
+ */
+const ROTATION_WAIT_MS = 5_000;
+
 function sessionStore(): SessionStore {
   return getSessionStore();
 }
@@ -148,6 +157,48 @@ export async function getSessionById(
 }
 
 /**
+ * Poll for the winner's rotated pair instead of reading once.
+ *
+ * A caller that loses the lock re-reads immediately, but the winner has NOT
+ * written yet — so a single read returns the OLD, already-expiring pair.
+ * Returning that gave the caller an access token inside the refresh window, which
+ * the API then rejects with a 401 for a user who is genuinely signed in.
+ *
+ * So: re-read until the refresh token CHANGES, bounded by the same window a
+ * rotation can reasonably take. Returning the original record on timeout is
+ * correct — a still-valid refresh token beats a fabricated failure.
+ */
+async function waitForRotation(
+  store: SessionStore,
+  id: string,
+  original: StoredSession,
+  now: () => number = () => Date.now(),
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<StoredSession | null> {
+  const deadline = now() + ROTATION_WAIT_MS;
+  const intervalMs = 25;
+
+  for (;;) {
+    const current = await store.get(id);
+    if (!current) return null;
+
+    // Someone wrote a NEW pair — that is the winner's rotation landing.
+    if (current.tokens.refreshToken !== original.tokens.refreshToken) {
+      return current;
+    }
+
+    if (now() >= deadline) {
+      // Timed out. The original pair is still valid; better to hand it back
+      // than to fail a request the user is entitled to.
+      return current;
+    }
+
+    await sleep(intervalMs);
+  }
+}
+
+/**
  * Resolve the current session, refreshing through the backend when the access
  * token is close to expiry. Returns undefined when there is no usable session.
  */
@@ -196,7 +247,14 @@ export async function getSession(): Promise<ServerSession | undefined> {
       return fresh;
     }
 
-    if (fresh.presentedRefreshTokens.includes(spent)) {
+    // Read defensively: a record written by an older version may lack the array,
+    // and the Redis store's normalisation is a second line of defence rather than
+    // a guarantee for every store implementation.
+    const presented = Array.isArray(fresh.presentedRefreshTokens)
+      ? fresh.presentedRefreshTokens
+      : [];
+
+    if (presented.includes(spent)) {
       // Already presented. Refuse to replay; keep the stored state.
       return fresh;
     }
@@ -204,10 +262,25 @@ export async function getSession(): Promise<ServerSession | undefined> {
     const refreshed = await session.tokens.refresh();
 
     if (!refreshed) {
-      // A terminal rejection means the token is dead. Drop ours so the next
-      // request is an honest login rather than a loop of 401s.
-      await store.delete(id);
-      return null;
+      // A null refresh result is AMBIGUOUS. Only a TERMINAL rejection means the
+      // token is dead; a 429 from the AuthStrict limiter, a 502, or a dropped
+      // socket means the token was never presented and is STILL VALID.
+      //
+      // Deleting the session on either is what signed out every user during a
+      // traffic spike. AuthStrict makes a 429 the EXPECTED outcome of a login
+      // burst, so the transient case is routine, not exceptional.
+      const outcome = session.tokens.lastRefreshOutcome?.() ?? 'transient';
+
+      if (outcome === 'terminal') {
+        // Drop ours so the next request is an honest login rather than a loop
+        // of 401s.
+        await store.delete(id);
+        return null;
+      }
+
+      // Transient: keep the session and its stored pair. The next request will
+      // retry, and the token is still good.
+      return fresh;
     }
 
     const current = session.tokens.current();
@@ -216,7 +289,7 @@ export async function getSession(): Promise<ServerSession | undefined> {
     const updated: StoredSession = {
       ...fresh,
       tokens: current,
-      presentedRefreshTokens: [...fresh.presentedRefreshTokens, spent],
+      presentedRefreshTokens: [...presented, spent],
     };
     await store.put(updated);
     return updated;
@@ -225,7 +298,7 @@ export async function getSession(): Promise<ServerSession | undefined> {
   if (!outcome.acquired) {
     // Lock lost: another replica is rotating right now. Re-read for its result
     // rather than starting a competing rotation.
-    const reloaded = await store.get(id);
+    const reloaded = await waitForRotation(store, id, stored);
     if (!reloaded) return undefined;
 
     const reloadedTokens = reloaded.tokens;

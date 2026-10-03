@@ -65,6 +65,20 @@ export class AuthError extends Error {
 }
 
 /**
+ * Why a refresh returned no session.
+ *
+ * `TokenStore.refresh()` returning `null` is AMBIGUOUS on its own: it means the
+ * same thing whether Keycloak rejected the token (the session is dead) or the
+ * upstream was briefly unreachable (the token was never presented and is still
+ * valid). Collapsing the two is how a 429 from the AuthStrict limiter — the
+ * expected outcome of a login burst — signs out every user it touches.
+ *
+ * Callers that need to decide whether to DESTROY a session must read this
+ * rather than infer it from a null result.
+ */
+export type RefreshOutcome = 'rotated' | 'terminal' | 'transient';
+
+/**
  * Refresh failures that mean the refresh token is definitively unusable.
  *
  * Only these destroy the session. Everything else — a 429 from the AuthStrict
@@ -84,6 +98,14 @@ export interface TokenStore {
     redirectUri: string;
   }): Promise<Session>;
   refresh(): Promise<Session | null>;
+  /**
+   * Why the last refresh returned null, when it did.
+   *
+   * 'transient' means the token was never presented and is STILL VALID — the
+   * caller must keep the session. 'terminal' means it is dead and the session
+   * should be destroyed. Null when no refresh has failed.
+   */
+  lastRefreshOutcome?(): RefreshOutcome | null;
   logout(): Promise<void>;
   current(): Session | null;
   needsRefresh(): boolean;
@@ -124,18 +146,31 @@ export function createTokenStore(options: TokenStoreOptions): TokenStore {
    */
   const presentedRefreshTokens = new Set<string>();
 
+  /**
+   * Why the most recent refresh failed, or null if it has not.
+   *
+   * Read by server-session.ts to decide whether a null refresh result means
+   * "destroy this session" or "keep it and try again later".
+   */
+  let lastOutcome: RefreshOutcome | null = null;
+
   async function rotate(current: Session): Promise<Session | null> {
     try {
       const response = await post('/api/v1/auth/refresh', {
         refresh_token: current.refreshToken,
       });
-      return adopt((await response.json()) as TokenResponse);
+      const next = adopt((await response.json()) as TokenResponse);
+      lastOutcome = 'rotated';
+      return next;
     } catch (error) {
       // Only a definitive rejection means the token is dead. A 429 (the
       // AuthStrict limiter), a 502, or a dropped connection leaves the token
       // unpresented and therefore still usable, so the session survives.
       if (isTerminalAuthFailure(error)) {
         session = null;
+        lastOutcome = 'terminal';
+      } else {
+        lastOutcome = 'transient';
       }
       return null;
     }
@@ -232,6 +267,10 @@ export function createTokenStore(options: TokenStoreOptions): TokenStore {
         // Local session is already cleared; a failed remote logout must not
         // block the user from being signed out here.
       }
+    },
+
+    lastRefreshOutcome(): RefreshOutcome | null {
+      return lastOutcome;
     },
 
     current(): Session | null {

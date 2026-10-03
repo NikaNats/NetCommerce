@@ -117,10 +117,20 @@ export class RedisSessionStore implements SessionStore {
 
     try {
       const parsed = JSON.parse(raw) as StoredSession;
-      // Defend against a truncated or hand-edited value: a session without a
-      // usable refresh token is not a session. Returning null makes the caller
-      // log the user out cleanly instead of failing on a missing field later.
+      // Defend against a truncated, hand-edited, or older-format value. A session
+      // without a usable refresh token is not a session; returning null makes the
+      // caller log out cleanly instead of failing deep in the refresh path.
       if (!parsed?.tokens?.refreshToken || !parsed?.id) return null;
+
+      // presentedRefreshTokens is read with .includes() by the rotation path, so a
+      // record missing it would throw a TypeError — a 500 rather than the
+      // "treat as absent" posture this function already takes for corrupt JSON.
+      // Default it rather than reject: an absent set is safe (nothing has been
+      // recorded as presented), whereas rejecting would sign the user out.
+      if (!Array.isArray(parsed.presentedRefreshTokens)) {
+        parsed.presentedRefreshTokens = [];
+      }
+
       return parsed;
     } catch {
       // Corrupt JSON: treat as absent. The TTL will clear the key anyway.
