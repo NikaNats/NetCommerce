@@ -87,15 +87,13 @@ public class AdminDlqEndpoints : IEndpointGroup
         if (!found)
         {
             logger.LogWarning("DLQ message {Id} not found", id);
-            return Results.NotFound(new { MessageId = id, Error = "Dead-lettered message not found." });
+            return Results.NotFound(new DlqNotFoundResponse(id, "Dead-lettered message not found."));
         }
 
-        return Results.Accepted(null, new
-        {
-            MessageId = id,
-            Message = "Message marked as replayable. Wolverine durability agent will re-enqueue it shortly.",
-            ProcessedBy = userName
-        });
+        return Results.Accepted(null, new MarkReplayableResponse(
+            id,
+            "Message marked as replayable. Wolverine durability agent will re-enqueue it shortly.",
+            userName));
     }
 
     private static async Task<IResult> DismissDeadLetter(
@@ -116,7 +114,7 @@ public class AdminDlqEndpoints : IEndpointGroup
         if (!found)
         {
             logger.LogWarning("DLQ message {Id} not found", id);
-            return Results.NotFound(new { MessageId = id, Error = "Dead-lettered message not found." });
+            return Results.NotFound(new DlqNotFoundResponse(id, "Dead-lettered message not found."));
         }
 
         return Results.NoContent();
@@ -171,3 +169,7 @@ public sealed record BulkReplayResponse(
     string? Filter,
     string Message,
     string ProcessedBy);
+
+public sealed record DlqNotFoundResponse(Guid MessageId, string Error);
+
+public sealed record MarkReplayableResponse(Guid MessageId, string Message, string ProcessedBy);

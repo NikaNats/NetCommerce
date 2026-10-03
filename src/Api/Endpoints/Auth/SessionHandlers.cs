@@ -16,7 +16,14 @@ public static class SessionHandlers
 
         var response = new SessionInfoResponse
         {
+            // Identity precedence: standard OIDC 'sub' first, then the
+            // Keycloak 'user_id' protocol mapper (netcommerce.api scope).
+            // The mapper exists because the Keycloak deployment backing this
+            // API omits 'sub' from access tokens (proven live against both the
+            // password and authorization-code flows); without it UserId is
+            // "unknown" for every caller.
             UserId = user.FindFirst("sub")?.Value
+                     ?? user.FindFirst("user_id")?.Value
                      ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown",
             Username = user.FindFirst("preferred_username")?.Value
                        ?? user.Identity?.Name ?? "unknown",

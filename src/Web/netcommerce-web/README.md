@@ -41,10 +41,14 @@ Sign-out calls `/auth/logout`, not `/auth/revoke`. Revoke kills only the refresh
 token and leaves the server-side Keycloak session alive, so the user stays
 silently signed in at the identity provider.
 
-### Why the session registry is in-memory
+### Why the session registry is in-memory (on globalThis)
 
-`src/lib/auth/server-session.ts` keeps sessions in a module-level `Map`. That is
-correct for a single process in local development and **incorrect** for multiple
+`src/lib/auth/server-session.ts` keeps sessions in a `Map` deliberately hung
+off `globalThis`, not as a bare module-level variable: route handlers in this
+Next version receive separate module instances (proven live — a session
+registered from `/callback` was invisible to `/basket` in the same dev
+process), while `globalThis` is shared by every route. That is correct for a
+single process in local development and **incorrect** for multiple
 instances — a second replica would not see the session. The swap point is the
 `registry` in that file; replacing the backing store must not change any of the
 semantics on `TokenStore`. Do not "fix" it by moving the refresh token into the
@@ -68,7 +72,8 @@ realm the AppHost imports (`src/NetCommerce.AppHost/realms/netcommerce-realm.jso
   native rotation that makes single-refresh-path handling mandatory
 - `redirectUris` includes `http://localhost:3000/*`
 
-Two cautions:
+Three cautions (the third is a fixed-and-verified past caution, kept so nobody
+regresses it):
 
 1. There is a **second, different realm file** at `tools/keycloak/netcommerce-realm.json`
    that defines only `netcommerce-api` and has no `netcommerce-web` client. The
@@ -77,10 +82,20 @@ Two cautions:
    anyone reading the wrong path.
 2. The realm uses `clientAuthenticatorType: "client-secret"` on a
    `publicClient`. That combination is contradictory — a public client must not
-   authenticate with a secret. Verify the login flow against a running Keycloak
-   before trusting it; `KeycloakTokenProxy` only attaches a `client_secret` for
-   the confidential API client, so the exchange should still work, but this is
-   worth confirming rather than assuming.
+   authenticate with a secret. Verified live 2026-10-03 against a running
+   Keycloak: the full `/login` → form → `/callback` → BFF exchange chain works
+   for `netcommerce-web` with no secret attached (`KeycloakTokenProxy` only
+   sends `client_secret` for the confidential API client), and the issued
+   tokens carry `realm_access.roles`. The contradictory attribute is inert, not
+   fatal. Leave it alone rather than "cleaning" the realm.
+
+3. The realm previously lacked the standard `roles`/`profile`/`email`
+   client scopes (and a `user_id` mapper), so access tokens carried no roles
+   and every `VendorOnly`/`CustomerOnly` endpoint 403'd. Fixed in the realm
+   file and verified live. The API additionally accepts the `user_id` claim
+   where it used to require `sub`, because this Keycloak deployment omits
+   `sub` from access tokens on every flow (password and auth-code alike;
+   `userinfo` still returns it).
 
 ## Real-time (order status over SignalR)
 
@@ -316,8 +331,30 @@ launch it, use `npm.cmd`.
 RSC protocol); `scripts/check.sh` fails the build if the installed version drops
 below that floor.
 
+## Storefront surface (shipped)
+
+Against the API's real contracts, read from the endpoint and DTO source:
+
+- Catalog (`/catalog`): server-rendered search + paging from the query string
+  (`GET /api/v1/products`), shareable and refresh-safe.
+- Product detail at `/products/{slug}` and `/products/id/{id}` — the id route
+  exists because cards fall back to it when a product has no slug.
+- Basket (`/basket`): server-rendered lines with per-row quantity update,
+  removal, and clear (`GET/POST/PUT/DELETE /api/v1/basket`), all through Server
+  Actions so the browser never holds a token. The basket total shown is always
+  the server's `totalPrice`, never a client-side sum.
+
 ## Not implemented yet
 
-Deliberately out of scope for the boundary review: catalog/product pages,
-basket mutations, checkout and Stripe Elements, the SignalR order-tracking
-hook, Dockerfile, and the `openapi-typescript` schema file.
+Deliberately out of scope: checkout and Stripe Elements, the SignalR
+order-tracking UI (`useOrderSaga` is written and unit-tested but no page mounts
+it yet), order history pages, a production Dockerfile for the standalone
+output, and the `openapi-typescript` schema file (`npm run codegen:api` —
+which works again now that `/openapi/v1.json` returns 200).
+
+Two prerequisites when the tracking UI gets built: `useOrderSaga` reconciles
+against `GET /api/bff/orders/{id}`, which has no Next route yet, and it dials
+`/api/messages` relative to the storefront origin while the hub lives on the
+API origin — neither is reachable from a browser today. Both need a deliberate
+origin strategy (same-origin proxy route), not a hardcoded API URL in the
+browser bundle.

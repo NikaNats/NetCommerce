@@ -9,8 +9,12 @@ using NetCommerce.Media.Application.Services;
 
 namespace NetCommerce.Api.Endpoints.Media;
 
-// Strongly-typed AOT-safe DTO (fixes runtime serialization crashes in Native AOT)
+// Strongly-typed AOT-safe DTOs (anonymous payloads crash the Native AOT
+// source-generation resolver at runtime with "JsonTypeInfo metadata ... was
+// not provided" — a 500 on the endpoint that returns them).
 public sealed record UploadMediaResponse(string Key, string Url);
+public sealed record MediaUploadError(string Error);
+public sealed record PublicUrlResponse(string Url);
 
 public class MediaEndpoints : IEndpointGroup
 {
@@ -39,15 +43,25 @@ public class MediaEndpoints : IEndpointGroup
             .AllowAnonymous();
     }
 
+    /// <summary>
+    ///     Uploads a file from a multipart/form-data body (field name "file").
+    ///     The form is read manually from <see cref="HttpContext"/> rather than
+    ///     binding an <c>IFormFile</c> parameter: the .NET OpenAPI schema
+    ///     generator has no source-generation metadata for <c>IFormFile</c>,
+    ///     so the parameter form 500'd the whole /openapi/v1.json document
+    ///     (and broke the storefront's codegen:api type-regen workflow).
+    /// </summary>
     private static async Task<IResult> Upload(
-        IFormFile? file,
-        IStorageService storageService,
         HttpContext httpContext,
+        IStorageService storageService,
         string folder = "products",
         CancellationToken cancellationToken = default)
     {
+        var form = await httpContext.Request.ReadFormAsync(cancellationToken);
+        var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
+
         if (file is null || file.Length == 0)
-            return Results.BadRequest(new { error = "File is required" });
+            return Results.BadRequest(new MediaUploadError("File is required"));
 
         await using var stream = file.OpenReadStream();
 
@@ -105,6 +119,6 @@ public class MediaEndpoints : IEndpointGroup
         IStorageService storageService)
     {
         var url = storageService.GetPublicUrl(key);
-        return Results.Ok(new { Url = url });
+        return Results.Ok(new PublicUrlResponse(url));
     }
 }

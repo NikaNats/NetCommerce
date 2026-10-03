@@ -183,7 +183,7 @@ public class ProductEndpoints : IEndpointGroup
         var location = $"/api/v{version.MajorVersion}/products/{result.Value}";
         httpContext.Response.Headers.Location = location;
 
-        return Results.Created(location, new { id = result.Value });
+        return Results.Created(location, new CreatedResponse(result.Value));
     }
 
     private static async Task<IResult> Update(
@@ -239,7 +239,7 @@ public class ProductEndpoints : IEndpointGroup
         // Return 201 Created with the product images location
         var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
         var location = $"/api/v{version.MajorVersion}/products/{id}/images";
-        return Results.Created(location, new { productId = id, imageKey = request.ImageKey });
+        return Results.Created(location, new AddProductImageResponse(id, request.ImageKey));
     }
 
     private static async Task<IResult> Delete(
@@ -268,3 +268,5 @@ public record UpdateProductPriceRequest(decimal Amount, string Currency);
 /// <param name="DisplayOrder">The display order (lower numbers shown first).</param>
 /// <param name="IsPrimary">Whether this is the primary product image.</param>
 public record AddProductImageRequest(string ImageKey, int DisplayOrder, bool IsPrimary);
+
+public sealed record AddProductImageResponse(Guid ProductId, string ImageKey);

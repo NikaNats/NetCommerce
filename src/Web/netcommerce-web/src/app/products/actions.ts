@@ -40,9 +40,10 @@ export async function addToCartAction(
 ): Promise<AddToCartState> {
   const productId = String(formData.get('productId') ?? '');
   const productName = String(formData.get('productName') ?? '');
-  // The API omits null fields (WhenWritingNull) and AddBasketItemRequest takes
-  // nullable string?, but a JSON null and an absent key are different on the wire.
-  // Normalize to undefined so the field is simply not sent.
+  // Empty form fields normalize to undefined so the key is omitted from the
+  // JSON body. The API's AddBasketItemRequest takes nullable strings, so an
+  // explicit null would bind identically — omission is just the cleaner
+  // encoding of "no value" and keeps sku/imageUrl as truly-optional keys.
   const sku = String(formData.get('sku') ?? '') || undefined;
   const unitPriceRaw = String(formData.get('unitPrice') ?? '');
   const quantityRaw = String(formData.get('quantity') ?? '1');

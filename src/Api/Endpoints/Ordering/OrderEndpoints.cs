@@ -65,7 +65,11 @@ public class OrderEndpoints : IEndpointGroup
         // authenticated JWT subject — never from the request body. Accepting a
         // client-supplied CustomerId would let any customer create (and, via
         // idempotency scoping, read) orders under another customer's identity.
+        // 'user_id' is the Keycloak protocol mapper fallback (see SessionHandlers:
+        // this deployment omits 'sub' from access tokens). Without it every
+        // order create 401s because the remaining fallbacks are not Guids.
         var subject = httpContext.User.FindFirst("sub")?.Value
+            ?? httpContext.User.FindFirst("user_id")?.Value
             ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (!Guid.TryParse(subject, out var customerId))
@@ -83,7 +87,7 @@ public class OrderEndpoints : IEndpointGroup
         var location = $"/api/v{version.MajorVersion}/orders/{result.Value}";
         httpContext.Response.Headers.Location = location;
 
-        return Results.Created(location, new { id = result.Value });
+        return Results.Created(location, new CreatedResponse(result.Value));
     }
 
     private static async Task<IResult> GetStuckSagas(
@@ -127,7 +131,7 @@ public class OrderEndpoints : IEndpointGroup
             .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
 
         if (order is null)
-            return Results.NotFound(new { OrderId = orderId, Message = "Order not found." });
+            return Results.NotFound(new OrderMessageResponse(orderId, "Order not found."));
 
         // Ownership check: the JWT subject must identify the ordering customer.
         // Fail closed — a non-Guid subject (or a mismatch) is forbidden, never
@@ -149,13 +153,15 @@ public class OrderEndpoints : IEndpointGroup
         if (!result.IsSuccess)
             return result.ToApiResult();
 
-        return Results.Ok(new { Id = orderId, Message = "Order cancelled." });
+        return Results.Ok(new CancelOrderResponse(orderId, "Order cancelled."));
     }
 }
 
 public sealed record StuckSagasResponse(
     int Count,
     List<StuckSagaDto> Sagas);
+
+public sealed record CancelOrderResponse(Guid Id, string Message);
 
 public sealed record StuckSagaDto(
     Guid OrderId,

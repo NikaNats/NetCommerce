@@ -214,11 +214,19 @@ public sealed class TrimBoundaryTests
     private static IEnumerable<Type> CollectInjectedServiceCandidates()
     {
         var apiAssembly = typeof(ApiJsonContext).Assembly;
+        // Scan handler classes by NAMESPACE, not by IEndpointGroup: endpoint
+        // groups delegate to static handler classes (TokenHandlers,
+        // SessionHandlers, ...) whose injected services (KeycloakTokenProxy,
+        // ...) must also be visible to RequestDelegateFactory inference.
+        // Limiting the scan to IEndpointGroup implementors left those params
+        // UNKNOWN and failed inference for the auth routes.
         var handlerTypes = apiAssembly.GetTypes()
-            .Where(t => !t.IsAbstract && typeof(IEndpointGroup).IsAssignableFrom(t))
-            .Append(apiAssembly.GetType("NetCommerce.Api.Endpoints.Payments.PaymentWebhookEndpoints"))
-            .Where(t => t != null)
-            .Cast<Type>();
+            // NOTE: static handler classes are abstract+sealed in IL, so a bare
+            // !IsAbstract filter would exclude exactly the TokenHandlers-style
+            // classes this scan exists for.
+            .Where(t => (!t.IsAbstract || (t.IsAbstract && t.IsSealed))
+                && (typeof(IEndpointGroup).IsAssignableFrom(t)
+                    || (t.Namespace?.StartsWith("NetCommerce.Api.Endpoints") ?? false)));
 
         foreach (var type in handlerTypes)
         {

@@ -30,6 +30,20 @@ dotnet restore NetCommerce.slnx
 
 The solution uses **Central Package Management** (`Directory.Packages.props`) with lock files (`packages.lock.json`). The first restore downloads all dependencies and generates lock files.
 
+### One-time secrets
+
+Two Aspire parameters have no code default and must be seeded once per machine
+(they persist in .NET user secrets afterwards):
+
+```powershell
+# PostgreSQL password (required every fresh clone)
+dotnet user-secrets set "Parameters:PostgresPassword" "<strong-password>" --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
+
+# MeiliSearch master key — without this the meilisearch resource stays in
+# "waiting for input", and the API (which WaitFors it) never starts.
+dotnet user-secrets set "Parameters:meilisearch-masterkey" "<strong-password>" --project src/NetCommerce.AppHost/NetCommerce.AppHost.csproj
+```
+
 ## Launch with Aspire
 
 ```powershell

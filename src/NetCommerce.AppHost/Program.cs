@@ -1,3 +1,4 @@
+using Aspire.Hosting.ApplicationModel;
 using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -42,9 +43,22 @@ var keycloak = builder.AddKeycloakContainer("keycloak")
     .WithEnvironment("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin")
     // Enable critical features: Token Exchange (RFC 8693) + Fine-Grained Authorization
     .WithEnvironment("KC_FEATURES", "token-exchange,admin-fine-grained-authz")
-    // Use PostgreSQL instead of H2 for persistent identity storage
+    // PostgreSQL for persistent identity storage. NOTE: Keycloak is a JVM app
+    // and KC_DB_URL must be a JDBC URL — passing the Aspire database reference
+    // (a .NET-style "Host=...;Port=...;..." connection string) makes the JDBC
+    // driver fail with "Driver does not support the provided URL" and the
+    // container exits on boot. The split KC_DB_URL_* vars avoid URL building
+    // entirely. KC_DB_USERNAME/PASSWORD are also required: without them auth
+    // fails even with a correct URL. TopologyTests cannot catch this (model
+    // build only); it was proven by a live boot.
     .WithEnvironment("KC_DB", "postgres")
-    .WithEnvironment("KC_DB_URL", keycloakDb)
+    .WithEnvironment("KC_DB_URL_HOST", postgres.GetEndpoint("tcp").Property(EndpointProperty.Host))
+    .WithEnvironment("KC_DB_URL_PORT", postgres.GetEndpoint("tcp").Property(EndpointProperty.Port))
+    .WithEnvironment("KC_DB_URL_DATABASE", "keycloak")
+    .WithEnvironment("KC_DB_USERNAME", "postgres")
+    .WithEnvironment("KC_DB_PASSWORD", postgresPassword)
+    .WithReference(keycloakDb)
+    .WaitFor(postgres)
     // Enable health and metrics endpoints for observability
     .WithEnvironment("KC_HEALTH_ENABLED", "true")
     .WithEnvironment("KC_METRICS_ENABLED", "true");
@@ -153,8 +167,18 @@ var web = builder.AddExecutable("netcommerce-web", npmExecutable, "run", "dev")
     // reading it from the Host header is ambiguous behind any proxy. In dev the
     // value is the fixed port the dev script binds to.
     .WithEnvironment("PUBLIC_ORIGIN", "http://localhost:3000")
-    .WithHttpEndpoint(port: 3000, targetPort: 3000, name: "http")
-    .WithExternalHttpEndpoints()
+    // NOTE: isProxied: false is LOAD-BEARING, not a preference.
+    // EndpointAnnotation.IsProxied defaults to TRUE, so omitting it (or adding
+    // .WithExternalHttpEndpoints()) makes DCP proxy this endpoint — and for a
+    // non-container resource DCP throws InvalidOperationException at startup
+    // when Port and TargetPort are equal ("Non-container resources cannot be
+    // proxied when both TargetPort and Port are specified with the same
+    // value"). The port is fixed at 3000 on both sides because PUBLIC_ORIGIN
+    // and the dev script (`next dev --port 3000`) are pinned to it, so the
+    // endpoint must be handled and exposed by the resource itself: the browser
+    // reaches Next at http://localhost:3000 with no proxy in between.
+    // TopologyTests.Web_Should_Use_Direct_Fixed_Port_Endpoint pins this.
+    .WithHttpEndpoint(port: 3000, targetPort: 3000, name: "http", isProxied: false)
     .WithReference(api).WaitFor(api)
     .WithReference(keycloak).WaitFor(keycloak);
 

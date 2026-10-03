@@ -132,7 +132,7 @@ public class PaymentWebhookEndpoints : IEndpoint
                 logger.LogInformation(
                     "Duplicate webhook event {EventId} detected, skipping processing",
                     stripeEvent.Id);
-                return Results.Ok(new { status = "duplicate", eventId = stripeEvent.Id });
+                return Results.Ok(new WebhookEventResponse("duplicate", stripeEvent.Id));
             }
 
             try
@@ -169,7 +169,7 @@ public class PaymentWebhookEndpoints : IEndpoint
                 // Mark event as successfully processed
                 await webhookStore.MarkProcessedAsync(stripeEvent.Id);
 
-                return Results.Ok(new { status = "processed", eventId = stripeEvent.Id });
+                return Results.Ok(new WebhookEventResponse("processed", stripeEvent.Id));
             }
             catch (Exception ex)
             {
@@ -329,3 +329,9 @@ public class PaymentWebhookEndpoints : IEndpoint
             StripeEventId: stripeEvent.Id);
     }
 }
+
+/// <summary>
+///     Named response for webhook acknowledgement. Anonymous payloads crash
+///     the AOT source-generation serializer (see CreatedResponse).
+/// </summary>
+public sealed record WebhookEventResponse(string Status, string EventId);

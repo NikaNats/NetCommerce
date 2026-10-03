@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { ApiError } from '@/lib/api/client.server';
 import { getProductById } from '@/lib/api/catalog.server';
 import { isPublished, primaryImage } from '@/lib/catalog/products';
 import { formatMoney } from '@/lib/format/money';
@@ -11,9 +10,27 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export const metadata: Metadata = {
-  title: 'Product',
-};
+const GUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+
+  if (!GUID_PATTERN.test(id)) return { title: 'Not found' };
+
+  try {
+    const product = await getProductById(id);
+    if (!product) return { title: 'Not found' };
+
+    return {
+      title: product.seoTitle || product.name,
+      description: product.seoDescription || product.description || undefined,
+    };
+  } catch {
+    // Same contract as the slug route: an API fault is not "not found".
+    return { title: 'Temporarily unavailable', robots: { index: false } };
+  }
+}
 
 /**
  * Product detail addressed by GUID: /products/id/{id}
@@ -28,26 +45,28 @@ export const metadata: Metadata = {
 export default async function ProductByIdPage({ params }: PageProps) {
   const { id } = await params;
 
-  const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!GUID.test(id)) notFound();
+  if (!GUID_PATTERN.test(id)) notFound();
 
   let product = null;
   let fault: string | null = null;
 
   try {
+    // getProductById already maps a genuine 404 to null, so a null product with
+    // no fault means "no such product" — that is notFound(), not the outage
+    // notice below. Only non-404 faults reach the catch.
     product = await getProductById(id);
   } catch (cause) {
-    // Only a real 404 is a missing product. An unreachable API must not be
-    // reported as "this item does not exist" — the same reasoning as the slug
-    // route, and a bug there was caught only by probing a live server.
-    if (cause instanceof ApiError && cause.status === 404) {
-      notFound();
-    }
     fault =
       cause instanceof Error
         ? cause.message
         : 'The catalog service could not be reached.';
   }
+
+  // A missing product is a normal 404, handled exactly like the slug route: a
+  // null with no fault is notFound(). Rendering the outage notice here would
+  // claim the service is down when the truth is the item does not exist — the
+  // mirror image of the slug route's bug.
+  if (!product && !fault) notFound();
 
   if (fault || !product) {
     return (

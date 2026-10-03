@@ -35,18 +35,19 @@ export interface Product {
   categoryName: string;
   status: string;
   /**
-   * MAY BE ABSENT, not merely null.
-   *
-   * The API serializes with DefaultIgnoreCondition = WhenWritingNull
-   * (ApiJsonContext.cs:179), verified by running the real serializer options: a
-   * null string is OMITTED from the payload entirely. So `product.seoTitle` is
-   * `undefined` at runtime, and `product.slug` is undefined when the product has
-   * no slug — NOT null. Declaring these `| null` alone would type-check against a
-   * value that never arrives.
+   * Nullable AND optional: the API emits an explicit JSON null for these
+   * (observed live 2026-10-03: `"seoTitle":null`, and `"slug"` present on the
+   * detail DTO). An earlier revision declared these `?: string` alone, based on
+   * an isolated run of the server's serializer options (ApiJsonContext sets
+   * DefaultIgnoreCondition = WhenWritingNull) — but the live HTTP path goes
+   * through the shared HttpJsonOptions, where that ignore rule is not in
+   * effect, so nulls arrive as null. Every consumer below treats them by
+   * truthiness, which handles null and undefined identically; the `| null`
+   * keeps the TYPE honest about what the wire actually produces.
    */
-  slug?: string;
-  seoTitle?: string;
-  seoDescription?: string;
+  slug?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   images: ProductImage[];
   attributes: ProductAttribute[];
 }
@@ -64,11 +65,11 @@ export interface ProductListItem {
   sku: string;
   price: number;
   currency: string;
-  /** OMITTED when null (WhenWritingNull) — see Product.slug. */
-  primaryImageUrl?: string;
+  /** Explicit null on the wire when unset (see Product.slug). */
+  primaryImageUrl?: string | null;
   status: string;
-  /** OMITTED when the product has no slug — see Product.slug. */
-  slug?: string;
+  /** Explicit null on the wire when the product has no slug. */
+  slug?: string | null;
 }
 
 export interface PaginationMetadata {
@@ -97,7 +98,7 @@ export const MAX_PAGE_SIZE = 100;
  * where a card genuinely cannot link anywhere.
  */
 export function productHref(product: {
-  slug?: string;
+  slug?: string | null;
   id: string;
 }): string | null {
   if (product.slug) return `/products/${encodeURIComponent(product.slug)}`;

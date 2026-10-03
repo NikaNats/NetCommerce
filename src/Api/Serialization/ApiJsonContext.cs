@@ -20,6 +20,7 @@ using NetCommerce.Inventory.Application.Stock.Commands;
 using NetCommerce.Media.Application.Services;
 using NetCommerce.Api.Endpoints.Catalog;
 using NetCommerce.Api.Endpoints.Ordering;
+using NetCommerce.Api.Endpoints.Payments;
 using NetCommerce.Api.Endpoints.Basket;
 using NetCommerce.Api.Endpoints.Inventory;
 using NetCommerce.Api.Endpoints.Media;
@@ -74,6 +75,20 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(PaginatedResponse<ProductDto>))]
 [JsonSerializable(typeof(PaginatedResponse<ProductListItemDto>))]
 [JsonSerializable(typeof(PaginationMetadata))]
+[JsonSerializable(typeof(CreatedResponse))]
+[JsonSerializable(typeof(OrderMessageResponse))]
+[JsonSerializable(typeof(AddProductImageResponse))]
+[JsonSerializable(typeof(CancelOrderResponse))]
+[JsonSerializable(typeof(WebhookEventResponse))]
+[JsonSerializable(typeof(DlqNotFoundResponse))]
+[JsonSerializable(typeof(MarkReplayableResponse))]
+[JsonSerializable(typeof(ReconciliationStartedResponse))]
+[JsonSerializable(typeof(DiscrepancyResolutionResponse))]
+[JsonSerializable(typeof(ForceCompleteSagaResponse))]
+[JsonSerializable(typeof(OverridePaymentStatusResponse))]
+[JsonSerializable(typeof(ForceCancelOrderResponse))]
+[JsonSerializable(typeof(RetrySagaStepResponse))]
+[JsonSerializable(typeof(BulkRetryResponse))]
 
 // Inventory Generics
 [JsonSerializable(typeof(Result<StockDto>))]
@@ -131,6 +146,8 @@ namespace NetCommerce.Api.Serialization;
 // Media (Direct Upload & Presigned)
 [JsonSerializable(typeof(PresignedUploadUrl))]
 [JsonSerializable(typeof(UploadMediaResponse))]
+[JsonSerializable(typeof(MediaUploadError))]
+[JsonSerializable(typeof(PublicUrlResponse))]
 
 // Payments
 [JsonSerializable(typeof(RefundPaymentTransactionCommand))]
@@ -138,6 +155,12 @@ namespace NetCommerce.Api.Serialization;
 // Finance
 [JsonSerializable(typeof(CheckDailyReconciliation))]
 [JsonSerializable(typeof(NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession))]
+[JsonSerializable(typeof(IReadOnlyList<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
+[JsonSerializable(typeof(List<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
+[JsonSerializable(typeof(NetCommerce.Finance.Domain.Reconciliation.ReconciliationStatus))]
+[JsonSerializable(typeof(NetCommerce.Finance.Domain.Reconciliation.ReconciliationStatus?))]
+[JsonSerializable(typeof(IReadOnlyList<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
+[JsonSerializable(typeof(List<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
 
 // Admin DLQ Endpoints
 [JsonSerializable(typeof(BulkReplayDlqRequest))]

@@ -30,7 +30,18 @@ public static class GetProductByIdHandler
             return Result.Failure<ProductDto>(
                 Error.NotFound(nameof(Product), query.ProductId));
 
-        return mapper.MapToDto(product);
+        // CategoryName is not stored on the product row: the mapper leaves it
+        // empty and the handler enriches it here, where the DbContext (and the
+        // categories table) is available. Without this the detail DTO always
+        // carries categoryName:"" and the storefront's category label can never
+        // render (proven live: GET /api/v1/products/{id} returned "").
+        var categoryName = await db.Categories
+            .AsNoTracking()
+            .Where(c => c.Id == product.CategoryId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return mapper.MapToDto(product) with { CategoryName = categoryName ?? string.Empty };
     }
 }
 
@@ -54,7 +65,14 @@ public static class GetProductBySlugHandler
             return Result.Failure<ProductDto>(
                 Error.NotFound(nameof(Product), query.Slug));
 
-        return mapper.MapToDto(product);
+        // Same CategoryName enrichment as GetProductByIdHandler above.
+        var categoryName = await db.Categories
+            .AsNoTracking()
+            .Where(c => c.Id == product.CategoryId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return mapper.MapToDto(product) with { CategoryName = categoryName ?? string.Empty };
     }
 }
 

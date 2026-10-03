@@ -2,70 +2,113 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using NetCommerce.Payments.Infrastructure.Persistence;
+using NetCommerce.Inventory.Infrastructure.Persistence;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Payments.Infrastructure.Persistence.Migrations
+namespace Inventory.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(PaymentsDbContext))]
-    partial class PaymentsDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(InventoryDbContext))]
+    [Migration("20261002232310_EnsureWolverineEnvelopeTables")]
+    partial class EnsureWolverineEnvelopeTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("payments")
+                .HasDefaultSchema("inventory")
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63)
                 .HasAnnotation("WolverineEnabled", "true");
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("NetCommerce.Payments.Domain.Transactions.PaymentTransaction", b =>
+            modelBuilder.Entity("NetCommerce.Inventory.Domain.Stock.Stock", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<DateTime?>("CompletedAt")
+                    b.Property<DateTime>("LastUpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
+                        .HasColumnName("last_updated_at");
+
+                    b.Property<int>("LowStockThreshold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(10)
+                        .HasColumnName("low_stock_threshold");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sku");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasDefaultValue(0u)
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("WarehouseLocation")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("warehouse_location");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.HasIndex("Sku")
+                        .IsUnique();
+
+                    b.ToTable("stocks", "inventory");
+                });
+
+            modelBuilder.Entity("NetCommerce.Inventory.Domain.Stock.StockReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("ExternalTransactionId")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("external_transaction_id");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("failure_reason");
-
-                    b.Property<string>("IdempotencyKey")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("idempotency_key");
-
-                    b.Property<string>("Metadata")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("metadata");
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid")
                         .HasColumnName("order_id");
 
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("provider");
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTime?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("released_at");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -73,21 +116,27 @@ namespace Payments.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("status");
 
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint");
+                    b.Property<Guid>("StockId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stock_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExternalTransactionId")
-                        .HasFilter("external_transaction_id IS NOT NULL");
-
-                    b.HasIndex("IdempotencyKey")
-                        .IsUnique()
-                        .HasFilter("idempotency_key IS NOT NULL");
-
                     b.HasIndex("OrderId");
 
-                    b.ToTable("payment_transactions", "payments");
+                    b.HasIndex("StockId");
+
+                    b.HasIndex("Status", "ExpiresAt")
+                        .HasFilter("status = 'Active'");
+
+                    b.HasIndex("Status", "UpdatedAt")
+                        .HasFilter("status = 'PendingPayment'");
+
+                    b.ToTable("stock_reservations", "inventory");
                 });
 
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
@@ -134,7 +183,7 @@ namespace Payments.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("wolverine_incoming_envelopes", "payments", t =>
+                    b.ToTable("wolverine_incoming_envelopes", "inventory", t =>
                         {
                             t.ExcludeFromMigrations();
                         });
@@ -176,40 +225,24 @@ namespace Payments.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("wolverine_outgoing_envelopes", "payments", t =>
+                    b.ToTable("wolverine_outgoing_envelopes", "inventory", t =>
                         {
                             t.ExcludeFromMigrations();
                         });
                 });
 
-            modelBuilder.Entity("NetCommerce.Payments.Domain.Transactions.PaymentTransaction", b =>
+            modelBuilder.Entity("NetCommerce.Inventory.Domain.Stock.StockReservation", b =>
                 {
-                    b.OwnsOne("NetCommerce.Domain.Shared.Money", "Amount", b1 =>
-                        {
-                            b1.Property<Guid>("PaymentTransactionId")
-                                .HasColumnType("uuid");
-
-                            b1.Property<decimal>("Amount")
-                                .HasPrecision(18, 2)
-                                .HasColumnType("numeric(18,2)")
-                                .HasColumnName("amount");
-
-                            b1.Property<string>("Currency")
-                                .IsRequired()
-                                .HasMaxLength(3)
-                                .HasColumnType("character varying(3)")
-                                .HasColumnName("currency");
-
-                            b1.HasKey("PaymentTransactionId");
-
-                            b1.ToTable("payment_transactions", "payments");
-
-                            b1.WithOwner()
-                                .HasForeignKey("PaymentTransactionId");
-                        });
-
-                    b.Navigation("Amount")
+                    b.HasOne("NetCommerce.Inventory.Domain.Stock.Stock", null)
+                        .WithMany("Reservations")
+                        .HasForeignKey("StockId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("NetCommerce.Inventory.Domain.Stock.Stock", b =>
+                {
+                    b.Navigation("Reservations");
                 });
 #pragma warning restore 612, 618
         }

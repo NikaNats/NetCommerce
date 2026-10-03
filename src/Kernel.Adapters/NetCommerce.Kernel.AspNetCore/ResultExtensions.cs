@@ -67,15 +67,21 @@ public static class ResultExtensions
     /// Converts Result&lt;T&gt; to 202 Accepted for async operations.
     /// Includes status polling URI for long-running workflows.
     /// </summary>
+    /// <remarks>
+    /// The payload is a plain dictionary, not an anonymous type: anonymous
+    /// payloads crash the AOT source-generation serializer (see CreatedResponse
+    /// in NetCommerce.Api). Dictionary payloads are proven — the RFC 9457
+    /// extensions dictionary on every error response serializes the same way.
+    /// </remarks>
     public static IResult ToAcceptedResult<T>(this Result<T> result, string statusUri, HttpContext? httpContext = null)
     {
         if (result.IsSuccess)
         {
-            return Results.Accepted(statusUri, new
+            return Results.Accepted(statusUri, new Dictionary<string, object?>
             {
-                status = "InProgress",
-                statusUri,
-                result.Value
+                ["status"] = "InProgress",
+                ["statusUri"] = statusUri,
+                ["value"] = result.Value
             });
         }
 

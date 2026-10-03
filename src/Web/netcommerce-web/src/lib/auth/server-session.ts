@@ -9,10 +9,14 @@ import { SESSION_COOKIE, newSessionId, readSessionId } from '@/lib/auth/session-
  *
  * ## Current backing store: process memory
  *
- * The registry below is a module-level Map. That is correct for a single
- * Next.js process in local dev, and it is NOT correct for a multi-instance
- * deployment — a second replica would not see the session and every user would
- * appear logged out at random depending on which replica served them.
+ * The registry below lives on globalThis rather than as a bare module-level
+ * Map: route handlers in this Next version receive separate module instances
+ * (proven live — a session registered from /callback was invisible to /basket
+ * in the same dev process), while globalThis is shared by every route. That is
+ * correct for a single Next.js process in local dev, and it is NOT correct
+ * for a multi-instance deployment — a second replica would not see the
+ * session and every user would appear logged out at random depending on which
+ * replica served them.
  *
  * This is called out in the module docs rather than hidden: the swap point is
  * `registry` below, and it must preserve every semantic documented on
@@ -38,7 +42,19 @@ export interface ServerSession {
   createdAt: number;
 }
 
-const registry = new Map<string, ServerSession>();
+const registry: Map<string, ServerSession> = (() => {
+  // Module-level state is NOT shared across routes in this Next version: the
+  // dev server instantiates lib modules separately per route (proven live —
+  // a session registered in /callback was invisible to /basket in the same
+  // process). globalThis is the one realm shared by every route, so the
+  // registry lives there. Single-process semantics are unchanged: one Map,
+  // one TokenStore per session, and the refresh single-flight still holds.
+  // Multi-instance deployments still need a shared backing store (Redis) —
+  // that limitation is unchanged and documented above.
+  const g = globalThis as unknown as { __ncSessionRegistry?: Map<string, ServerSession> };
+  g.__ncSessionRegistry ??= new Map<string, ServerSession>();
+  return g.__ncSessionRegistry;
+})();
 
 function store(): TokenStore {
   const config = readConfig();

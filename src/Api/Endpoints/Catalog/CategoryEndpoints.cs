@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Microsoft.AspNetCore.Mvc;
+using NetCommerce.Api.Endpoints.Common;
 using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Catalog.Application.Categories.Commands;
 using NetCommerce.Catalog.Application.Categories.DTOs;
@@ -140,7 +141,7 @@ public class CategoryEndpoints : IEndpointGroup
 
         var version = httpContext.Features.Get<Asp.Versioning.IApiVersioningFeature>()?.RequestedApiVersion ?? new ApiVersion(1, 0);
         var location = $"/api/v{version.MajorVersion}/categories/{result.Value}";
-        return Results.Created(location, new { id = result.Value });
+        return Results.Created(location, new CreatedResponse(result.Value));
     }
 
     private static async Task<IResult> Update(

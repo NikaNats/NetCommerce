@@ -40,10 +40,13 @@ public class BasketEndpoints : IEndpointGroup
     private static string GetCustomerId(HttpContext context)
     {
         // MapInboundClaims=false preserves raw OIDC claims, so 'sub' is authoritative.
-        // Fall back to legacy mappings for tokens issued by other providers.
+        // 'user_id' is the Keycloak protocol mapper fallback (see SessionHandlers:
+        // this deployment omits 'sub' from access tokens). Fall back to legacy
+        // mappings for tokens issued by other providers.
         // NOTE: Must throw UnauthorizedAccessException (not BadHttpRequestException):
         // GlobalExceptionHandler maps it to 401, anything else becomes 500.
         var customerId = context.User.FindFirst("sub")?.Value
+            ?? context.User.FindFirst("user_id")?.Value
             ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? context.User.FindFirst("preferred_username")?.Value;
 

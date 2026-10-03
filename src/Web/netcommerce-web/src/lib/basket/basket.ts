@@ -12,12 +12,12 @@
 export interface BasketItem {
   productId: string;
   productName: string;
-  /** OMITTED when null — the API uses DefaultIgnoreCondition = WhenWritingNull. */
-  sku?: string;
+  /** Explicit null on the wire when unset (same finding as Product.slug). */
+  sku?: string | null;
   price: number;
   quantity: number;
-  /** OMITTED when null — see sku. */
-  imageUrl?: string;
+  /** Explicit null on the wire when unset. */
+  imageUrl?: string | null;
 }
 
 /**
@@ -40,10 +40,10 @@ export interface Basket {
 export interface AddBasketItemRequest {
   productId: string;
   productName: string;
-  sku?: string;
+  sku?: string | null;
   quantity: number;
   unitPrice: number;
-  imageUrl?: string;
+  imageUrl?: string | null;
 }
 
 /**

@@ -146,4 +146,49 @@ public class TopologyTests
         // Check for Custom Environment Variables
         Assert.Contains(envVars, kvp => kvp.Key == "Auth__Audience" && kvp.Value == "netcommerce-api");
     }
+
+    [Fact]
+    public async Task Web_Should_Use_Direct_Fixed_Port_Endpoint()
+    {
+        // Regression test: the netcommerce-web executable once started with a
+        // proxied endpoint and equal ports, which throws InvalidOperationException
+        // at startup ("Non-container resources cannot be proxied when both
+        // TargetPort and Port are specified with the same value"), so `dotnet
+        // run` on the AppHost crashed before any container started.
+        //
+        // Two traps, both pinned here:
+        //   1. EndpointAnnotation.IsProxied DEFAULTS TO TRUE, so merely omitting
+        //      .WithExternalHttpEndpoints() does not help — the endpoint must
+        //      explicitly opt out with isProxied: false.
+        //   2. The existing topology tests build the model with DCP disabled and
+        //      never execute the DCP proxy validation, which is why the crash
+        //      survived CI. This test asserts the model-level flags directly.
+        //
+        // The dev port is pinned to 3000 on both sides (PUBLIC_ORIGIN and
+        // `next dev --port 3000`), so the endpoint must stay direct.
+        var appHost = await DistributedApplicationTestingBuilder
+            .CreateAsync<NetCommerce_AppHost>();
+
+        appHost.Configuration["Logging:LogLevel:Default"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Microsoft"] = "Warning";
+        appHost.Configuration["Logging:LogLevel:Aspire"] = "Warning";
+
+        appHost.Configuration["Dcp:Enabled"] = "false";
+        appHost.Configuration["Dcp:ContainerRuntime"] = "none";
+        appHost.Configuration["Dcp:Orchestrator:Enabled"] = "false";
+
+        appHost.Configuration["HostOptions:BackgroundServiceExceptionBehavior"] = "Ignore";
+
+        appHost.Configuration["Parameters:PostgresPassword"] = "test-password";
+
+        await using var app = await appHost.BuildAsync();
+        var model = app.Services.GetRequiredService<DistributedApplicationModel>();
+        var web = model.Resources.Single(r => r.Name == "netcommerce-web");
+        var http = web.Annotations.OfType<EndpointAnnotation>().Single(a => a.Name == "http");
+
+        Assert.Equal(3000, http.Port);
+        Assert.Equal(3000, http.TargetPort);
+        Assert.False(http.IsExternal);
+        Assert.False(http.IsProxied);
+    }
 }

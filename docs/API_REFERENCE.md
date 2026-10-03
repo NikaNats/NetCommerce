@@ -100,19 +100,20 @@ Create a new product.
 
 **Auth:** VendorOnly
 
-**Request Body:** `CreateProductCommand`
+**Request Body:** `CreateProductCommand` (flat price — verified live 2026-10-03)
 
 ```json
 {
-  "title": "Premium Widget",
+  "name": "Premium Widget",
   "description": "High-quality widget",
   "sku": "WDG-001",
-  "price": { "amount": 49.99, "currency": "GEL" },
+  "price": 49.99,
+  "currency": "GEL",
   "categoryId": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
 }
 ```
 
-**Response:** `201 Created` with product ID
+**Response:** `201 Created` with `{"id":"..."}` and a Location header
 
 ---
 
@@ -269,9 +270,18 @@ Create a category.
 
 **Auth:** VendorOnly
 
-**Request Body:** `CreateCategoryCommand`
+**Request Body:** `CreateCategoryCommand` (verified live 2026-10-03)
 
-**Response:** `201 Created`
+```json
+{
+  "name": "Desks",
+  "description": "Solid wood desks",
+  "parentCategoryId": null,
+  "displayOrder": 1
+}
+```
+
+**Response:** `201 Created` with `{"id":"..."}`
 
 ---
 

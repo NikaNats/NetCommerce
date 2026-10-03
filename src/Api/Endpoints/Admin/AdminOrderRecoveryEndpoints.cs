@@ -1,5 +1,6 @@
 using Asp.Versioning.Builder;
 using Microsoft.AspNetCore.Mvc;
+using NetCommerce.Api.Endpoints.Common;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Admin;
@@ -80,13 +81,11 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
 
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            OrderId = orderId,
-            Message = "Force-complete command sent. Saga will be marked as completed.",
+        return Results.Accepted(null, new ForceCompleteSagaResponse(
+            orderId,
+            "Force-complete command sent. Saga will be marked as completed.",
             request.Reason,
-            ProcessedBy = userName
-        });
+            userName));
     }
 
     private static async Task<IResult> OverridePaymentStatus(
@@ -112,13 +111,11 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
 
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            OrderId = orderId,
-            NewStatus = request.PaymentStatus,
-            ChargeId = request.StripeChargeId,
-            Message = "Payment status override sent."
-        });
+        return Results.Accepted(null, new OverridePaymentStatusResponse(
+            orderId,
+            request.PaymentStatus,
+            request.StripeChargeId,
+            "Payment status override sent."));
     }
 
     private static async Task<IResult> ForceCancelOrder(
@@ -144,13 +141,11 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
 
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            OrderId = orderId,
+        return Results.Accepted(null, new ForceCancelOrderResponse(
+            orderId,
             request.RefundAmount,
             request.NotifyCustomer,
-            Message = "Force-cancel command sent. Order will be cancelled and refunded."
-        });
+            "Force-cancel command sent. Order will be cancelled and refunded."));
     }
 
     private static async Task<IResult> RetryFailedStep(
@@ -173,21 +168,15 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
 
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            OrderId = orderId,
+        return Results.Accepted(null, new RetrySagaStepResponse(
+            orderId,
             request.Step,
-            Message = $"Retry command sent for step: {request.Step}"
-        });
+            $"Retry command sent for step: {request.Step}"));
     }
 
     private static Task<IResult> GetSagaDetails(Guid orderId)
     {
-        return Task.FromResult(Results.Ok(new
-        {
-            OrderId = orderId,
-            Message = "Saga details endpoint"
-        }));
+        return Task.FromResult(Results.Ok(new OrderMessageResponse(orderId, "Saga details endpoint")));
     }
 
     private static async Task<IResult> BulkRetryStuckOrders(
@@ -209,11 +198,9 @@ public class AdminOrderRecoveryEndpoints : IEndpointGroup
 
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            Message = $"Bulk retry initiated for {request.MaxOrdersToRetry} orders in {request.SagaState} state.",
-            Warning = "Monitor metrics dashboard to ensure system stability."
-        });
+        return Results.Accepted(null, new BulkRetryResponse(
+            $"Bulk retry initiated for {request.MaxOrdersToRetry} orders in {request.SagaState} state.",
+            "Monitor metrics dashboard to ensure system stability."));
     }
 }
 
@@ -237,6 +224,30 @@ public record RetryStepRequest(
 public record BulkRetryRequest(
     string SagaState,
     int MaxOrdersToRetry = 100);
+
+// Named admin responses: anonymous payloads crash the AOT source-generation
+// serializer (see CreatedResponse). Wire shapes mirror the anonymous originals.
+public sealed record ForceCompleteSagaResponse(
+    Guid OrderId,
+    string Message,
+    string Reason,
+    string ProcessedBy);
+
+public sealed record OverridePaymentStatusResponse(
+    Guid OrderId,
+    string NewStatus,
+    string? ChargeId,
+    string Message);
+
+public sealed record ForceCancelOrderResponse(
+    Guid OrderId,
+    decimal RefundAmount,
+    bool NotifyCustomer,
+    string Message);
+
+public sealed record RetrySagaStepResponse(Guid OrderId, string Step, string Message);
+
+public sealed record BulkRetryResponse(string Message, string Warning);
 
 public record ForceCompleteOrderSagaCommand(
     Guid OrderId,

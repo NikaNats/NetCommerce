@@ -22,18 +22,27 @@ describe('productHref', () => {
     expect(productHref({ slug: 'walnut-desk', id: 'abc' })).toBe('/products/walnut-desk');
   });
 
-  // The API uses DefaultIgnoreCondition = WhenWritingNull, so an absent slug
-  // arrives as UNDEFINED, not null. Verified by running the real serializer
-  // options. These two cases are the ones that were previously untested, and the
-  // undefined case is the one the wire actually produces.
+  // Live wire format (observed 2026-10-03 against the real API): nullable
+  // fields arrive as EXPLICIT null (`"slug":null`), not as absent keys — the
+  // shared HttpJsonOptions do not apply ApiJsonContext's WhenWritingNull rule.
+  // productHref treats both by truthiness, so these cases pin that the id
+  // fallback works for either shape.
   it('falls back to the id route when slug is undefined', () => {
     expect(productHref({ id: 'abc' })).toBe('/products/id/abc');
   });
 
-  it('still tolerates an explicit null slug', () => {
-    expect(productHref({ slug: null as unknown as undefined, id: 'abc' })).toBe(
-      '/products/id/abc',
-    );
+  it('falls back to the id route when slug is an explicit null (the live wire shape)', () => {
+    const wireItem: ProductListItem = {
+      id: 'abc',
+      name: 'Walnut Desk',
+      sku: 'WD-1',
+      price: 1299,
+      currency: 'USD',
+      status: 'Published',
+      slug: null,
+      primaryImageUrl: null,
+    };
+    expect(productHref(wireItem)).toBe('/products/id/abc');
   });
 
   it('URL-encodes a slug so a slash cannot forge a path segment', () => {
@@ -110,8 +119,7 @@ describe('list projection field asymmetry', () => {
   };
 
   it('carries primaryImageUrl and slug, which the detail DTO does not', () => {
-    // Absent, exactly as the API sends it when the image is null
-    // (WhenWritingNull omits the key rather than emitting null).
+    // Null, exactly as the live API sends it when no image/slug is set.
     expect(listItem.primaryImageUrl).toBeUndefined();
     expect(productHref(listItem)).toBe('/products/walnut-desk');
   });

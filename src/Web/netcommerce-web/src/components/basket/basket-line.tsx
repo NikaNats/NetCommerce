@@ -74,6 +74,10 @@ export function BasketLine({ item }: { item: BasketItem }) {
         </form>
       </td>
 
+      {/* Display-only: the server carries no per-line total, so price × quantity
+          is rendered here for the row. The basket TOTAL stays authoritative
+          from the server (basket.totalPrice) — this product is never fed back
+          into a request or summed into a checkout figure. */}
       <td className="figure basket__line-total">
         {formatMoney(item.price * item.quantity, null)}
       </td>

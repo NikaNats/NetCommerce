@@ -20,7 +20,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
         group.MapGet("/reconciliation-sessions", GetReconciliationSessions)
             .WithName("GetReconciliationSessions")
             .WithSummary("Get reconciliation sessions with optional filtering")
-            .Produces<IEnumerable<ReconciliationSession>>();
+            .Produces<IReadOnlyList<ReconciliationSession>>();
 
         group.MapGet("/reconciliation-sessions/{sessionId:guid}", GetReconciliationSession)
             .WithName("GetReconciliationSession")
@@ -43,7 +43,7 @@ public class AdminFinanceEndpoints : IEndpointGroup
         group.MapGet("/alerts/mismatched-sessions", GetMismatchedSessions)
             .WithName("GetMismatchedSessions")
             .WithSummary("Get mismatched sessions requiring attention")
-            .Produces<IEnumerable<ReconciliationSession>>();
+            .Produces<IReadOnlyList<ReconciliationSession>>();
     }
 
     private static async Task<IResult> GetReconciliationSessions(
@@ -105,12 +105,10 @@ public class AdminFinanceEndpoints : IEndpointGroup
         var command = new CheckDailyReconciliation(request.Date);
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            Message = $"Reconciliation started for {request.Date.ToShortDateString()}",
-            RequestedBy = userName,
-            RequestId = Guid.NewGuid()
-        });
+        return Results.Accepted(null, new ReconciliationStartedResponse(
+            $"Reconciliation started for {request.Date.ToShortDateString()}",
+            userName,
+            Guid.NewGuid()));
     }
 
     private static async Task<IResult> ResolveDiscrepancy(
@@ -134,13 +132,11 @@ public class AdminFinanceEndpoints : IEndpointGroup
 
         await bus.PublishAsync(command);
 
-        return Results.Accepted(null, new
-        {
-            Message = $"Discrepancy resolution initiated: {request.Action}",
-            SessionId = request.SessionId,
-            ExternalTxnId = request.ExternalTxnId,
-            ProcessedBy = userName
-        });
+        return Results.Accepted(null, new DiscrepancyResolutionResponse(
+            $"Discrepancy resolution initiated: {request.Action}",
+            request.SessionId,
+            request.ExternalTxnId,
+            userName));
     }
 
     private static async Task<IResult> GetMismatchedSessions(
@@ -161,3 +157,11 @@ public record ResolveDiscrepancyRequest(
     string ExternalTxnId,
     DiscrepancyResolutionAction Action,
     string Reason);
+
+public sealed record ReconciliationStartedResponse(string Message, string RequestedBy, Guid RequestId);
+
+public sealed record DiscrepancyResolutionResponse(
+    string Message,
+    Guid SessionId,
+    string ExternalTxnId,
+    string ProcessedBy);
