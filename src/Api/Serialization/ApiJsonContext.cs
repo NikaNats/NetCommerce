@@ -77,6 +77,11 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(PaginationMetadata))]
 [JsonSerializable(typeof(CreatedResponse))]
 [JsonSerializable(typeof(OrderMessageResponse))]
+// The order-read projection consumed by the storefront. MUST be listed here: under
+// Native AOT only types registered on this context have generated serializers, so an
+// unlisted DTO throws at runtime rather than failing to build. The storefront calls
+// this on load, on every reconnect, and every 15s.
+[JsonSerializable(typeof(OrderResponse))]
 [JsonSerializable(typeof(AddProductImageResponse))]
 [JsonSerializable(typeof(CancelOrderResponse))]
 [JsonSerializable(typeof(WebhookEventResponse))]

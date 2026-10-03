@@ -35,7 +35,10 @@ public static class EndpointRegistrationExtensions
         new SearchEndpoints().MapEndpoints(app, versionSet);
 
         // Ordering
-        new OrderEndpoints().MapEndpoints(app, versionSet);
+            new OrderEndpoints().MapEndpoints(app, versionSet);
+
+            // Order READ side, separate from the write side above. See OrderReadEndpoints.
+            OrderReadEndpoints.MapEndpoints(app, versionSet);
 
         // Inventory
         new InventoryEndpoints().MapEndpoints(app, versionSet);
