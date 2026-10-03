@@ -4,9 +4,11 @@
 # version of this probe report a false "DEV SERVER NEVER BECAME READY".
 set -Eeuo pipefail
 
-# Directory arrives as $1: inside the sandbox a hardcoded "C:/..." is not a valid
-# path, and this script must run from the sandbox that also runs the server.
-cd "${1:?pass the app directory}" || exit 1
+# App dir: defaults to this script's parent, so CI can invoke it without knowing
+# the layout. The argument exists for the sandbox wrapper, which resolves the path
+# itself — inside the sandbox a hardcoded "C:/..." is not a valid directory.
+APP_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
+cd "$APP_DIR" || exit 1
 
 ./node_modules/.bin/next dev --port 3000 > /tmp/routes-dev.log 2>&1 &
 NEXT_PID=$!

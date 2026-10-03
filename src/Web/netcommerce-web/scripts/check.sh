@@ -11,14 +11,31 @@
 # read-only, and npm needs the bridge network.
 set -Eeuo pipefail
 
-export npm_config_cache=/scratch/.npm
-mkdir -p /scratch/.npm
+# npm cache location.
+#
+# /scratch is the sandbox's writable scratch root on this host; CI has no such
+# directory. Default to the project-local cache so the same script runs in both
+# places, and only override it where /scratch exists.
+if [ -d /scratch ] && [ -w /scratch ]; then
+  export npm_config_cache=/scratch/.npm
+  mkdir -p /scratch/.npm
+else
+  export npm_config_cache="$PWD/.npm-cache"
+  mkdir -p "$PWD/.npm-cache"
+fi
 
 # --- dependency install (skipped when node_modules is already present) --------
+# `npm ci` against the COMMITTED lockfile, which is what a fresh clone and CI
+# both run. The previous version deleted package-lock.json and reinstalled, which
+# meant the lockfile the gate verified was never the one it had just rewritten.
 if [ ! -x node_modules/.bin/next ]; then
-  echo "### installing dependencies (clean)"
-  rm -rf node_modules package-lock.json
-  npm install --no-audit --no-fund
+  echo "### installing dependencies from the committed lockfile"
+  if [ -f package-lock.json ]; then
+    npm ci --no-audit --no-fund
+  else
+    echo "  (no package-lock.json — installing and creating one)"
+    npm install --no-audit --no-fund
+  fi
 fi
 
 # --- CVE guard ---------------------------------------------------------------
@@ -55,6 +72,12 @@ echo "### storefront route behaviour (API deliberately down)"
 # degradation. A product page that 500s when the API is unreachable, or that
 # claims the item "does not exist", passed `next build` and failed here.
 bash scripts/check-routes.sh "$PWD"
+
+echo
+echo "### security headers (asserted on a live response)"
+# A CSP declared in next.config.ts but never served is decoration, so this reads
+# the headers off a real response rather than reading the config back.
+bash scripts/check-headers.sh "$PWD"
 
 echo
 echo "ALL CHECKS PASSED"

@@ -132,6 +132,16 @@ if (product) {
   // version grepped for "not found" and matched (a) the phrase "has not been
   // withdrawn" in the notice and (b) a "Not found" <title> from a metadata
   // fallback — both false positives that hid a genuine metadata bug.
+  // Scope to VISIBLE content. The previous rule stripped <title> and then
+  // substring-matched the whole document, which includes the RSC flight payload
+  // in a <script> tag — so adding a root not-found.tsx made its copy
+  // ("Page not found") appear in the payload and fail a page that never rendered
+  // it. Assert on the rendered element text instead.
+  const visibleText = product.body
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ');
+
   const title = product.body.match(/<title>([^<]*)<\/title>/)?.[1] ?? '';
   check(
     'title does NOT claim the product is missing',
@@ -139,8 +149,9 @@ if (product) {
     `title="${title}"`,
   );
   check(
-    'page does not render a not-found state',
-    !/>([^<]*)\bnot found\b/i.test(product.body.replace(/<title>[\s\S]*?<\/title>/g, '')),
+    'visible page text does not render a not-found state',
+    !/\bnot found\b/i.test(visibleText),
+    'a 404 here would tell a shopper the item does not exist',
   );
 }
 

@@ -1,0 +1,67 @@
+name: Frontend Validation
+
+# The Next.js BFF (src/Web/netcommerce-web) previously had NO CI coverage: all
+# 269 of its tests ran only on one developer's machine, so the SignalR delivery
+# proof and the Redis session-store work were unprotected — a green suite that
+# nothing executes is a local claim, not a release signal.
+#
+# This runs the SAME scripts/check.sh used locally, so a local green and a CI
+# green mean the same thing. check.sh is the single gate: typecheck, tests,
+# production build, design invariants, the route probe (API deliberately down),
+# and the security-header probe.
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/Web/netcommerce-web/**'
+      - '.github/workflows/frontend.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/Web/netcommerce-web/**'
+      - '.github/workflows/frontend.yml'
+
+# Cancel superseded runs on the same branch: the gate takes several minutes
+# (production build + two dev-server probes), and a stale result is noise.
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-gate:
+    name: Next.js BFF Gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Web/netcommerce-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned to the major the app is developed against; package.json pins
+          # the exact versions.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/Web/netcommerce-web/package-lock.json
+
+      # Not `npm ci` here — check.sh performs the install so there is exactly one
+      # install path, and it is the one a developer runs locally.
+      - name: Full gate (install, CVE guard, typecheck, tests, build, invariants, probes)
+        run: bash scripts/check.sh
+
+      # A gate nobody can read is a gate nobody trusts, so the full output is kept
+      # as an artifact rather than only appearing in the scrollback.
+      - name: Upload gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-gate-log
+          path: |
+            src/Web/netcommerce-web/.next/**/*.log
+            /tmp/next-dev.log
+            /tmp/routes-dev.log
+          if-no-files-found: ignore
+          retention-days: 7
