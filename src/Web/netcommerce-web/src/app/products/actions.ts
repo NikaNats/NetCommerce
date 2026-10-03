@@ -6,6 +6,7 @@ import { addBasketItem } from '@/lib/api/catalog.server';
 import { newIdempotencyKey } from '@/lib/api/headers';
 import { isValidQuantity } from '@/lib/basket/basket';
 import { requireSession } from '@/lib/auth/guards';
+import { isProductId, productIdPath } from '@/lib/catalog/products';
 
 /**
  * Add a product to the basket.
@@ -50,11 +51,23 @@ export async function addToCartAction(
   const imageUrl = String(formData.get('imageUrl') ?? '') || undefined;
 
   // A signed-out visitor is redirected to login and returns here afterwards.
-  await requireSession(`/products/${productId}`);
-
-  if (!productId) {
-    return { ok: false, message: 'Missing product identifier.' };
-  }
+    //
+    // The returnTo MUST use the /id/ segment. There are two product detail routes:
+    //
+    //   /products/[slug]      resolves via getProductBySlug(slug)
+    //   /products/id/[id]     resolves via getProductById(id)
+    //
+    // `productId` is a UUID, so `/products/${productId}` matches the SLUG route and
+    // the backend looks up a slug equal to a GUID — a miss, a 404, and
+    // notFound(). The shopper would sign in successfully and land on "Page not
+    // found", on the primary conversion path.
+    //
+    // Validated before use: returnTo is attacker-reachable via the query string, so
+    // a non-UUID would rebuild the same bug from the other direction.
+    if (!isProductId(productId)) {
+      return { ok: false, message: 'Missing product identifier.' };
+    }
+    await requireSession(productIdPath(productId));
 
   const quantity = Number(quantityRaw);
   if (!isValidQuantity(quantity)) {

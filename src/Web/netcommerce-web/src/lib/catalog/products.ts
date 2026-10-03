@@ -124,3 +124,33 @@ export function primaryImage(images: readonly ProductImage[]): ProductImage | nu
 export function isPublished(status: string): boolean {
   return status.toLowerCase() === 'published';
 }
+
+/**
+ * Is this a product UUID?
+ *
+ * ## Why the shape is checked
+ *
+ * `/products/[slug]` and `/products/id/[id]` are separate routes, so anything that
+ * builds a product URL from an ID MUST use the `/id/` segment — a bare
+ * `/products/<uuid>` resolves through the slug route and 404s.
+ *
+ * This guard makes that mistake loud instead of silent. It is deliberately
+ * strict and version-agnostic (the canonical 8-4-4-4-12 form) rather than
+ * accepting any 36-character string: `returnTo` is attacker-reachable through the
+ * login query string, and a value containing `/`, `..`, or a slug would change
+ * which route the post-login redirect resolves.
+ */
+const PRODUCT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isProductId(value: string): boolean {
+  return PRODUCT_ID_PATTERN.test(value);
+}
+
+/** The canonical detail URL for a product ID. Always use this, never string-build. */
+export function productIdPath(id: string): string {
+  if (!isProductId(id)) {
+    throw new Error(`refusing to build a product URL from a non-UUID id: ${id}`);
+  }
+  return `/products/id/${id}`;
+}

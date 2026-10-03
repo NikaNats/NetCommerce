@@ -48,12 +48,22 @@ export function mapRealtimeStatus(raw: string): AnyRealtimeStatus {
 }
 
 /** True when the saga is done and no further transitions are expected. */
-export function isTerminalRealtimeStatus(status: AnyRealtimeStatus): boolean {
+export function isTerminalRealtimeStatus(status: string): boolean {
   return status === REALTIME_STATUS.Success || status === REALTIME_STATUS.Error;
 }
 
-/** True when a human must step in; the UI should stop auto-refreshing. */
-export function needsManualIntervention(status: AnyRealtimeStatus): boolean {
+/**
+ * True when a human must step in; the UI should stop auto-refreshing.
+ *
+ * `status` is `string`, not `AnyRealtimeStatus`, because these are COMPARISONS
+ * against realtime literals — they answer "is this one of these two specific
+ * strings?", which is meaningful for any string and returns false for a value
+ * from the other vocabulary. `OrderSagaState.status` is a union of both
+ * vocabularies (REST reconciliation writes vocabulary 1), so narrowing these
+ * parameters to `AnyRealtimeStatus` would reject valid state at the call site
+ * rather than describe anything true.
+ */
+export function needsManualIntervention(status: string): boolean {
   return status === REALTIME_STATUS.ManualInterventionRequired;
 }
 

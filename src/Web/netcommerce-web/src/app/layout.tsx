@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { fontClassNames, fontVariablesClassName } from './fonts';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -9,8 +10,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    // fontVariablesClassName publishes the --font-* custom properties on <html>
+    // so globals.css can reference them; fontClassNames applies the hashed
+    // @font-face families on <body>.
+    //
+    // Both come from next/font/google, which self-hosts the woff2 files at build
+    // time. The previous CSS @import from fonts.googleapis.com was blocked by the
+    // Content Security Policy — `style-src 'self' 'unsafe-inline'` and
+    // `font-src 'self' data:` allowlisted neither origin — so the whole type system
+    // silently fell back to system serif/sans. See src/app/fonts.ts.
+    <html lang="en" className={fontVariablesClassName}>
+      <body className={fontClassNames}>
         {/* Skip link: keyboard users land here first, not in the nav. */}
         <a className="skip-link" href="#main">
           Skip to content

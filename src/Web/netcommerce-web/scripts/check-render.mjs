@@ -91,7 +91,26 @@ refute('Fraunces', 'Fraunces NOT used (detector-flagged overused face)', css);
 // would flag someone else's code. The authored CSS is what this app ships.
 refute('font-family:[^;}]*\\bInter\\b', 'Inter NOT used in authored CSS', css);
 refute('\\bRoboto\\b', 'Roboto NOT used in authored CSS', css);
-refute('\\bArial\\b', 'Arial NOT used in authored CSS', css);
+
+// Scoped to font-family stacks, not the whole sheet.
+//
+// next/font emits a metric-compatibility @font-face per family when
+// adjustFontFallback is on:
+//
+//   @font-face { font-family: Archivo Fallback; src: local(Arial);
+//                ascent-override: 88.96%; ... }
+//
+// That `local(Arial)` is a FEATURE, not a banned font: it is a local-only
+// placeholder used with ascent/descent overrides so text laid out before the
+// webfont arrives occupies the same space and does not shift. It never reaches a
+// user as Arial — it is discarded the moment the real face loads, and no network
+// request is made.
+//
+// A blanket /Arial/ match flagged it and would push someone toward disabling
+// adjustFontFallback, trading a real layout-shift fix for a cosmetic pass. The
+// check is therefore about fonts a reader would actually SEE, which is the
+// font-family stacks this app declares.
+refute('font-family:[^;}]*\\bArial\\b', 'Arial NOT used in authored CSS', css);
 refute('font-family:[^;}]*system-ui', 'no system-ui font stack in authored CSS', css);
 
 console.log('\n=== structure / accessibility ===');

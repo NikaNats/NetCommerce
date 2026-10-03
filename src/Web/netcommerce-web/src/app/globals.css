@@ -21,12 +21,16 @@
    vermilion (3.62) — both fall below the 4.5 body threshold.
    ========================================================================= */
 
-/* Bodoni Moda, not Fraunces: the Impeccable detector flags Fraunces as one of
-   the faces AI-generated UIs converge on. A didone carries more editorial
-   authority and suits the ledger world better — and unlike Fraunces it has real
-   stroke contrast, which survives at the display sizes used here.
-   Archivo stays for body text; IBM Plex Mono stays for tabular data only. */
-@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400;1,6..96,600&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+/* Typography is self-hosted via next/font/google — see src/app/fonts.ts.
+   There is deliberately NO `@import url('https://fonts.googleapis.com/...')`
+   here: the Content Security Policy declares `style-src 'self' 'unsafe-inline'`
+   and `font-src 'self' data:`, which allowlist neither fonts.googleapis.com nor
+   fonts.gstatic.com, so the browser dropped the import and the woff2 downloads
+   and the whole type system silently fell back to system serif/sans.
+
+   Do not "fix" this by re-adding the @import or by allowlisting those origins
+   unless the CSP posture is deliberately relaxed — the reason for
+   `default-src 'self'` is to have no third-party runtime dependency. */
 
 :root {
   color-scheme: light dark;
@@ -44,11 +48,20 @@
   --rule: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
   --rule-strong: 2px solid var(--ink);
 
-  --font-display: 'Bodoni Moda', 'Didot', Georgia, serif;
-  --font-body: 'Archivo', 'Helvetica Neue', sans-serif;
+  /* The loaded family name comes first (var(--loaded-*), published onto <html> by
+     next/font in src/app/fonts.ts), then the literal family name for the case
+     where the CSS is read outside that element, then concrete fallbacks.
+
+     Referencing BOTH the variable and the literal is deliberate belt-and-braces:
+     the variable binds to next/font's self-hosted @font-face, while the literal
+     keeps the stack correct if these rules are ever applied without <html>'s
+     class. The fallbacks are concrete on purpose — no system-ui/ui-monospace,
+     which is exactly the generic default this design system avoids. */
+  --font-display: var(--loaded-display, 'Bodoni Moda'), 'Didot', Georgia, serif;
+  --font-body: var(--loaded-body, 'Archivo'), 'Helvetica Neue', sans-serif;
   /* No system-ui/ui-monospace here: the mono stack should name the face we
      actually want, with a concrete fallback rather than deferring to the OS. */
-  --font-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace;
+  --font-mono: var(--loaded-mono, 'IBM Plex Mono'), 'DejaVu Sans Mono', monospace;
 
   --t-fast: 160ms;
   --t-base: 240ms;

@@ -17,6 +17,7 @@ import {
   parseCoalescedBatch,
   type AnyRealtimeStatus,
 } from '@/lib/real-time/messages';
+import { mapOrderStatus, type OrderStatusName } from '@/lib/orders/order-status';
 
 /**
  * Wolverine's CloudEvents hub transport.
@@ -46,7 +47,22 @@ import {
 
 export interface OrderSagaState {
   orderId: string;
-  status: AnyRealtimeStatus;
+  /**
+   * The status shown to the user, from EITHER vocabulary.
+   *
+   * This is deliberately a union. The socket pushes vocabulary 2 (free-form saga
+   * strings) while REST reconciliation reads vocabulary 1 (the persisted
+   * OrderStatus enum) — and REST is the authoritative one on load and on
+   * reconnect. Typing this as `AnyRealtimeStatus` alone is what previously forced
+   * reconcile() to run a REST value through the realtime mapper, producing
+   * "Unknown(StockConfirmed)" on every poll. The union lets each source keep its
+   * own vocabulary and still land in one field.
+   *
+   * Consumers must handle both. `describeStatus` already does: an unrecognised
+   * value renders as an explicit "unknown" rather than being coerced into a wrong
+   * state.
+   */
+  status: AnyRealtimeStatus | OrderStatusName;
   message: string;
   /** True once the socket is connected — NOT the same as "data is flowing". */
   connected: boolean;
@@ -56,7 +72,7 @@ export interface OrderSagaState {
 
 export function useOrderSaga(
   orderId: string,
-  initialStatus: AnyRealtimeStatus,
+  initialStatus: AnyRealtimeStatus | OrderStatusName,
   initialMessage = 'Tracking order fulfillment…',
 ): OrderSagaState {
   const [state, setState] = useState<OrderSagaState>({
@@ -83,11 +99,32 @@ export function useOrderSaga(
       if (!res.ok) return;
 
       const order = (await res.json()) as { status: number | string };
-      const status = mapRealtimeStatus(String(order.status));
+
+      // mapOrderStatus, NOT mapRealtimeStatus.
+      //
+      // These are two different vocabularies and this line used to mix them. The
+      // REST endpoint returns the persisted OrderStatus enum (a number, or a name
+      // like "StockConfirmed"); mapRealtimeStatus only knows the free-form strings
+      // the saga emits for push ("StockSecured", "ProcessingPayment"). Feeding a
+      // REST value to it produced "Unknown(StockConfirmed)" on EVERY
+      // reconciliation — connect, reconnect, and the 15s poll — so the UI kept
+      // replacing a correct status with an error-style "Status unavailable"
+      // banner. mapOrderStatus is the mapper built for the REST vocabulary.
+      const status = mapOrderStatus(order.status);
+
+      // needsIntervention is NOT recomputed from a REST status.
+      //
+      // "ManualInterventionRequired" is vocabulary 2 only — it has no OrderStatus
+      // equivalent in the persisted enum, so no REST status can imply it. Passing
+      // the REST name to needsManualIntervention (which only accepts realtime
+      // strings) would either fail to typecheck or, cast away, always be false.
+      //
+      // The flag is therefore left as-is: it is owned by the realtime stream, and
+      // REST is not authoritative for it. A cleared flag would hide a genuine
+      // intervention; keeping the last known value is the conservative choice.
       setState((prev) => ({
         ...prev,
         status,
-        needsIntervention: needsManualIntervention(status),
       }));
     } catch (error) {
       console.warn('[saga] reconciliation failed', error);
