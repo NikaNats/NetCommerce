@@ -6,6 +6,7 @@ import { SESSION_COOKIE, newSessionId, readSessionId } from '@/lib/auth/session-
 import { getSessionStore } from '@/lib/auth/session-store-factory';
 import { SESSION_ABSOLUTE_TTL_MS } from '@/lib/auth/session-store-ttl';
 import type { SessionStore, StoredSession } from '@/lib/auth/session-store';
+import { RefreshLockLostError } from '@/lib/auth/refresh-lock';
 
 /**
  * Server-side session registry.
@@ -173,10 +174,11 @@ async function waitForRotation(
   id: string,
   original: StoredSession,
   now: () => number = () => Date.now(),
+  waitMs: number = ROTATION_WAIT_MS,
   sleep: (ms: number) => Promise<void> = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms)),
 ): Promise<StoredSession | null> {
-  const deadline = now() + ROTATION_WAIT_MS;
+  const deadline = now() + waitMs;
   const intervalMs = 25;
 
   for (;;) {
@@ -234,7 +236,9 @@ export async function getSession(): Promise<ServerSession | undefined> {
   // Rotation under a cross-process lock. Everyone who loses the race re-reads
   // rather than rotating, because a second rotation would replay a single-use
   // token and revoke the whole Keycloak session family.
-  const outcome = await store.withRefreshLock<StoredSession | null>(id, async () => {
+  const outcome = await store.withRefreshLock<StoredSession | null>(
+    id,
+    async (guard) => {
     const spent = tokens.refreshToken;
 
     // Re-read inside the lock: another replica may have rotated between our read
@@ -291,8 +295,34 @@ export async function getSession(): Promise<ServerSession | undefined> {
       tokens: current,
       presentedRefreshTokens: [...presented, spent],
     };
+
+    // Check exclusivity immediately before the write, not before the rotation.
+    //
+    // The rotation itself has ALREADY presented the single-use refresh token to
+    // Keycloak by this point, so losing the lease is not something we can undo —
+    // but we can still refuse to persist a result another replica may be
+    // concurrently writing. Without this check a holder whose lease lapsed
+    // mid-rotation would overwrite the winner's newer token pair with a stale one,
+    // signing the user out despite a perfectly good rotation.
+    await guard.assertHeld();
+
     await store.put(updated);
     return updated;
+    },
+  ).catch(async (cause: unknown) => {
+    // Losing the lease MID-rotation is not a server error.
+    //
+    // The rotation already presented the token, so we cannot undo it — but the
+    // only thing left to do is persist, and persisting without exclusivity could
+    // clobber the winner's newer pair. Treating this as a 500 would also be
+    // wrong twice over: it is a normal contention outcome, and it would log the
+    // user out instead of letting them use the tokens they now hold.
+    if (!(cause instanceof RefreshLockLostError)) throw cause;
+
+    // Re-read for whoever does hold it now.
+    const reloaded = await waitForRotation(store, id, stored, Date.now, ROTATION_WAIT_MS);
+    if (!reloaded) return { acquired: false as const, value: null };
+    return { acquired: true as const, value: reloaded };
   });
 
   if (!outcome.acquired) {

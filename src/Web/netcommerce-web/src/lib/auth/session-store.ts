@@ -28,6 +28,10 @@
  */
 
 import type { Session } from '@/lib/auth/token-store';
+import {
+  RefreshLockLostError,
+  type RefreshLockGuard,
+} from '@/lib/auth/refresh-lock';
 
 export interface StoredSession {
   /** Opaque id handed to the browser in the httpOnly cookie. */
@@ -73,10 +77,18 @@ export interface SessionStore {
    * distinguish "I did the rotation" from "someone else did, use their result"
    * from "lock unavailable, do not attempt" — collapsing these would either
    * replay a token or drop a legitimate refresh.
+   *
+   * `fn` receives a guard. The implementation MUST keep exclusive rights for the
+   * whole of `fn` — including past the point where an implementation's own TTL
+   * would lapse, which a Redis implementation achieves by renewing the lease
+   * while `fn` runs. The caller MUST consult the guard immediately before
+   * committing: a lease can still be lost to a descheduled process or a dropped
+   * connection, and committing a rotation after losing it can double-spend a
+   * single-use refresh token.
    */
   withRefreshLock<T>(
     id: string,
-    fn: () => Promise<T>,
+    fn: (guard: RefreshLockGuard) => Promise<T>,
   ): Promise<{ acquired: true; value: T } | { acquired: false; value: null }>;
   /** Release any resources. Safe to call more than once. */
   close(): Promise<void>;
@@ -138,7 +150,7 @@ export class MemorySessionStore implements SessionStore {
 
   async withRefreshLock<T>(
     id: string,
-    fn: () => Promise<T>,
+    fn: (guard: RefreshLockGuard) => Promise<T>,
   ): Promise<{ acquired: true; value: T } | { acquired: false; value: null }> {
     // Queue behind an existing holder rather than racing it. Rejections are
     // swallowed here so one failed rotation does not poison the chain for
@@ -155,8 +167,20 @@ export class MemorySessionStore implements SessionStore {
     });
     this.locks.set(id, gate);
 
+    // The lock table entry is removed only in the `finally` below, and this
+    // closure reads it at the moment of the call — so while `fn` is running the
+    // entry is present and we are the holder. There is no TTL here, so unlike the
+    // Redis store there is no lease to lose; the guard exists to keep the two
+    // implementations interchangeable.
+    const guard: RefreshLockGuard = {
+      isHeld: async () => this.locks.get(id) === gate,
+      assertHeld: async () => {
+        if (this.locks.get(id) !== gate) throw new RefreshLockLostError();
+      },
+    };
+
     try {
-      return { acquired: true, value: await fn() };
+      return { acquired: true, value: await fn(guard) };
     } finally {
       this.locks.delete(id);
       release();

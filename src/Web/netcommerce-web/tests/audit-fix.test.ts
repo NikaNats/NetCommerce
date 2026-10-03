@@ -253,9 +253,12 @@ describe('a lock loser does not receive an expired access token', () => {
     vi.spyOn(store, 'withRefreshLock').mockImplementation(async (id, fn) => {
       call += 1;
       if (call === 1) {
-        return realLock(id, async () => {
+        // Forward the guard. The callback now receives one, and server-session
+        // calls guard.assertHeld() before writing the rotated pair — a mock that
+        // dropped it would make the winner's commit fail for the wrong reason.
+        return realLock(id, async (guard) => {
           await winnerMayWrite;
-          return fn();
+          return fn(guard);
         });
       }
       return { acquired: false, value: null };

@@ -31,6 +31,10 @@
  */
 
 import type { SessionStore, StoredSession } from '@/lib/auth/session-store';
+import {
+  RefreshLockLostError,
+  type RefreshLockGuard,
+} from '@/lib/auth/refresh-lock';
 
 /** Minimal surface of the `redis` v4 client this store depends on. */
 export interface RedisLike {
@@ -68,6 +72,32 @@ else
   return 0
 end
 `;
+
+/**
+ * Extend the lease ONLY if we still own it.
+ *
+ * The renewal half of the fix for the audit's BLOCKER 2. A plain `PEXPIRE` would
+ * be the bug all over again: a holder whose lease had already been stolen would
+ * extend the NEW owner's lock, keeping it stuck until that owner's own TTL
+ * lapsed. The owner check makes renewal safe to run on a timer without
+ * coordination.
+ *
+ * Returns 1 when extended, 0 when the lease is gone — which is the signal the
+ * caller needs to abandon the rotation before it presents a token.
+ */
+const RENEW_IF_OWNER = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+else
+  return 0
+end
+`;
+
+/**
+ * The guard types live in ./refresh-lock rather than here: the Redis store
+ * already imports this module, so declaring them here and importing them back
+ * would create a cycle.
+ */
 
 export interface RedisSessionStoreOptions {
   client: RedisLike;
@@ -154,7 +184,7 @@ export class RedisSessionStore implements SessionStore {
 
   async withRefreshLock<T>(
     id: string,
-    fn: () => Promise<T>,
+    fn: (guard: RefreshLockGuard) => Promise<T>,
   ): Promise<{ acquired: true; value: T } | { acquired: false; value: null }> {
     // A random owner token, so the release script can tell "my lock" from
     // "someone else's lock that happens to share the key".
@@ -170,9 +200,63 @@ export class RedisSessionStore implements SessionStore {
       return { acquired: false, value: null };
     }
 
+    /**
+     * Authoritative ownership check.
+     *
+     * Reads the recorded owner rather than trusting a local flag: a renewal may
+     * have failed while we were descheduled, and the whole point is to answer
+     * "is this still mine" at the moment the caller asks.
+     */
+    const isHeld = async (): Promise<boolean> => {
+      try {
+        return (await this.client.get(key)) === owner;
+      } catch {
+        // A Redis failure is NOT evidence the lock is still ours. Treating an
+        // unreachable Redis as "held" would let a caller commit a rotation whose
+        // lease may already be gone, which is the double-spend this guards.
+        return false;
+      }
+    };
+
+    const guard: RefreshLockGuard = {
+      isHeld,
+      assertHeld: async () => {
+        if (!(await isHeld())) throw new RefreshLockLostError();
+      },
+    };
+
+    // Renewal watchdog.
+    //
+    // Renew at a third of the TTL so two consecutive failures still leave time
+    // to notice before the lease actually lapses. Without this, any rotation
+    // slower than the TTL lets a second replica in — and since these refresh
+    // tokens are single-use, the second presentation revokes the entire session
+    // family for that user on every device.
+    //
+    // A stopped timer that never fired is harmless: the TTL still bounds the
+    // lock, which is exactly the old (unsafe) behaviour, so a crash or a stalled
+    // event loop degrades to the previous failure mode rather than to a stuck
+    // lock nobody releases.
+    const renewEveryMs = Math.max(50, Math.floor(this.lockTtlMs / 3));
+    const renewTimer = setInterval(() => {
+      // Fire-and-forget: a failed renewal is detected by isHeld() at the commit
+      // point, and awaiting here would race the work it is meant to protect.
+      void this.client
+        .eval(RENEW_IF_OWNER, {
+          keys: [key],
+          arguments: [owner, String(this.lockTtlMs)],
+        })
+        .catch(() => undefined);
+    }, renewEveryMs);
+
+    // Never hold the event loop open for a lock heartbeat. Without this a
+    // process could refuse to exit while a renewal is pending.
+    renewTimer.unref?.();
+
     try {
-      return { acquired: true, value: await fn() };
+      return { acquired: true, value: await fn(guard) };
     } finally {
+      clearInterval(renewTimer);
       // Compare-and-delete, and never let a failed release mask the caller's own
       // result or error.
       await this.client
