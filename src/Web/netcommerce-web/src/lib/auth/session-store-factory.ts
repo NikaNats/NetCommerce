@@ -22,6 +22,7 @@
 import { MemorySessionStore, type SessionStore } from '@/lib/auth/session-store';
 import { RedisSessionStore, type RedisLike } from '@/lib/auth/redis-session-store';
 import { SESSION_ABSOLUTE_TTL_MS } from '@/lib/auth/session-store-ttl';
+import { __getEstablishedRedisClient } from '@/lib/auth/redis-client';
 
 export class SessionStoreConfigError extends Error {
   constructor(detail: string) {
@@ -46,6 +47,24 @@ export interface ResolveOptions {
  */
 export type EnvLike = Record<string, string | undefined>;
 
+/**
+ * Is this a production deployment?
+ *
+ * Deliberately NOT `NODE_ENV === 'production'`. Exact match let through
+ * 'Production', 'prod', and — worst — an UNSET NODE_ENV, which is the realistic
+ * container default. A container that forgets NODE_ENV would run a
+ * process-local session store while the operator believed it was configured, and
+ * the symptom is users randomly logged out with no error anywhere.
+ *
+ * So anything not recognisably development or test is treated as production.
+ * Failing closed is right for a session layer: the false-positive cost is a
+ * refused start with a clear message, versus a silent production outage.
+ */
+export function isProductionEnv(env: EnvLike = process.env): boolean {
+  const value = (env.NODE_ENV ?? '').trim().toLowerCase();
+  return value !== 'development' && value !== 'dev' && value !== 'test';
+}
+
 export function resolveSessionStoreKind(env: EnvLike = process.env): SessionStoreKind {
   const requested = (env.SESSION_STORE ?? '').trim().toLowerCase();
   const url = (env.REDIS_URL ?? '').trim();
@@ -68,7 +87,7 @@ export function assertProductionSessionStore(
   kind: SessionStoreKind,
   env: EnvLike = process.env,
 ): void {
-  const isProduction = env.NODE_ENV === 'production';
+  const isProduction = isProductionEnv(env);
 
   if (isProduction && kind === 'memory') {
     throw new SessionStoreConfigError(
@@ -100,18 +119,39 @@ export function createSessionStore(options: ResolveOptions = {}): SessionStore {
     return new MemorySessionStore();
   }
 
-  if (!options.redisClient) {
-    // Deliberately a startup error, not a lazy connect: a store that throws on
-    // first use would fail on a customer's login rather than on deploy.
-    throw new SessionStoreConfigError(
-      'REDIS_URL is set but no Redis client was provided to createSessionStore',
-    );
-  }
+  // The redis path previously REQUIRED an injected client and threw without one,
+  // so production could never obtain a shared store: unset REDIS_URL tripped the
+  // guard, and set REDIS_URL made every session call throw. getRedisClient() is the
+  // production wiring; the injected client remains for tests.
+  const client = options.redisClient ?? requireRedisClientSync();
 
   return new RedisSessionStore({
-    client: options.redisClient,
+    client,
     ttlSeconds: Math.ceil(SESSION_ABSOLUTE_TTL_MS / 1000),
   });
+}
+
+/**
+ * Obtain the shared Redis client.
+ *
+ * createSessionStore is SYNCHRONOUS because it runs inside the session read path,
+ * while connecting is asynchronous. So the client is created eagerly at startup
+ * (see src/instrumentation.ts) and this only reads the already-established
+ * instance.
+ *
+ * Throws rather than silently degrading: a production session store that quietly
+ * falls back to process memory is the exact silent-logout bug this change exists
+ * to prevent.
+ */
+function requireRedisClientSync(): RedisLike {
+  const established = __getEstablishedRedisClient();
+  if (established) return established;
+
+  throw new SessionStoreConfigError(
+    'a Redis session store was selected but no client is connected. ' +
+      'This is reached when the app starts without establishing the Redis client ' +
+      'at startup. Check that REDIS_URL is set and reachable.',
+  );
 }
 
 /**

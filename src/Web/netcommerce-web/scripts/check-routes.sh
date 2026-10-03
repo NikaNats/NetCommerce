@@ -10,7 +10,14 @@ set -Eeuo pipefail
 APP_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$APP_DIR" || exit 1
 
-./node_modules/.bin/next dev --port 3000 > /tmp/routes-dev.log 2>&1 &
+# Logs go to .probe/ inside the project, NOT /tmp. The sandbox's /tmp is not
+# shared with the invoking shell, so a log written there can be invisible to the
+# readiness wait later in this script, producing a false ECONNREFUSED against a
+# server that actually started.
+PROBE_DIR="${PROBE_DIR:-$APP_DIR/.probe}"
+mkdir -p "$PROBE_DIR"
+
+./node_modules/.bin/next dev --port 3000 > $PROBE_DIR/routes-dev.log 2>&1 &
 NEXT_PID=$!
 trap 'kill $NEXT_PID 2>/dev/null' EXIT
 
@@ -35,7 +42,7 @@ done
 
 if ! node -e "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" >/dev/null 2>&1; then
   echo "DEV SERVER NEVER BECAME READY"
-  tail -30 /tmp/routes-dev.log
+  tail -30 $PROBE_DIR/routes-dev.log
   exit 1
 fi
 

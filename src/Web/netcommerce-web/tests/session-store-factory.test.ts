@@ -122,11 +122,26 @@ describe('createSessionStore', () => {
 
   it('fails at startup rather than lazily when Redis is requested without a client', () => {
     // A lazy connect would surface on a customer's login instead of on deploy.
+    //
+    // The MESSAGE changed when the audit found this unreachable in production.
+    // It used to read "no Redis client was provided" and was only ever triggered
+    // by an injected client in tests — nothing in the running app constructed
+    // one, so the redis path could not be reached at all. It now fails with a
+    // named SessionStoreConfigError explaining that the client must be
+    // established at startup by instrumentation.ts.
     expect(() =>
       createSessionStore({
         env: { NODE_ENV: 'production', REDIS_URL: 'redis://cache:6379' },
       }),
-    ).toThrow(/no Redis client/i);
+    ).toThrow(SessionStoreConfigError);
+
+    // And it must stay a NAMED error, not a generic throw, so the cause is
+    // legible in a deploy log.
+    expect(() =>
+      createSessionStore({
+        env: { NODE_ENV: 'production', REDIS_URL: 'redis://cache:6379' },
+      }),
+    ).toThrow(/no client is connected|REDIS_URL/i);
   });
 
   it('derives the Redis TTL from the absolute session lifetime', async () => {

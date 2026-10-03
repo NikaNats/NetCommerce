@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 /**
  * Assert design invariants against the page AND its stylesheets.
@@ -143,9 +143,16 @@ check('clamp\\(', 'fluid type via clamp()');
 console.log('\n=== error path (API deliberately unreachable) ===');
 check('API unreachable', 'unreachable-API notice rendered', html);
 
-writeFileSync('/tmp/rendered.html', html);
-writeFileSync('/tmp/rendered.css', css);
-console.log('\nsaved /tmp/rendered.html + /tmp/rendered.css');
+// Written to .probe/ inside the project, NOT /tmp.
+//
+// The sandbox's /tmp is not shared with the invoking shell, so a consumer in a
+// later step could not see these files — which produced an ENOENT that read like
+// a rendering failure. PROBE_DIR is overridable so the caller controls the path.
+const PROBE_DIR = process.env.PROBE_DIR ?? '.probe';
+mkdirSync(PROBE_DIR, { recursive: true });
+writeFileSync(`${PROBE_DIR}/rendered.html`, html);
+writeFileSync(`${PROBE_DIR}/rendered.css`, css);
+console.log(`\nsaved ${PROBE_DIR}/rendered.html + ${PROBE_DIR}/rendered.css`);
 
 console.log(failures === 0 ? '\nALL INVARIANTS HELD' : `\n${failures} INVARIANT FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

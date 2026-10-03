@@ -5,6 +5,24 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 export npm_config_cache=/scratch/.npm
+
+# Logs go to .probe/ inside the project, NOT /tmp. The sandbox's /tmp is not
+# shared with the invoking shell, so a log written there can be invisible to the
+# readiness wait later in this script, producing a false ECONNREFUSED against a
+# server that actually started.
+PROBE_DIR=".probe"
+mkdir -p "$PROBE_DIR"
+
+
+# Logs go to .probe/ inside the project, NOT /tmp.
+#
+# These gates run inside a sandbox whose /tmp is not shared with the invoking
+# shell, so a log written there can be invisible to the readiness wait later in
+# this same script. That produced an ECONNREFUSED against a dev server which had
+# actually started — a false failure that reads exactly like a product
+# regression. A project-local directory is visible to every process in the run.
+PROBE_DIR=".probe"
+mkdir -p "$PROBE_DIR"
 # Deliberately unreachable ports: exercises the API-failure rendering path.
 export API_BASE_URL=http://localhost:59999
 export KEYCLOAK_BASE_URL=http://localhost:59998
@@ -12,7 +30,7 @@ export KEYCLOAK_REALM=netcommerce
 export KEYCLOAK_CLIENT_ID=netcommerce-web
 export PUBLIC_ORIGIN=http://localhost:3000
 
-./node_modules/.bin/next dev --port 3000 > /tmp/next-dev.log 2>&1 &
+./node_modules/.bin/next dev --port 3000 > $PROBE_DIR/next-dev.log 2>&1 &
 DEV_PID=$!
 trap 'kill $DEV_PID 2>/dev/null' EXIT
 
@@ -35,19 +53,19 @@ fi
 # grep: a Next that dies on a port clash never writes "Ready in", and the loop
 # would otherwise spin for 90s against a dead server.
 for i in $(seq 1 90); do
-  grep -q "Ready in" /tmp/next-dev.log 2>/dev/null && break
-  kill -0 $DEV_PID 2>/dev/null || { echo "DEV EXITED"; cat /tmp/next-dev.log; exit 1; }
+  grep -q "Ready in" $PROBE_DIR/next-dev.log 2>/dev/null && break
+  kill -0 $DEV_PID 2>/dev/null || { echo "DEV EXITED"; cat $PROBE_DIR/next-dev.log; exit 1; }
   sleep 1
 done
 
-grep -q "Ready in" /tmp/next-dev.log 2>/dev/null || {
+grep -q "Ready in" $PROBE_DIR/next-dev.log 2>/dev/null || {
   echo "DEV NEVER BECAME READY"
-  cat /tmp/next-dev.log
+  cat $PROBE_DIR/next-dev.log
   exit 1
 }
 
 echo "=== server up ==="
-grep -E "Local:|Ready in" /tmp/next-dev.log
+grep -E "Local:|Ready in" $PROBE_DIR/next-dev.log
 echo
 
 node scripts/check-render.mjs

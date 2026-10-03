@@ -1,7 +1,11 @@
 // Locate every Roboto/Arial mention in the fetched artifacts, with context.
 import { readFileSync } from 'node:fs';
 
-for (const file of ['/tmp/rendered.html', '/tmp/rendered.css']) {
+// Same .probe/ directory check-render.mjs writes to. See the note there: /tmp is
+// not shared across the sandbox boundary, so these files must live in the project.
+const PROBE_DIR = process.env.PROBE_DIR ?? '.probe';
+
+for (const file of [`${PROBE_DIR}/rendered.html`, `${PROBE_DIR}/rendered.css`]) {
   const text = readFileSync(file, 'utf8');
   console.log(`\n=== ${file} (${text.length} bytes) ===`);
 
