@@ -43,6 +43,10 @@
     <ProjectReference Include="..\..\src\Shipping\Shipping.Domain\Shipping.Domain.csproj" />
     <ProjectReference Include="..\..\src\Shipping\Shipping.Application\Shipping.Application.csproj" />
     <ProjectReference Include="..\..\src\Shipping\Shipping.Infrastructure\Shipping.Infrastructure.csproj" />
+    <!-- For BasketPricer pricing-authority tests. Basket.Application deliberately
+         does NOT reference Catalog, so the test asserts the port contract rather
+         than a compile-time edge between the contexts. -->
+    <ProjectReference Include="..\..\src\Basket\Basket.Application\Basket.Application.csproj" />
     <ProjectReference Include="..\..\src\Finance\Finance.Domain\Finance.Domain.csproj" />
     <ProjectReference Include="..\..\src\Finance\Finance.Application\Finance.Application.csproj" />
     <ProjectReference Include="..\..\src\Finance\Finance.Infrastructure\Finance.Infrastructure.csproj" />

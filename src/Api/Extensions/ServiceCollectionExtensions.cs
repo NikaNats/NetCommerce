@@ -167,6 +167,15 @@ public static partial class ServiceCollectionExtensions
         services.AddFinanceModule(configuration);
         services.AddShippingModule(configuration);
 
+        // Basket -> Catalog pricing seam.
+        //
+        // The composition root is the only place that knows BOTH modules, so this is
+        // where IProductPriceSource gets its implementation. Basket itself never
+        // references Catalog; it only declares the port. Registering it here rather
+        // than inside AddBasketModule keeps that dependency pointing inward.
+        services.AddScoped<NetCommerce.Basket.Application.IProductPriceSource,
+            NetCommerce.Api.Endpoints.Basket.CatalogPriceSource>();
+
         return services;
     }
 }

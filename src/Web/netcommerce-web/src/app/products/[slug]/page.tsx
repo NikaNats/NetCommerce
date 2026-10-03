@@ -166,9 +166,6 @@ export default async function ProductPage({ params }: PageProps) {
             <AddToCartForm
               productId={product.id}
               productName={product.name}
-              sku={product.sku}
-              unitPrice={product.price}
-              imageUrl={hero?.url ?? ''}
             />
           ) : (
             // Not-published is a normal state, not an error. Say so plainly

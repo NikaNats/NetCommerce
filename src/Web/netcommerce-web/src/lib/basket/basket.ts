@@ -36,14 +36,18 @@ export interface Basket {
   totalPrice: number;
 }
 
-/** POST /api/v1/basket/items — AddBasketItemRequest */
+/**
+ * POST /api/v1/basket/items — AddBasketItemRequest
+ *
+ * Only productId and quantity. productName, sku, unitPrice and imageUrl were
+ * REMOVED from the contract, not merely made optional: the server resolved them
+ * from the catalog, and accepting a client-supplied unitPrice let a caller set
+ * their own price. Sending them would now be meaningless — the server ignores
+ * anything beyond these two fields.
+ */
 export interface AddBasketItemRequest {
   productId: string;
-  productName: string;
-  sku?: string | null;
   quantity: number;
-  unitPrice: number;
-  imageUrl?: string | null;
 }
 
 /**

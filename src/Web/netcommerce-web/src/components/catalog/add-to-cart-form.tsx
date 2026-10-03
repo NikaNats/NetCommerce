@@ -18,25 +18,29 @@ const INITIAL: AddToCartState = { ok: false, message: '' };
 export function AddToCartForm({
   productId,
   productName,
-  sku,
-  unitPrice,
-  imageUrl,
 }: {
   productId: string;
   productName: string;
-  sku: string;
-  unitPrice: number;
-  imageUrl: string;
 }) {
   const [state, formAction, pending] = useActionState(addToCartAction, INITIAL);
 
   return (
     <form action={formAction} className="addtocart">
+      {/*
+        Only these two are sent, plus productName which is echoed back purely for
+        the confirmation message.
+
+        sku, unitPrice and imageUrl were REMOVED rather than left hidden. The API
+        used to accept a client-supplied unitPrice and store it as the basket line's
+        price, so a tampered hidden field could set its own price. The endpoint now
+        resolves all three from the catalog and the request contract carries only
+        productId and quantity.
+
+        Keeping the inputs would be actively misleading: they would look like the
+        values the server uses, while it now ignores them entirely.
+      */}
       <input type="hidden" name="productId" value={productId} />
       <input type="hidden" name="productName" value={productName} />
-      <input type="hidden" name="sku" value={sku} />
-      <input type="hidden" name="unitPrice" value={String(unitPrice)} />
-      <input type="hidden" name="imageUrl" value={imageUrl} />
 
       <div className="addtocart__row">
         <label className="field-label" htmlFor="quantity">

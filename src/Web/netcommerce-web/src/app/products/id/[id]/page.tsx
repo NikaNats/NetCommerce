@@ -136,12 +136,9 @@ export default async function ProductByIdPage({ params }: PageProps) {
 
           {purchasable ? (
             <AddToCartForm
-              productId={product.id}
-              productName={product.name}
-              sku={product.sku}
-              unitPrice={product.price}
-              imageUrl={hero?.url ?? ''}
-            />
+                          productId={product.id}
+                          productName={product.name}
+                        />
           ) : (
             <p className="notice" role="status">
               This item is <strong>{product.status.toLowerCase()}</strong> and is

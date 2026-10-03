@@ -241,17 +241,27 @@ public class WireFormatContractTests
     }
 
     [Fact]
-    public void AddBasketItemRequest_serializes_the_field_names_the_action_sends()
+    public void AddBasketItemRequest_serializes_only_the_two_client_supplied_fields()
     {
-        var keys = KeysOf(Serialize(new AddBasketItemRequest(
-            ProductId, "Walnut Desk", "WD-1", 2, 1299.50m, null)));
+        // The contract was REDUCED to productId and quantity. productName, sku,
+        // unitPrice and imageUrl were removed because the endpoint used to trust a
+        // client-supplied unitPrice as the basket line's price. Asserting their
+        // absence is the point: a field reappearing here would mean a caller could
+        // set a price again.
+        var keys = KeysOf(Serialize(new AddBasketItemRequest(ProductId, 2)));
 
         keys.ShouldContain("productId");
-        keys.ShouldContain("productName");
-        keys.ShouldContain("unitPrice");
         keys.ShouldContain("quantity");
-        // imageUrl is null on this request, so it must be absent, not null.
+        keys.ShouldNotContain("unitPrice");
+        keys.ShouldNotContain("price");
+        keys.ShouldNotContain("productName");
+        keys.ShouldNotContain("sku");
         keys.ShouldNotContain("imageUrl");
+
+        // And exactly those two, so a stray field cannot hide among them.
+        // Length, not Count: keys is a string array, and Count would resolve to
+        // Span<T>.Count(MemoryExtensions) rather than the LINQ operator.
+        keys.Length.ShouldBe(2);
     }
 
     [Fact]

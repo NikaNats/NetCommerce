@@ -1128,6 +1128,15 @@
           "xunit.v3.runner.common": "[4.0.1]"
         }
       },
+      "basket.application": {
+        "type": "Project",
+        "dependencies": {
+          "FluentValidation": "[12.1.1, )",
+          "NetCommerce.Domain.Shared": "[1.0.0, )",
+          "NetCommerce.Kernel.Application": "[1.0.0, )",
+          "WolverineFx": "[6.41.0, )"
+        }
+      },
       "catalog.application": {
         "type": "Project",
         "dependencies": {

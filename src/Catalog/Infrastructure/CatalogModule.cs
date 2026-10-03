@@ -39,6 +39,15 @@ public static class CatalogModule
                 provider.GetRequiredService<ProductRepository>(),
                 provider.GetRequiredService<Microsoft.Extensions.Caching.Hybrid.HybridCache>()));
 
+        // Read-only view of the SAME cached repository.
+        //
+        // Registered so other bounded contexts can resolve a product without taking a
+        // dependency on Catalog's own abstraction or gaining the ability to mutate an
+        // aggregate. The basket pricing adapter reads through this: a basket request
+        // must never be able to write to a product.
+        services.AddScoped<IReadOnlyRepository<Product, Guid>>(provider =>
+            (IReadOnlyRepository<Product, Guid>)provider.GetRequiredService<IProductRepository>());
+
 #pragma warning disable EXTEXP0018 // HybridCache serializer API is experimental in this SDK band
         // Product aggregates are not STJ-deserializable by design; serialize via
         // snapshot DTO instead. Without this, every HybridCache read throws

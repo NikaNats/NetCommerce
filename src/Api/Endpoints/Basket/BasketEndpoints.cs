@@ -74,21 +74,31 @@ public class BasketEndpoints : IEndpointGroup
         AddBasketItemRequest request,
         HttpContext context,
         IBasketRepository basketRepository,
+        IProductPriceSource priceSource,
         CancellationToken cancellationToken)
     {
         var customerId = GetCustomerId(context);
         var basket = await basketRepository.GetBasketAsync(customerId, cancellationToken)
                      ?? ShoppingBasket.Create(customerId);
 
-        var item = new BasketItem
+        // Price, name, SKU and image come from the CATALOG, never the request body.
+        //
+        // This previously read `Price = request.UnitPrice`, so any caller could add a
+        // product at an arbitrary price and have the Redis-persisted total reflect it --
+        // a revenue-path integrity defect, not a display concern. BasketPricer takes
+        // no price parameter at all, so the field cannot be supplied wrongly.
+        BasketItem item;
+        try
         {
-            ProductId = request.ProductId,
-            ProductName = request.ProductName,
-            Sku = request.Sku,
-            Quantity = request.Quantity,
-            Price = request.UnitPrice,
-            ImageUrl = request.ImageUrl
-        };
+            item = await BasketPricer.CreateLineAsync(
+                priceSource, request.ProductId, request.Quantity, cancellationToken);
+        }
+        catch (BasketPricer.ProductNotSellableException)
+        {
+            // 404 rather than 400: an unpublished product must not be
+            // distinguishable from a nonexistent one by a storefront crawler.
+            return Results.NotFound();
+        }
 
         basket.AddItem(item);
         await basketRepository.UpdateBasketAsync(basket, cancellationToken);
@@ -141,12 +151,17 @@ public class BasketEndpoints : IEndpointGroup
     }
 }
 
+/// <param name="ProductId">The only field that identifies WHAT is being added.</param>
+/// <param name="Quantity">How many. Validated, and positive.</param>
+/// <remarks>
+/// ProductName, Sku, UnitPrice and ImageUrl were REMOVED rather than merely ignored.
+/// They were client-supplied, and UnitPrice in particular let a caller set their own
+/// price, which the endpoint then persisted into the basket total. Those values are
+/// now resolved from the catalog. Leaving the fields on the contract would be a lie
+/// to the next reader -- it would look as though the values were honoured.
+/// </remarks>
 public record AddBasketItemRequest(
     Guid ProductId,
-    string ProductName,
-    string? Sku,
-    int Quantity,
-    decimal UnitPrice,
-    string? ImageUrl);
+    int Quantity);
 
 public record UpdateQuantityRequest(int Quantity);
