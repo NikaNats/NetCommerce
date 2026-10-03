@@ -58,7 +58,14 @@ public class MediaEndpoints : IEndpointGroup
         CancellationToken cancellationToken = default)
     {
         var form = await httpContext.Request.ReadFormAsync(cancellationToken);
-        var file = form.Files.GetFile("file") ?? form.Files.FirstOrDefault();
+
+        // Index the collection directly rather than calling FirstOrDefault():
+        // IFormFileCollection is indexable, and CA1826 flags the Enumerable call.
+        // Release sets TreatWarningsAsErrors, so the Enumerable form breaks the
+        // Release build and CI. The Count guard preserves FirstOrDefault's
+        // behaviour on an empty collection — form.Files[0] would throw.
+        var file = form.Files.GetFile("file")
+                   ?? (form.Files.Count > 0 ? form.Files[0] : null);
 
         if (file is null || file.Length == 0)
             return Results.BadRequest(new MediaUploadError("File is required"));
