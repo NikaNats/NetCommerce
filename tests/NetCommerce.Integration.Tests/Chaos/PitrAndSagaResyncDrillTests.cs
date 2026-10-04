@@ -82,7 +82,12 @@ public sealed class PitrAndSagaResyncDrillTests : IntegrationTestBase
         mockPspGateway.GetExternalLedgerAsync(reconcileDate, Arg.Any<CancellationToken>())
             .Returns(new List<ExternalTransaction> { ghostTxn1, ghostTxn2, validTxn });
 
-        mockPspGateway.RefundTransactionAsync(ghostTxn2.Id, ghostTxn2.Amount, Arg.Any<string>(), Arg.Any<CancellationToken>())
+        mockPspGateway.RefundTransactionAsync(
+                ghostTxn2.Id,
+                ghostTxn2.Amount,
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Is<string>(k => k == IdempotencyKeys.ForReconciliationRefund(ghostTxn2.Id)))
             .Returns($"re_pitr_refund_{Guid.NewGuid():N}");
 
         using var scope = Fixture.Host.Services.CreateScope();
@@ -175,12 +180,14 @@ public sealed class PitrAndSagaResyncDrillTests : IntegrationTestBase
             shadowOrder.SourceDiscrepancyTxnId.ShouldBe(ghostTxn1.Id);
         }
 
-        // 2. Refund Gateway was invoked exactly once for Ghost 2
+        // 2. Refund Gateway was invoked exactly once for Ghost 2, carrying the
+        // deterministic idempotency key so a retry cannot double-refund.
         await mockPspGateway.Received(1).RefundTransactionAsync(
             ghostTxn2.Id,
             ghostTxn2.Amount,
             Arg.Is<string>(r => r.Contains("Ghost charge resolution")),
-            Arg.Any<CancellationToken>());
+            Arg.Any<CancellationToken>(),
+            Arg.Is<string>(k => k == IdempotencyKeys.ForReconciliationRefund(ghostTxn2.Id)));
 
         // 3. Physical Inventory stock must remain untouched by reconciliation
         await using (var inventoryDb = Fixture.CreateInventoryDbContext())

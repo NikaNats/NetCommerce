@@ -1,6 +1,6 @@
 #nullable enable
-using System.Security.Claims;
 using Asp.Versioning.Builder; // Required for ApiVersionSet
+using NetCommerce.Api.Extensions;
 using NetCommerce.Basket.Application;
 
 namespace NetCommerce.Api.Endpoints.Basket;
@@ -39,15 +39,13 @@ public class BasketEndpoints : IEndpointGroup
 
     private static string GetCustomerId(HttpContext context)
     {
-        // MapInboundClaims=false preserves raw OIDC claims, so 'sub' is authoritative.
-        // 'user_id' is the Keycloak protocol mapper fallback (see SessionHandlers:
-        // this deployment omits 'sub' from access tokens). Fall back to legacy
-        // mappings for tokens issued by other providers.
+        // Chain owned by ClaimsPrincipalExtensions (sub -> user_id ->
+        // NameIdentifier). Basket keys are opaque strings, so unlike ordering
+        // this additionally accepts preferred_username for tokens issued by
+        // other providers.
         // NOTE: Must throw UnauthorizedAccessException (not BadHttpRequestException):
         // GlobalExceptionHandler maps it to 401, anything else becomes 500.
-        var customerId = context.User.FindFirst("sub")?.Value
-            ?? context.User.FindFirst("user_id")?.Value
-            ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+        var customerId = context.User.TryGetSubjectId()
             ?? context.User.FindFirst("preferred_username")?.Value;
 
         if (string.IsNullOrWhiteSpace(customerId))
@@ -67,7 +65,9 @@ public class BasketEndpoints : IEndpointGroup
         var customerId = GetCustomerId(context);
         var basket = await basketRepository.GetBasketAsync(customerId, cancellationToken)
                      ?? ShoppingBasket.Create(customerId);
-        return Results.Ok(basket);
+        // PEAA Remote Facade: never leak the domain/persistence model across
+        // the remote boundary — translate to the transport DTO.
+        return Results.Ok(BasketMapper.ToDto(basket));
     }
 
     private static async Task<IResult> AddItem(
@@ -101,8 +101,7 @@ public class BasketEndpoints : IEndpointGroup
         }
 
         basket.AddItem(item);
-        await basketRepository.UpdateBasketAsync(basket, cancellationToken);
-        return Results.Ok(basket);
+        return await SaveAndRespondAsync(basket, basketRepository, cancellationToken);
     }
 
     private static async Task<IResult> UpdateItemQuantity(
@@ -119,8 +118,7 @@ public class BasketEndpoints : IEndpointGroup
             return Results.NotFound("Basket not found");
 
         basket.UpdateItemQuantity(productId, request.Quantity);
-        await basketRepository.UpdateBasketAsync(basket, cancellationToken);
-        return Results.Ok(basket);
+        return await SaveAndRespondAsync(basket, basketRepository, cancellationToken);
     }
 
     private static async Task<IResult> RemoveItem(
@@ -136,8 +134,7 @@ public class BasketEndpoints : IEndpointGroup
             return Results.NotFound("Basket not found");
 
         basket.RemoveItem(productId);
-        await basketRepository.UpdateBasketAsync(basket, cancellationToken);
-        return Results.Ok(basket);
+        return await SaveAndRespondAsync(basket, basketRepository, cancellationToken);
     }
 
     private static async Task<IResult> ClearBasket(
@@ -148,6 +145,21 @@ public class BasketEndpoints : IEndpointGroup
         var customerId = GetCustomerId(context);
         var success = await basketRepository.DeleteBasketAsync(customerId, cancellationToken);
         return success ? Results.NoContent() : Results.BadRequest("Failed to clear basket");
+    }
+
+    /// <summary>
+    ///     Persist a mutated basket and translate it to the transport contract
+    ///     (refactoring: Extract Method over the 3x duplicated persist+map tail).
+    /// </summary>
+    private static async Task<IResult> SaveAndRespondAsync(
+        ShoppingBasket basket,
+        IBasketRepository basketRepository,
+        CancellationToken cancellationToken)
+    {
+        await basketRepository.UpdateBasketAsync(basket, cancellationToken);
+        // PEAA Remote Facade: never leak the domain/persistence model across
+        // the remote boundary — translate to the transport DTO.
+        return Results.Ok(BasketMapper.ToDto(basket));
     }
 }
 

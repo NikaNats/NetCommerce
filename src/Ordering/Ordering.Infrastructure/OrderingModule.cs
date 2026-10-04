@@ -29,6 +29,10 @@ public static class OrderingModule
         // Repositories
         services.AddScoped<IOrderRepository, OrderRepository>();
 
+        // PEAA Gateway: Wolverine saga store is an external resource — centralize
+        // its record access behind an application-owned boundary.
+        services.AddScoped<ISagaStateGateway, WolverineSagaStateGateway>();
+
         // ============================================================================
         // Triple-Pass Pricing Services
         // ============================================================================

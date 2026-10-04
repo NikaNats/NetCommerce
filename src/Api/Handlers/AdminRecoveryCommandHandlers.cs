@@ -103,7 +103,11 @@ public static class AdminRecoveryCommandHandlers
         // Route release + refund decisions through the saga: it knows whether
         // inventory is actually held and whether payment was captured. Publishing
         // RefundPaymentCommand directly here would double-refund whenever the
-        // saga also compensates, and gateway refunds are not idempotent.
+        // saga also compensates. Saga-path refunds now carry a deterministic
+        // PSP idempotency key (IdempotencyKeys.ForOrderRefund), but two
+        // DIFFERENT intents for one order (admin action + saga compensation)
+        // carry different keys by design, so the saga must stay the single
+        // refund decision-maker.
         // The release is ALSO sent directly as belt-and-braces: if the saga is
         // already gone, its NotFound path does nothing and stock would leak
         // until the reservation cleanup job. The release handler is a no-op

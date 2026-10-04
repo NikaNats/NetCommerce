@@ -108,7 +108,7 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
             Status = OrderStatus.Paid, // Already paid in PSP
             ShippingAddress = shippingAddress,
             CreatedAt = DateTime.UtcNow,
-            IdempotencyKey = $"shadow-{externalTxnId}",
+            IdempotencyKey = IdempotencyKeys.ForShadowOrder(externalTxnId),
             Notes = $"[SHADOW ORDER] Created during reconciliation by {resolvedBy}. {notes}",
             TotalAmount = amount,
             IsShadowOrder = true,

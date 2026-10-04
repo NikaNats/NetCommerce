@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NetCommerce.Finance.Application.Commands;
 using NetCommerce.Finance.Domain.Gateways;
 using NetCommerce.Finance.Domain.Reconciliation;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using Wolverine;
 using Wolverine.Attributes;
@@ -99,11 +100,15 @@ public static class DiscrepancyResolutionHandler
         logger.LogCritical("INITIATING REFUND for ghost charge {TxnId}, Amount: {Amount}",
             discrepancy.ExternalTxnId, discrepancy.Difference);
 
+        // Keyed by the ghost charge itself: every retry of THIS resolution
+        // carries the same key, so the PSP dedups instead of double-refunding.
+        // Format owned by IdempotencyKeys.
         var refundId = await paymentGateway.RefundTransactionAsync(
             discrepancy.ExternalTxnId,
             Math.Abs(discrepancy.Difference),
             $"Ghost charge resolution: {command.Reason}",
-            cancellationToken);
+            cancellationToken,
+            idempotencyKey: IdempotencyKeys.ForReconciliationRefund(discrepancy.ExternalTxnId));
 
         logger.LogInformation("Refund {RefundId} initiated for ghost charge {TxnId}", refundId, discrepancy.ExternalTxnId);
     }

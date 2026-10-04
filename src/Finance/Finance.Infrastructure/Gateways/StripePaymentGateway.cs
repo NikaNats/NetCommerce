@@ -116,7 +116,8 @@ public class StripeReconciliationGateway : IPaymentGateway
         string externalTransactionId,
         decimal amount,
         string reason,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? idempotencyKey = null)
     {
         try
         {
@@ -137,7 +138,14 @@ public class StripeReconciliationGateway : IPaymentGateway
                 }
             };
 
-            var refund = await refundService.CreateAsync(options, cancellationToken: cancellationToken);
+            // Same key => Stripe returns the original refund. Retries of one
+            // resolution (admin double-click, Wolverine redelivery after
+            // unknown success) cannot double-refund the ghost charge.
+            var requestOptions = new RequestOptions();
+            if (!string.IsNullOrEmpty(idempotencyKey))
+                requestOptions.IdempotencyKey = idempotencyKey;
+
+            var refund = await refundService.CreateAsync(options, requestOptions, cancellationToken);
 
             _logger.LogInformation(
                 "Refund {RefundId} created for ghost charge {TransactionId}",

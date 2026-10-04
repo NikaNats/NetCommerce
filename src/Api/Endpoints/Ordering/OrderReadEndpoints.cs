@@ -1,10 +1,10 @@
-using System.Security.Claims;
 using Asp.Versioning.Builder;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using NetCommerce.Api.Endpoints.Common;
+using NetCommerce.Api.Extensions;
+using NetCommerce.Kernel.Core.Results;
+using NetCommerce.Ordering.Application.Orders.Queries;
 using NetCommerce.Ordering.Domain.Orders;
-using NetCommerce.Ordering.Infrastructure.Persistence;
+using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Ordering;
 
@@ -34,8 +34,7 @@ public static class OrderReadEndpoints
             .WithTags("Orders")
             .RequireRateLimiting("PerUser");
 
-        // Registered BEFORE the "{orderId:guid}" constraint route would match, and
-        // deliberately separate from OrderEndpoints so the two maps of the same
+        // Deliberately separate from OrderEndpoints so the two maps of the same
         // group cannot silently disagree about version or rate-limit policy.
         group.MapGet("/{orderId:guid}", GetOrder)
             .WithName("GetOrder")
@@ -52,37 +51,38 @@ public static class OrderReadEndpoints
     /// <summary>
     ///     Returns one order, provided the caller owns it.
     /// </summary>
+    /// <remarks>
+    /// PEAA Service Layer: presentation extracts the caller identity from
+    /// transport and dispatches to the application read API. Repository access,
+    /// ownership enforcement, and DTO translation live in the handler —
+    /// this endpoint never touches persistence.
+    /// </remarks>
     private static async Task<IResult> GetOrder(
         Guid orderId,
-        OrderingDbContext db,
+        IMessageBus bus,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        // AsNoTracking: this is a read-only projection and must not drag the change
-        // tracker along for every poll the storefront makes.
-        var order = await db.Orders
-            .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
-
-        if (order is null)
-            return Results.NotFound(new OrderMessageResponse(orderId, "Order not found."));
-
-        // Ownership check, mirroring CancelOrder exactly: the JWT subject must be the
-        // ordering customer.
-        //
-        // Fail CLOSED. A non-Guid subject or a mismatch is forbidden, never treated
-        // as "no owner" — otherwise a malformed or absent claim would return another
-        // customer's order. Sound because CreateOrder stamps CustomerId from this
-        // same claim.
-        var subject = httpContext.User.FindFirst("sub")?.Value
-            ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (!Guid.TryParse(subject, out var callerCustomerId)
-            || callerCustomerId != order.CustomerId)
+        // Fail CLOSED. A non-Guid subject is forbidden, never treated as
+        // "no owner" — otherwise a malformed or absent claim could return
+        // another customer's order. Sound because CreateOrder stamps
+        // CustomerId from this same claim. Chain owned by
+        // ClaimsPrincipalExtensions (sub -> user_id -> NameIdentifier).
+        if (!httpContext.User.TryGetCustomerId(out var callerCustomerId))
         {
             return Results.Forbid();
         }
 
+        var result = await bus.InvokeAsync<Result<OrderDetailsDto>>(
+            new GetOrderByIdQuery(orderId, callerCustomerId),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return OrderLookupResults.FromFailure(orderId, result.Error, httpContext);
+        }
+
+        var order = result.Value;
         return Results.Ok(new OrderResponse(
             order.Id,
             order.OrderNumber,

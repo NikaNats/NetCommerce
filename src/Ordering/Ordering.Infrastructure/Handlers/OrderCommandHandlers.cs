@@ -4,7 +4,6 @@ using NetCommerce.Ordering.Application.Orders.Commands;
 using NetCommerce.Ordering.Application.Orders.Services;
 using NetCommerce.Ordering.Domain.Orders;
 using NetCommerce.Ordering.Infrastructure.Persistence;
-using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Domain.Shared;
 using NetCommerce.Domain.Shared.Events;
 using NetCommerce.Kernel.Core.Results;
@@ -396,11 +395,15 @@ public static class CreateShadowOrderHandler
         ILogger<CreateShadowOrderCommand> logger,
         CancellationToken cancellationToken)
     {
-        // Idempotency check - ensure we don't create duplicate shadow orders
+        // Idempotency check - ensure we don't create duplicate shadow orders.
+        // DDIA: this check-then-insert races under concurrent resolution of
+        // the same ghost charge, so the composite unique index
+        // (IdempotencyKey, CustomerId) — shadow orders share CustomerId Empty —
+        // is the arbiter, mirroring CreateOrderHandler's contract.
         var existingOrder = await db.Orders
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                o => o.IdempotencyKey == $"shadow-{command.ExternalTransactionId}",
+                o => o.IdempotencyKey == IdempotencyKeys.ForShadowOrder(command.ExternalTransactionId),
                 cancellationToken);
 
         if (existingOrder is not null)
@@ -432,7 +435,40 @@ public static class CreateShadowOrderHandler
             command.ResolvedBy,
             command.Reason);
 
-        db.Orders.Add(order);
+        try
+        {
+            db.Orders.Add(order);
+
+            // Force the insert inside the handler (rather than relying on the
+            // outbox's post-handler SaveChanges) so a concurrent duplicate
+            // surfaces HERE as UniqueViolation, where it is recoverable, instead
+            // of failing the whole outbox commit after cascading messages queued.
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            var duplicate = await db.Orders.AsNoTracking()
+                .FirstOrDefaultAsync(
+                    o => o.IdempotencyKey == IdempotencyKeys.ForShadowOrder(command.ExternalTransactionId),
+                    cancellationToken);
+
+            if (duplicate is null)
+            {
+                logger.LogError(
+                    "Unique constraint hit for shadow key {Key} but no matching order is visible.",
+                    IdempotencyKeys.ForShadowOrder(command.ExternalTransactionId));
+
+                return Result.Failure<Guid>(Error.Conflict(
+                    "Duplicate shadow order request is being processed. Please retry."));
+            }
+
+            logger.LogWarning(
+                "Concurrent shadow order creation for transaction {TxnId}. Returning existing order {OrderId}.",
+                command.ExternalTransactionId,
+                duplicate.Id);
+
+            return Result.Success(duplicate.Id);
+        }
 
         logger.LogCritical(
             "SHADOW ORDER CREATED: OrderId={OrderId}, OrderNumber={OrderNumber}, TxnId={TxnId}, Amount={Amount} {Currency}, ResolvedBy={ResolvedBy}",

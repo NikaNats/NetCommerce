@@ -129,8 +129,13 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(ProductSearchResult[]))]
 
 // Basket
+// PEAA Remote Facade: endpoints return BasketDto/BasketItemDto. ShoppingBasket
+// stays registered because it is still the Redis persistence shape and existing
+// wire-contract tests assert its serialization.
 [JsonSerializable(typeof(ShoppingBasket))]
 [JsonSerializable(typeof(BasketItem))]
+[JsonSerializable(typeof(BasketDto))]
+[JsonSerializable(typeof(BasketItemDto))]
 [JsonSerializable(typeof(AddBasketItemRequest))]
 [JsonSerializable(typeof(UpdateQuantityRequest))]
 
@@ -164,8 +169,6 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(List<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
 [JsonSerializable(typeof(NetCommerce.Finance.Domain.Reconciliation.ReconciliationStatus))]
 [JsonSerializable(typeof(NetCommerce.Finance.Domain.Reconciliation.ReconciliationStatus?))]
-[JsonSerializable(typeof(IReadOnlyList<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
-[JsonSerializable(typeof(List<NetCommerce.Finance.Domain.Reconciliation.ReconciliationSession>))]
 
 // Admin DLQ Endpoints
 [JsonSerializable(typeof(BulkReplayDlqRequest))]

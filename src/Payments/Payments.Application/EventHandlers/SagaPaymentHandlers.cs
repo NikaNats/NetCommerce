@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Payments.Application.Gateways;
 using NetCommerce.Payments.Domain.Transactions;
@@ -49,7 +50,7 @@ public static class SagaPaymentHandlers
                 orderId: command.OrderId,
                 amount: command.Amount,
                 provider: (Domain.Transactions.PaymentProvider)paymentGateway.Provider,
-                idempotencyKey: $"payment_{envelope.Id}");
+                idempotencyKey: IdempotencyKeys.ForPayment(envelope.Id));
 
             await repository.AddAsync(paymentTransaction);
 
@@ -173,11 +174,18 @@ public static class SagaPaymentHandlers
 
         try
         {
-            // Create refund request for the gateway
+            // DDIA duplicate suppression: the saga can emit RefundPaymentCommand
+            // for one order more than once across compensation paths, and
+            // Wolverine redelivers after unknown success (crash between PSP
+            // refund and RefundCompleted). The key is derived from the stable
+            // business intent (OrderId), NOT per attempt, so every redelivery
+            // of the same intent carries the same key and the PSP dedups it.
+            // Format owned by IdempotencyKeys.
             var refundRequest = new RefundRequest(
                 OriginalTransactionId: command.PaymentTransactionId,
                 Amount: command.Amount,
-                Reason: command.Reason ?? "Order compensation");
+                Reason: command.Reason ?? "Order compensation",
+                IdempotencyKey: IdempotencyKeys.ForOrderRefund(command.OrderId));
 
             // Process refund through the gateway
             var result = await paymentGateway.ProcessRefundAsync(refundRequest);

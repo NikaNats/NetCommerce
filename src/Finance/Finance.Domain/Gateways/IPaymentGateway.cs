@@ -24,11 +24,16 @@ public interface IPaymentGateway
     /// <summary>
     ///     Process a refund for a ghost charge or discrepancy resolution.
     /// </summary>
+    /// <param name="idempotencyKey">
+    ///     Stable business key for this refund intent. The PSP deduplicates
+    ///     retries carrying the same key instead of issuing a second refund.
+    /// </param>
     Task<string> RefundTransactionAsync(
         string externalTransactionId,
         decimal amount,
         string reason,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? idempotencyKey = null);
 }
 
 /// <summary>

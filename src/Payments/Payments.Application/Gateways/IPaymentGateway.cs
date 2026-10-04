@@ -46,10 +46,19 @@ public record PaymentResult(
     PaymentResultStatus Status,
     string? ErrorMessage = null);
 
+/// <param name="IdempotencyKey">
+///     Stable business key for this refund intent, derived from
+///     <see cref="IdempotencyKeys"/> (e.g. saga refunds use
+///     <c>IdempotencyKeys.ForOrderRefund</c>).
+///     The PSP deduplicates retries/redeliveries carrying the same key instead of
+///     issuing a second refund. Optional for backward compatibility — callers that
+///     omit it accept at-most-once-per-attempt semantics and MUST self-dedup.
+/// </param>
 public record RefundRequest(
     string OriginalTransactionId,
     Money Amount,
-    string Reason);
+    string Reason,
+    string? IdempotencyKey = null);
 
 public record RefundResult(
     string RefundId,

@@ -17,9 +17,13 @@ public class ReserveInventoryHandler
     ///     Handles inventory reservation from the OrderFulfillmentSaga.
     ///
     ///     <para>
-    ///     Thread Safety: Wolverine's message partitioning guarantees that no other thread
-    ///     is handling THIS ProductId right now. We can safely read and update stock
-    ///     without pessimistic locking.
+    ///     Thread Safety: comes from <c>SELECT ... FOR UPDATE</c> row locks in
+    ///     deterministic product-id order inside an explicit transaction (below),
+    ///     NOT from Wolverine partitioning. Saga identity is the OrderId, and this
+    ///     handler sits on a shared local queue — two orders for the same product
+    ///     routinely execute concurrently. The locks (plus the fail-closed
+    ///     all-rows-locked check) are what prevent oversell; do not remove them
+    ///     on the assumption that partitioning serializes per product.
     ///     </para>
     /// </summary>
     public static async Task<object> Handle(
@@ -258,11 +262,6 @@ public class LockInventoryForPaymentHandler
                 .OrderBy(id => id)
                 .ToArray();
 
-            var reservationIds = command.ReservedItems
-                .Select(x => x.ReservationId)
-                .Distinct()
-                .ToArray();
-
             var stocks = await db.Stocks
                 .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
                 .Include(s => s.Reservations)
@@ -337,6 +336,19 @@ public class LockInventoryForPaymentHandler
 ///     Partitioned handler for confirming inventory reservations.
 ///     Converts soft reservations to hard deductions after payment confirmation.
 /// </summary>
+/// <remarks>
+/// DDIA atomicity scope: the read (which reservations are confirmable) and the
+/// write (deduction) run inside ONE explicit transaction under
+/// <c>SELECT ... FOR UPDATE</c> row locks, mirroring
+/// <see cref="ReserveInventoryHandler"/>. Without this, the reservation cleanup
+/// job can release a reservation between this handler's read and its
+/// SaveChanges, losing the deduction or colliding on the xmin row version.
+/// Replay contract: a redelivery after a successful confirm finds the rows
+/// but no eligible reservations (all terminal) and still reports
+/// <c>InventoryConfirmed</c> — failing here would wrongly compensate an
+/// already-paid order. No rows at all means nothing was ever reserved and
+/// correctly reports <c>InventoryConfirmationFailed</c>.
+/// </remarks>
 [WolverineHandler]
 [LocalQueue("inventory-contention")]
 public class PartitionedConfirmInventoryHandler
@@ -352,13 +364,45 @@ public class PartitionedConfirmInventoryHandler
             command.OrderId,
             command.PaymentTransactionId);
 
-        // Find all reservations for this order
-        var stocks = await db.Stocks
-            .Include(s => s.Reservations)
-            .Where(s => s.Reservations.Any(r => r.OrderId == command.OrderId))
-            .ToListAsync(ct);
+        // Same execution-strategy transaction as ReserveInventoryHandler: row
+        // locks only serialize inside an explicit transaction (autocommit would
+        // release them immediately), and the strategy retries transient faults.
+        var strategy = db.Database.CreateExecutionStrategy();
 
-        if (stocks.Count == 0)
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            try
+            {
+                var result = await ConfirmAsync(command, db, logger, ct);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
+
+    private static async Task<object> ConfirmAsync(
+        ConfirmInventoryCommand command,
+        InventoryDbContext db,
+        ILogger<PartitionedConfirmInventoryHandler> logger,
+        CancellationToken ct)
+    {
+        // Lock the affected stock rows BEFORE reading reservation state, in
+        // deterministic order, so concurrent cleanup/release serializes here
+        // instead of racing the confirm.
+        var productIds = await db.Stocks
+            .Where(s => s.Reservations.Any(r => r.OrderId == command.OrderId))
+            .Select(s => s.ProductId)
+            .OrderBy(id => id)
+            .ToArrayAsync(ct);
+
+        if (productIds.Length == 0)
         {
             logger.LogWarning(
                 "No reservations found for Order {OrderId}",
@@ -369,10 +413,22 @@ public class PartitionedConfirmInventoryHandler
                 "No reservations found for this order");
         }
 
+        var stocks = await db.Stocks
+            .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
+            .Include(s => s.Reservations)
+            .ToListAsync(ct);
+
+        // Declared outside try: the catch path below must know whether a
+        // mutation already applied before deciding rollback-vs-failure-event.
+        var confirmedCount = 0;
+
         try
         {
-            var confirmedCount = 0;
-
+            // Two-pass within the lock: collect eligible reservations first, then
+            // mutate. The loop body has no throw source beyond the status guard
+            // (already filtered), but if a future domain rule throws mid-loop we
+            // must not persist a partial deduction alongside a failure event.
+            var eligible = new List<(Domain.Stock.Stock Stock, Guid ReservationId)>();
             foreach (var stock in stocks)
             {
                 var reservation = stock.Reservations
@@ -380,23 +436,41 @@ public class PartitionedConfirmInventoryHandler
                                          (r.Status == Domain.Stock.ReservationStatus.Active || r.Status == Domain.Stock.ReservationStatus.PendingPayment));
 
                 if (reservation is not null)
-                {
-                    stock.ConfirmReservation(reservation.Id);
-                    confirmedCount++;
-
-                    logger.LogDebug(
-                        "Confirmed reservation {ReservationId} for Product {ProductId}, Order {OrderId}",
-                        reservation.Id,
-                        stock.ProductId,
-                        command.OrderId);
-                }
+                    eligible.Add((stock, reservation.Id));
             }
 
-            logger.LogInformation(
-                "Inventory confirmed for Order {OrderId}. Confirmed {Count} reservations. " +
-                "Stock has been permanently deducted.",
-                command.OrderId,
-                confirmedCount);
+            foreach (var (stock, reservationId) in eligible)
+            {
+                stock.ConfirmReservation(reservationId);
+                confirmedCount++;
+
+                logger.LogDebug(
+                    "Confirmed reservation {ReservationId} for Product {ProductId}, Order {OrderId}",
+                    reservationId,
+                    stock.ProductId,
+                    command.OrderId);
+            }
+
+            if (confirmedCount == 0)
+            {
+                // Idempotent replay: the rows exist but every reservation for
+                // this order already reached a terminal state (a previous
+                // confirm) or left Active/PendingPayment via another path.
+                // Report success — failing here would compensate a paid order.
+                logger.LogInformation(
+                    "Inventory confirm replay for Order {OrderId}: {StockCount} stock row(s) locked, " +
+                    "no eligible reservations. Returning confirmed (already settled).",
+                    command.OrderId,
+                    stocks.Count);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Inventory confirmed for Order {OrderId}. Confirmed {Count} reservations. " +
+                    "Stock has been permanently deducted.",
+                    command.OrderId,
+                    confirmedCount);
+            }
 
             return new InventoryConfirmed(command.OrderId);
         }
@@ -406,6 +480,15 @@ public class PartitionedConfirmInventoryHandler
                 "Inventory confirmation failed for Order {OrderId}: {Error}",
                 command.OrderId,
                 ex.Message);
+
+            if (confirmedCount > 0)
+            {
+                // A mutation already applied: returning a failure event here
+                // would persist a PARTIAL deduction (caller commits after this
+                // return). Rethrow so the transaction rolls back and Wolverine
+                // redelivers; the replay converges via the idempotent path.
+                throw;
+            }
 
             return new InventoryConfirmationFailed(command.OrderId, ex.Message);
         }

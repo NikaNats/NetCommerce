@@ -126,6 +126,31 @@ public class SagaPaymentRefundTests
         captured.OriginalTransactionId.ShouldBe(command.PaymentTransactionId);
         captured.Amount.ShouldBe(command.Amount);
         captured.Reason.ShouldBe(command.Reason);
+        captured.IdempotencyKey.ShouldBe($"refund_{command.OrderId}");
+    }
+
+    [Fact]
+    public async Task Handle_RefundRedelivery_ShouldCarryTheSameIdempotencyKey()
+    {
+        // DDIA duplicate suppression: a redelivery of the same business intent
+        // (Wolverine retry after unknown PSP success) must carry the SAME key so
+        // the PSP dedups instead of issuing a second refund. A per-attempt key
+        // (e.g. Guid.NewGuid) would defeat the gateway dedup entirely.
+        var command = RefundCommand();
+        var keys = new List<string?>();
+        _gateway.ProcessRefundAsync(
+                Arg.Do<RefundRequest>(r => keys.Add(r.IdempotencyKey)),
+                Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new RefundResult("re_123", true)));
+
+        // Act: same command delivered twice (original + redelivery)
+        await SagaPaymentHandlers.Handle(command, _gateway, _refundLogger);
+        await SagaPaymentHandlers.Handle(command, _gateway, _refundLogger);
+
+        // Assert
+        keys.Count.ShouldBe(2);
+        keys[0].ShouldBe($"refund_{command.OrderId}");
+        keys[1].ShouldBe(keys[0]);
     }
 
     #endregion

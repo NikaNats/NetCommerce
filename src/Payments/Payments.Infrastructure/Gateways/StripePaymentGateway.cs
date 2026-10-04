@@ -207,8 +207,15 @@ public class StripePaymentGateway : IPaymentGateway
                 Reason = MapRefundReason(request.Reason)
             };
 
+            // DDIA write semantics: same IdempotencyKey => Stripe returns the
+            // original refund instead of creating a second one. Retries and
+            // Wolverine redeliveries of one business intent are PSP-safe.
+            var refundRequestOptions = new RequestOptions();
+            if (!string.IsNullOrEmpty(request.IdempotencyKey))
+                refundRequestOptions.IdempotencyKey = request.IdempotencyKey;
+
             var refund = await _pipeline.ExecuteAsync(
-                async ct => await _refundService.CreateAsync(refundOptions, cancellationToken: ct),
+                async ct => await _refundService.CreateAsync(refundOptions, refundRequestOptions, ct),
                 cancellationToken);
 
             var success = refund.Status == "succeeded";

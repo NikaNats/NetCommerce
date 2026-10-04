@@ -1,17 +1,13 @@
 using Asp.Versioning;
 using Asp.Versioning.Builder; // Required for ApiVersionSet
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using NetCommerce.Api.Endpoints.Common;
+using NetCommerce.Api.Extensions;
 using NetCommerce.Kernel.AspNetCore;
 using NetCommerce.Ordering.Application.Orders.Commands;
-using NetCommerce.Ordering.Application.Sagas;
-using NetCommerce.Ordering.Infrastructure.Persistence;
+using NetCommerce.Ordering.Application.Orders.Queries;
 using NetCommerce.Domain.Shared;
-using NetCommerce.Kernel.Application;
-using NetCommerce.Kernel.Core.Domain;
 using NetCommerce.Kernel.Core.Results;
-using System.Security.Claims;
 using Wolverine;
 
 namespace NetCommerce.Api.Endpoints.Ordering;
@@ -65,14 +61,8 @@ public class OrderEndpoints : IEndpointGroup
         // authenticated JWT subject — never from the request body. Accepting a
         // client-supplied CustomerId would let any customer create (and, via
         // idempotency scoping, read) orders under another customer's identity.
-        // 'user_id' is the Keycloak protocol mapper fallback (see SessionHandlers:
-        // this deployment omits 'sub' from access tokens). Without it every
-        // order create 401s because the remaining fallbacks are not Guids.
-        var subject = httpContext.User.FindFirst("sub")?.Value
-            ?? httpContext.User.FindFirst("user_id")?.Value
-            ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (!Guid.TryParse(subject, out var customerId))
+        // Chain owned by ClaimsPrincipalExtensions.
+        if (!httpContext.User.TryGetCustomerId(out var customerId))
         {
             return Results.Unauthorized();
         }
@@ -91,25 +81,27 @@ public class OrderEndpoints : IEndpointGroup
     }
 
     private static async Task<IResult> GetStuckSagas(
-        OrderingDbContext db,
+        IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        // Saga state lives in Wolverine's own store table, not in the EF model
-        // (see WolverineSagaStateReader), so this reads it with raw SQL.
-        var stuckSagas = await WolverineSagaStateReader.QuerySagasAsync(
-            db,
-            OrderFulfillmentState.ManualInterventionRequired,
-            cancellationToken: cancellationToken);
+        // PEAA Service Layer + Gateway: saga state lives in Wolverine's own
+        // store table (an external resource). The read goes through the
+        // application query and its gateway — never raw SQL in presentation.
+        var result = await bus.InvokeAsync<Result<IReadOnlyList<StuckSagaInfoDto>>>(
+            new GetStuckSagasQuery(),
+            cancellationToken);
 
-        var dtos = stuckSagas
-            .OrderBy(s => s.StartedAt)
+        if (!result.IsSuccess)
+            return result.Error.ToHttpResult();
+
+        var dtos = result.Value
             .Select(s => new StuckSagaDto(
                 s.OrderId,
                 s.OrderNumber,
-                s.PaymentTransactionId ?? "N/A",
-                s.FailureReason ?? "Unknown reason",
-                s.StartedAt,
-                s.TotalAmount))
+                s.PaymentTransactionId,
+                s.RefundFailureReason,
+                s.StuckSince,
+                Money.Create(s.Amount, s.Currency)))
             .ToList();
 
         return Results.Ok(new StuckSagasResponse(
@@ -120,28 +112,31 @@ public class OrderEndpoints : IEndpointGroup
     private static async Task<IResult> CancelOrder(
         Guid orderId,
         string? reason,
-        OrderingDbContext db,
         IMessageBus bus,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var order = await db.Orders
-            .AsNoTracking()
-            .Select(o => new { o.Id, o.CustomerId })
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+        // Ownership check stays at the edge (transport identity), but the owner
+        // lookup itself goes through the Service Layer — no DbContext in
+        // presentation. Fail closed: non-Guid subject or mismatch is forbidden.
+        // Chain owned by ClaimsPrincipalExtensions (sub -> user_id ->
+        // NameIdentifier): previously user_id was missing here, so callers on
+        // the deployment's own token shape could create but never cancel.
+        if (!httpContext.User.TryGetCustomerId(out var callerCustomerId))
+        {
+            return Results.Forbid();
+        }
 
-        if (order is null)
-            return Results.NotFound(new OrderMessageResponse(orderId, "Order not found."));
+        var ownerResult = await bus.InvokeAsync<Result<Guid>>(
+            new GetOrderOwnerQuery(orderId),
+            cancellationToken);
 
-        // Ownership check: the JWT subject must identify the ordering customer.
-        // Fail closed — a non-Guid subject (or a mismatch) is forbidden, never
-        // treated as "no owner". This is sound because CreateOrder stamps
-        // CustomerId from the same JWT subject claim.
-        var subject = httpContext.User.FindFirst("sub")?.Value
-            ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!ownerResult.IsSuccess)
+        {
+            return OrderLookupResults.FromFailure(orderId, ownerResult.Error, httpContext);
+        }
 
-        if (!Guid.TryParse(subject, out var callerCustomerId)
-            || callerCustomerId != order.CustomerId)
+        if (ownerResult.Value != callerCustomerId)
         {
             return Results.Forbid();
         }
