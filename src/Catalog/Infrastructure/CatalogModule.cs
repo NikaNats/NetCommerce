@@ -69,7 +69,24 @@ public static class CatalogModule
 
         // Search-index rebuild (admin disaster recovery). Scoped: shares the
         // request's DbContext and Wolverine outbox transaction boundary.
-        services.AddScoped<ISearchIndexRebuilder, SearchIndexRebuildService>();
+        //
+        // Gated on the SAME condition as the MeilisearchClient registration in
+        // InfrastructureExtensions.cs:56. Registering this unconditionally made
+        // DI validation fail with
+        //   "Unable to resolve service for type 'Meilisearch.MeilisearchClient'
+        //    while attempting to activate SearchIndexRebuildService"
+        // whenever Meilisearch was not configured — including during
+        // `dotnet run -- codegen write` in the AOT Docker build, which has no
+        // connection string and no running Meilisearch. That failed the image
+        // build at step 10/11 with exit code 134 (SIGABRT from Host.Build()).
+        //
+        // A consumer asking for ISearchIndexRebuilder in that configuration gets
+        // a clear resolution failure naming the missing connection string, which
+        // is the intended signal: search rebuild is a Meilisearch-only operation.
+        if (!string.IsNullOrWhiteSpace(configuration.GetConnectionString("meilisearch")))
+        {
+            services.AddScoped<ISearchIndexRebuilder, SearchIndexRebuildService>();
+        }
 
         // Note: Wolverine handles transactional outbox automatically via its middleware.
         // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
