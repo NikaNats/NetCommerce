@@ -17,8 +17,15 @@ public interface IRepository<TAggregate, TId> : IReadOnlyRepository<TAggregate, 
     where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {
-    Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<TAggregate>> GetAllAsync(CancellationToken cancellationToken = default);
+    // GetByIdAsync / GetAllAsync are NOT redeclared here. They are inherited from
+    // IReadOnlyRepository with identical signatures, and redeclaring them is
+    // CS0108 (member hides inherited member) — an ERROR, because pr-validation
+    // builds with TreatWarningsAsErrors=true.
+    //
+    // This only surfaced now because the declaration order was originally the other
+    // way round (IReadOnlyRepository extended IRepository), so re-stating the read
+    // members was a genuine override rather than a redefinition. Inverting the
+    // hierarchy makes them inherited, and the old lines became dead weight.
     Task AddAsync(TAggregate aggregate, CancellationToken cancellationToken = default);
     void Update(TAggregate aggregate);
     void Remove(TAggregate aggregate);

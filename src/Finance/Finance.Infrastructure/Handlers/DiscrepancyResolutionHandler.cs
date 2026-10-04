@@ -104,11 +104,14 @@ public static class DiscrepancyResolutionHandler
         // carries the same key, so the PSP dedups instead of double-refunding.
         // Format owned by IdempotencyKeys.
         var refundId = await paymentGateway.RefundTransactionAsync(
-            discrepancy.ExternalTxnId,
-            Math.Abs(discrepancy.Difference),
-            $"Ghost charge resolution: {command.Reason}",
-            cancellationToken,
-            idempotencyKey: IdempotencyKeys.ForReconciliationRefund(discrepancy.ExternalTxnId));
+                    discrepancy.ExternalTxnId,
+                    Math.Abs(discrepancy.Difference),
+                    $"Ghost charge resolution: {command.Reason}",
+                    // idempotencyKey precedes cancellationToken on the interface (CA1068),
+                    // so it is named explicitly here to keep this call readable and to
+                    // survive a future parameter being inserted between the two.
+                    idempotencyKey: IdempotencyKeys.ForReconciliationRefund(discrepancy.ExternalTxnId),
+                    cancellationToken: cancellationToken);
 
         logger.LogInformation("Refund {RefundId} initiated for ghost charge {TxnId}", refundId, discrepancy.ExternalTxnId);
     }

@@ -25,6 +25,31 @@ public static class ProductSearchProjectionHandler
     ///     Handles ProductPublished event by projecting product to Meilisearch search index.
     ///     Wolverine automatically handles this through the outbox pattern for guaranteed delivery.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    ///     <c>[NonTransactional]</c> is REQUIRED, not an optimisation.
+    /// </para>
+    /// <para>
+    ///     Wolverine's auto-transaction middleware inspects a handler's parameters to
+    ///     decide which DbContext owns the transaction. This handler takes
+    ///     <c>IProductRepository</c> (Catalog) AND <c>IStockQueryService</c> (Inventory),
+    ///     so two DbContexts match and Wolverine refuses to guess:
+    /// </para>
+    ///     <code>
+    ///     Cannot determine the DbContext type for Message Handler for
+    ///     ProductPublishedDomainEvent, multiple DbContext types detected:
+    ///     CatalogDbContext, InventoryDbContext
+    ///     </code>
+    /// <para>
+    ///     That is a startup failure, and it surfaces only when the host actually
+    ///     boots — so it hides until an integration test starts the API. A transaction
+    ///     would be wrong here regardless: the work is a cache eviction and a search
+    ///     projection to Meilisearch, neither of which is a database write that needs
+    ///     an ambient transaction. The event is already delivered through Wolverine's
+    ///     outbox AFTER the originating transaction commits.
+    ///     </para>
+    /// </remarks>
+    [Wolverine.Attributes.NonTransactional]
     public static async Task Handle(
         ProductPublishedDomainEvent @event,
         IProductRepository productRepository,

@@ -113,11 +113,11 @@ public class StripeReconciliationGateway : IPaymentGateway
     }
 
     public async Task<string> RefundTransactionAsync(
-        string externalTransactionId,
-        decimal amount,
-        string reason,
-        CancellationToken cancellationToken = default,
-        string? idempotencyKey = null)
+            string externalTransactionId,
+            decimal amount,
+            string reason,
+            string? idempotencyKey = null,
+            CancellationToken cancellationToken = default)
     {
         try
         {

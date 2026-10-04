@@ -54,6 +54,16 @@ public record PaymentResult(
 ///     issuing a second refund. Optional for backward compatibility — callers that
 ///     omit it accept at-most-once-per-attempt semantics and MUST self-dedup.
 /// </param>
+/// <param name="OriginalTransactionId">
+///     The PSP's identifier for the charge being refunded.
+/// </param>
+/// <param name="Amount">
+///     Amount to refund, in the original transaction's currency. Less than the full
+///     charge for a partial refund.
+/// </param>
+/// <param name="Reason">
+///     Human-readable justification, retained on the financial record for audit.
+/// </param>
 public record RefundRequest(
     string OriginalTransactionId,
     Money Amount,
