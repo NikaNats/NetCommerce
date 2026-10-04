@@ -60,6 +60,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Runs BEFORE anything else. A workflow with invalid Actions expression
+      # syntax cannot run at all — GitHub rejects it at parse time, so every other
+      # step in the file is unverified. release.yml shipped with `${{ x:?msg }}`
+      # (bash parameter expansion, which Actions has no equivalent for) and was
+      # dead on arrival until a human noticed the red X on the commit.
+      - name: Workflow syntax gate
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate all workflow files
+        run: |
+          npm install js-yaml --no-save --silent
+          node scripts/validate-workflows.mjs
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'

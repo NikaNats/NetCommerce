@@ -58,10 +58,20 @@ jobs:
           echo "No bypass flags in release path."
 
       - name: Required production vars present
+        env:
+          # Passed through the environment rather than interpolated into the script.
+          # `${{ vars.X }}` expands BEFORE the shell runs, so a `:$?` check written
+          # against the substituted text would test an empty literal, not the
+          # variable. Exported as env vars, the shell's own `:?` expansion does
+          # the real check — and fails the step with the message.
+          PROD_API_ORIGIN: ${{ vars.PROD_API_ORIGIN }}
+          PROD_STORAGE_ORIGIN: ${{ vars.PROD_STORAGE_ORIGIN }}
+          PROD_PUBLIC_ORIGIN: ${{ vars.PROD_PUBLIC_ORIGIN }}
         run: |
-          : "${{ vars.PROD_API_ORIGIN:?PROD_API_ORIGIN var missing in production environment}}"
-          : "${{ vars.PROD_STORAGE_ORIGIN:?PROD_STORAGE_ORIGIN var missing}}"
-          : "${{ vars.PROD_PUBLIC_ORIGIN:?PROD_PUBLIC_ORIGIN var missing}}"
+          : "${PROD_API_ORIGIN:?PROD_API_ORIGIN var missing in production environment}"
+          : "${PROD_STORAGE_ORIGIN:?PROD_STORAGE_ORIGIN var missing in production environment}"
+          : "${PROD_PUBLIC_ORIGIN:?PROD_PUBLIC_ORIGIN var missing in production environment}"
+          echo "All required production vars are present."
 
   api-image:
     name: API image
