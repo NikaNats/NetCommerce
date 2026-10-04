@@ -45,6 +45,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddApiServicesMinimal(builder.Configuration);
 builder.Services.AddAotJsonSerialization();
 builder.Services.AddModules(builder.Configuration);
+builder.Services.AddApiHealthChecks(builder.Configuration);
 builder.Services.AddVersioning();
 builder.AddNetCommerceOpenApi();
 

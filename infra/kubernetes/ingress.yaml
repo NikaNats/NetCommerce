@@ -1,0 +1,37 @@
+# Ingress MUST terminate TLS and set X-Forwarded-Proto (the API 307-loops
+# otherwise) and forward the client IP (rate limiting keys on it). Replace
+# hosts, TLS secret, and ingressClassName for the target cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: netcommerce
+  namespace: netcommerce
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [shop.example.com, api.example.com]
+      secretName: netcommerce-tls
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: netcommerce-web
+                port:
+                  number: 3000
+    - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: netcommerce-api
+                port:
+                  number: 8080

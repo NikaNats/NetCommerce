@@ -10,6 +10,8 @@
  * so the concrete path is `/api/v1/products`.
  */
 
+import { isGuid } from '@/lib/validation/guid';
+
 export interface ProductImage {
   id: string;
   url: string;
@@ -134,17 +136,14 @@ export function isPublished(status: string): boolean {
  * builds a product URL from an ID MUST use the `/id/` segment — a bare
  * `/products/<uuid>` resolves through the slug route and 404s.
  *
- * This guard makes that mistake loud instead of silent. It is deliberately
- * strict and version-agnostic (the canonical 8-4-4-4-12 form) rather than
- * accepting any 36-character string: `returnTo` is attacker-reachable through the
- * login query string, and a value containing `/`, `..`, or a slug would change
- * which route the post-login redirect resolves.
+ * This guard makes that mistake loud instead of silent. `returnTo` is
+ * attacker-reachable through the login query string, so the check also runs
+ * before any redirect target is built from the id. The pattern itself is owned
+ * by lib/validation/guid.ts; this name exists so call sites read as the
+ * domain check they are.
  */
-const PRODUCT_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function isProductId(value: string): boolean {
-  return PRODUCT_ID_PATTERN.test(value);
+  return isGuid(value);
 }
 
 /** The canonical detail URL for a product ID. Always use this, never string-build. */

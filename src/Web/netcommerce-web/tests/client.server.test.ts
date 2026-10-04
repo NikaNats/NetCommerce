@@ -155,6 +155,17 @@ describe('apiFetch', () => {
       expect((e as ApiError).body).toBeUndefined();
     }
   });
+
+  it('bounds every request with a timeout signal so a hung API cannot hang the page', async () => {
+    await apiFetch('/api/v1/products');
+    expect(callInit().signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('respects a caller-supplied signal instead of the default timeout', async () => {
+    const controller = new AbortController();
+    await apiFetch('/api/v1/products', { signal: controller.signal });
+    expect(callInit().signal).toBe(controller.signal);
+  });
 });
 
 describe('fetchSessionInfo', () => {

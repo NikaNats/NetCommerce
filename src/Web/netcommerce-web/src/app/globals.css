@@ -332,6 +332,55 @@ body {
   color: var(--vermilion);
 }
 
+/* Loading skeleton. Placeholder bars in the paper-deep surface tone — no
+   shimmer gradient (motion for decoration alone) and none under
+   prefers-reduced-motion, where the bars render static. */
+.skeleton {
+  border-radius: 2px;
+  background: var(--paper-deep);
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton--title {
+  height: 2.5rem;
+  width: min(22rem, 70%);
+}
+
+.skeleton--line {
+  height: 1rem;
+  width: 100%;
+}
+
+.skeleton--short {
+  width: 55%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Order milestone timeline: a plain stack, not a bulleted list — the dates
+   carry the sequence, and bullets would read as decoration. */
+.order-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
 a {
   color: inherit;
   text-underline-offset: 3px;

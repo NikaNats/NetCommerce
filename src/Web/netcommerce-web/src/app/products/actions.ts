@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { addBasketItem } from '@/lib/api/catalog.server';
+import { actionErrorMessage } from '@/lib/api/action-error';
 import { newIdempotencyKey } from '@/lib/api/headers';
 import { isValidQuantity } from '@/lib/basket/basket';
 import { requireSession } from '@/lib/auth/guards';
@@ -82,9 +83,7 @@ export async function addToCartAction(
         newIdempotencyKey(),
       );
     } catch (cause) {
-      const message =
-        cause instanceof Error ? cause.message : 'Could not reach the API.';
-      return { ok: false, message, productName };
+      return { ok: false, message: actionErrorMessage(cause), productName };
     }
 
   // The basket is per-user server state; the product tile is not affected.

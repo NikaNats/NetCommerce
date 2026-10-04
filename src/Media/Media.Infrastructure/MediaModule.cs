@@ -12,8 +12,12 @@ public static class MediaModule
 {
     public static IServiceCollection AddMediaModule(this IServiceCollection services, IConfiguration configuration)
     {
-        // Check if we're using Azure Blob Storage (Aspire) or S3 (MinIO/AWS)
-        var useAzureBlob = configuration.GetConnectionString("blobs") != null
+        // Check if we're using Azure Blob Storage (Aspire) or S3 (MinIO/AWS).
+        // Whitespace counts as absent: an explicitly-emptied
+        // ConnectionStrings__blobs must select the S3 path (which then fails
+        // closed on ITS missing values) rather than boot a broken Azure client.
+        var blobsConnectionString = configuration.GetConnectionString("blobs");
+        var useAzureBlob = !string.IsNullOrWhiteSpace(blobsConnectionString)
                            || configuration.GetSection("AzureBlob").Exists();
 
         if (useAzureBlob)
@@ -28,6 +32,13 @@ public static class MediaModule
         {
             // S3 Configuration (MinIO/AWS fallback)
             services.Configure<S3Options>(configuration.GetSection(S3Options.SectionName));
+
+            // Fail-fast in Production-like environments when the S3 path is
+            // active but unusable (empty endpoint, localhost CDN, missing keys
+            // outside IAM-role deployments). Without this the app boots and
+            // fails per-upload instead.
+            services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<S3Options>, S3OptionsValidator>();
+            services.AddOptions<S3Options>().ValidateOnStart();
 
             // The AWS SDK client must be explicitly registered; S3StorageService cannot activate
             // without it. Construction is offline-safe: credentials resolve lazily from

@@ -97,22 +97,26 @@ docker build -t netcommerce-api-aot -f src/Api/Dockerfile .
 
 | Variable | Description | Example |
 |---|---|---|
-| `ConnectionStrings__CatalogDb` | Catalog database | `Host=pg;Database=netcommerce;...` |
-| `ConnectionStrings__OrderingDb` | Ordering database | Same host, separate schema |
-| `ConnectionStrings__InventoryDb` | Inventory database | Same host, separate schema |
-| `ConnectionStrings__PaymentsDb` | Payments database | Same host, separate schema |
-| `ConnectionStrings__redis` | Redis connection | `redis:6379` |
-| `ConnectionStrings__blobs` | Azure Blob Storage | Azure connection string |
-| `ConnectionStrings__seq` | Seq ingestion URL | `http://seq:5341` |
-| `ConnectionStrings__meilisearch` | MeiliSearch URL | `http://meilisearch:7700` |
-| `Jwt__Authority` | Keycloak realm URL | `https://keycloak/realms/netcommerce` |
-| `Jwt__Audience` | JWT audience | `netcommerce-api` |
-| `Auth__TokenEndpoint` | Token endpoint | `https://keycloak/.../token` |
-| `Auth__IntrospectionEndpoint` | Introspection URL | `https://keycloak/.../introspect` |
+| `ConnectionStrings__CatalogDb` | Catalog database | `Host=pg;Database=catalog;...` |
+| `ConnectionStrings__OrderingDb` | Ordering database (also hosts the Wolverine outbox) | `Host=pg;Database=ordering;...` |
+| `ConnectionStrings__InventoryDb` | Inventory database | `Host=pg;Database=inventory;...` |
+| `ConnectionStrings__PaymentsDb` | Payments database | `Host=pg;Database=payments;...` |
+| `ConnectionStrings__FinanceDb` | Finance database | `Host=pg;Database=finance;...` |
+| `ConnectionStrings__ShippingDb` | Shipping database | `Host=pg;Database=shipping;...` |
+| `ConnectionStrings__Redis` | Redis (basket, BFF sessions, Data Protection ring) | `redis:6379` |
+| `ConnectionStrings__blobs` | Azure Blob Storage. Selects the Azure driver; when unset the S3 driver activates and `Storage__Endpoint` + keys + `Storage__CdnBaseUrl` are required instead | Azure connection string |
+| `ConnectionStrings__meilisearch` | MeiliSearch URL (key enforced separately) | `http://meilisearch:7700` |
+| `Cors__AllowedOrigins__0` | Primary storefront origin (more as `__1`, …). Empty refuses to boot outside Development | `https://shop.example.com` |
+| `Keycloak__AuthServerUrl` | Keycloak base URL | `https://idp.example.com` |
+| `Keycloak__Realm` | Realm name | `netcommerce` |
+| `Auth__Audience` | JWT audience | `netcommerce-api` |
+| `Auth__ApiScope` | API scope | `netcommerce.api` |
 | `Auth__ClientId` | API client ID | `netcommerce-api` |
 | `Auth__ClientSecret` | API client secret | (secret) |
-| `Stripe__SecretKey` | Stripe API key | `sk_live_...` |
+| `Auth__AdminElevated__ApiKey` | Admin API key, 32+ chars (Strict fails closed without it) | (secret) |
+| `Stripe__SecretKey` | Stripe API key (`sk_live_…`; `TestMode` defaults false) | `sk_live_...` |
 | `Stripe__WebhookSecret` | Webhook signing secret | `whsec_...` |
+| `Storage__CdnBaseUrl` | Public base URL product images are served from | `https://cdn.example.com/netcommerce` |
 
 ### Optional Configuration
 
@@ -124,8 +128,7 @@ docker build -t netcommerce-api-aot -f src/Api/Dockerfile .
 | `Finance__Alerting__DiscrepancyAlertThreshold` | `100` | Dollar threshold for alerts |
 | `Finance__Alerting__SendEmailAlerts` | `false` | Email alert toggle |
 | `Finance__Alerting__FinanceAlertEmail` | — | Alert recipient |
-| `Finance__Alerting__PagerDutyRoutingKey` | — | PagerDuty integration |
-| `Sentry__Dsn` | — | Sentry error tracking |
+| `Finance__Alerting__PagerDutyRoutingKey` | — | PagerDuty integration (empty = log-only) |
 
 ## Database Migrations
 

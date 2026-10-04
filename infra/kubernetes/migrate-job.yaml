@@ -1,0 +1,43 @@
+# Pre-deployment migration step. Run to completion BEFORE rolling the API:
+#   kubectl -n netcommerce create -f migrate-job.yaml  (name suffixed per release)
+# The job runs the SAME image in JIT-capable form with --migrate-only, which
+# applies all six bounded-context migrations and then FAILS THE JOB (exit 1)
+# if any migrations remain pending — the deploy stops here, never against a
+# half-migrated schema set. Do not run with AutoMigrate=true (startup DDL).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: netcommerce-migrate-REPLACE-TAG
+  namespace: netcommerce
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: ghcr.io/REPLACE-OWNER/netcommerce-api:REPLACE-TAG
+          args: ["--migrate-only"]
+          envFrom:
+            - configMapRef:
+                name: netcommerce-config
+            - secretRef:
+                name: netcommerce-api
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: '1'
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

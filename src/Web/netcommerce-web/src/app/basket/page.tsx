@@ -145,11 +145,9 @@ export default async function BasketPage() {
                 Continue shopping
               </Link>
               {canCheckout(basket) ? (
-                // Checkout is not built yet; a dead link would be worse than an
-                // honest statement of what exists.
-                <span className="btn is-disabled" aria-disabled="true">
-                  Checkout — coming next
-                </span>
+                <Link className="btn" href={'/checkout' as Route}>
+                  Checkout <ArrowIcon />
+                </Link>
               ) : null}
             </div>
           </section>

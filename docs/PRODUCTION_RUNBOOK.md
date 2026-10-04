@@ -113,8 +113,12 @@ docker run -d --name netcommerce-prod `
   -e "ConnectionStrings__OrderingDb=Host=host.docker.internal;Port=<pg-port>;Database=ordering;Username=postgres;Password=<pwd>" `
   -e "ConnectionStrings__InventoryDb=Host=host.docker.internal;Port=<pg-port>;Database=inventory;Username=postgres;Password=<pwd>" `
   -e "ConnectionStrings__PaymentsDb=Host=host.docker.internal;Port=<pg-port>;Database=payments;Username=postgres;Password=<pwd>" `
+  -e "ConnectionStrings__FinanceDb=Host=host.docker.internal;Port=<pg-port>;Database=finance;Username=postgres;Password=<pwd>" `
+  -e "ConnectionStrings__ShippingDb=Host=host.docker.internal;Port=<pg-port>;Database=shipping;Username=postgres;Password=<pwd>" `
   -e "ConnectionStrings__redis=host.docker.internal:<redis-port>" `
+  -e "ConnectionStrings__blobs=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=<azurite-key>;BlobEndpoint=http://host.docker.internal:10000/devstoreaccount1;" `
   -e "ConnectionStrings__meilisearch=http://host.docker.internal:<meili-port>" `
+  -e "Cors__AllowedOrigins__0=https://localhost:3000" `
   -e "Keycloak__AuthServerUrl=http://host.docker.internal:<keycloak-port>" `
   -e "Keycloak__Realm=netcommerce" `
   -e "Auth__Audience=netcommerce-api" `
@@ -127,6 +131,13 @@ docker run -d --name netcommerce-prod `
   -e "Stripe__WebhookSecret=whsec_YOUR_SECRET" `
   netcommerce-api-aot
 ```
+
+All six bounded-context databases are required — Finance/Shipping/Payments have
+no fallback resource and previously landed on `DefaultConnection` silently.
+`ConnectionStrings__blobs` selects the Azure driver; without it the S3/MinIO
+path activates and demands `Storage__Endpoint` + keys + `CdnBaseUrl` instead
+(fail-closed in Production). `Cors__AllowedOrigins__0` must be the storefront
+origin — empty means the process refuses to boot outside Development.
 
 > In **Strict** mode (production default), elevated admin endpoints (`/api/admin/dlq`, `/api/admin/finance`, `/api/admin/orders`) demand a valid `X-Admin-Api-Key` header **and** a fresh `auth_time` claim. If the key isn't configured, startup validation **fails closed** — that's intentional.
 
@@ -266,7 +277,7 @@ Admin endpoints need `AdminElevated` = admin role + `X-Admin-Api-Key: <your key>
 When it's running "like prod", these are the properties I'd sign off on:
 
 - ✅ Cold start ~80 ms (Linux), container ~468MB with ICU, non-root, no shell (chiseled-extra)
-- ✅ `/health/ready` gates K8s readiness; `/health/alive` liveness (also `/health/live` alias for compat)
+- ✅ `/health/ready` gates K8s readiness with real dependency checks (6 bounded-context DBs, Redis, Keycloak discovery); `/health/live` stays dependency-free (also `/health/alive` alias for compat)
 - ✅ All inter-module traffic through Wolverine **transactional outbox** (at-least-once, idempotent handlers)
 - ✅ Payments are **webhook-first** — API never trusts synchronous charge responses (prevents ghost charges)
 - ✅ T+1 reconciliation engine detects `MissingInternal` (ghost charge) / `AmountMismatch` / `MissingExternal`, publishes `CriticalFinancialAlert`
@@ -277,7 +288,35 @@ When it's running "like prod", these are the properties I'd sign off on:
 
 ---
 
-## 7. Troubleshooting (most common)
+## 7. Release to Kubernetes (the real prod path)
+
+Local `docker run` above proves the artifact; this is how it ships:
+
+1. **Tag and push.** Push a `v*` tag — `.github/workflows/release.yml` builds both
+   images (API + web with production build args baked in), runs the prod-realm
+   build as a gate, and refuses any test/mock bypass flag in the release path.
+   Images land in GHCR, never `:latest`.
+2. **Secrets.** Copy `infra/kubernetes/secrets.example.yaml` to your secret
+   manager (External Secrets preferred — never commit values). All six
+   databases, Redis, blobs-or-S3, Meili (+master key), Keycloak, Stripe,
+   mailer, PagerDuty. The API fails closed naming the missing value.
+3. **Prod realm.** `node tools/keycloak/build-prod-realm.mjs` derives the
+   import from the dev realm (no users, no ROPC test client, secrets marked,
+   registration closed). Replace the markers, import once, rotate the
+   bootstrap admin.
+4. **Migrate, then roll.** `kubectl apply -k infra/kubernetes` (namespace,
+   config, secrets), run the migrate Job to completion (`--migrate-only`
+   fails the JOB on leftover pending migrations — the deploy stops there),
+   then roll the API and web Deployments. Readiness (`/health/ready`, now
+   backed by per-DB + Redis + Keycloak checks) gates traffic; liveness stays
+   dependency-free.
+5. **Recover search after a Meili loss.** `POST /api/admin/search/rebuild`
+   (AdminElevated + AdminStrict, 10-min timeout) reprojects every product from
+   PostgreSQL — the per-event projection cannot heal a wiped volume.
+
+---
+
+## 8. Troubleshooting (most common)
 
 | Symptom | Fix |
 |---|---|
@@ -285,7 +324,7 @@ When it's running "like prod", these are the properties I'd sign off on:
 | Port 5050 conflict | Stop whatever owns PgAdmin port |
 | `relation "..." does not exist` | Schema drift → delete the Postgres volume and re-run AppHost |
 | Keycloak realm missing / 401 everywhere | First-boot realm import still running → wait, then retry |
-| MeiliSearch empty results | No products yet → create one via API (vendor token) |
+| MeiliSearch empty results | No products yet → create one via API (vendor token); after a volume loss → `POST /api/admin/search/rebuild` |
 | AOT container can't reach DB | Use `host.docker.internal` + the **mapped** port from Aspire dashboard |
 | Elevated admin 403 | `Auth__AdminElevated__ApiKey` not set or < 32 chars (Strict mode fails closed) |
 | AOT build slow first time | Normal — ILC compile takes 3–5 min; layer cache makes rebuilds ~30 s |

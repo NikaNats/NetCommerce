@@ -405,7 +405,29 @@ export async function getSession(): Promise<ServerSession | undefined> {
       await store.delete(id);
       return undefined;
     }
-    return hydrate(reloaded);
+
+    // A lock loser must NOT be handed a token it cannot use.
+    //
+    // `waitForRotation` returns as soon as the lock is released, which is the
+    // correct early-exit for the thundering herd — but the release may mean the
+    // winner's refresh FAILED transiently (a 429 from AuthStrict, a 502). In that
+    // case nothing was written, so `reloaded` still holds the ORIGINAL pair, and
+    // its access token is inside the refresh window.
+    //
+    // Returning that produced a 401 from the API on the very request this lock
+    // exists to make succeed. The fix is to check the rehydrated session rather
+    // than the stored record, because `needsRefresh()` accounts for the refresh
+    // skew window rather than only a hard expiry.
+    const rehydrated = hydrate(reloaded);
+
+    if (rehydrated.tokens.needsRefresh()) {
+      // Rotation did not happen. Report no session rather than hand out
+      // credentials that are already stale — the next request can retry, and a
+      // clean 401/redirect is far better than a mystery API rejection.
+      return undefined;
+    }
+
+    return rehydrated;
   }
 
   if (!outcome.value) return undefined;

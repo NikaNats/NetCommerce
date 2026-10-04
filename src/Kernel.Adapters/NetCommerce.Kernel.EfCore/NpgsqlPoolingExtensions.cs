@@ -25,8 +25,17 @@ public static class NpgsqlPoolingExtensions
         string connectionStringName,
         int maxPoolSize = 20) where TContext : BaseDbContext
     {
-        var rawConnectionString = configuration.GetConnectionString(connectionStringName)
-            ?? configuration.GetConnectionString("DefaultConnection")
+        // Empty counts as missing: an appsettings.json that ships "" for a secret
+        // must fail here with a naming message, not limp into Npgsql laconic
+        // failures on the first query. ?? alone would not catch "".
+        static string? Candidate(IConfiguration configuration, string name)
+        {
+            var value = configuration.GetConnectionString(name);
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        var rawConnectionString = Candidate(configuration, connectionStringName)
+            ?? Candidate(configuration, "DefaultConnection")
             ?? throw new InvalidOperationException($"Missing connection string: {connectionStringName} or DefaultConnection");
 
         var builder = new NpgsqlConnectionStringBuilder(rawConnectionString)

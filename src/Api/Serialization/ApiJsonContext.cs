@@ -173,6 +173,9 @@ namespace NetCommerce.Api.Serialization;
 [JsonSerializable(typeof(DlqEnvelopeDto))]
 [JsonSerializable(typeof(BulkReplayResponse))]
 
+// Admin Search Endpoints
+[JsonSerializable(typeof(RebuildSearchIndexResponse))]
+
 // Admin Finance Endpoints
 [JsonSerializable(typeof(TriggerReconciliationRequest))]
 [JsonSerializable(typeof(ResolveDiscrepancyRequest))]

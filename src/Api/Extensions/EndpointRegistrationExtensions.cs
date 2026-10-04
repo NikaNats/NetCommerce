@@ -59,6 +59,7 @@ public static class EndpointRegistrationExtensions
         new AdminFinanceEndpoints().MapEndpoints(app, versionSet);
         new AdminOrderRecoveryEndpoints().MapEndpoints(app, versionSet);
         new AdminDlqEndpoints().MapEndpoints(app, versionSet);
+        new AdminSearchEndpoints().MapEndpoints(app, versionSet);
 
         return app;
     }

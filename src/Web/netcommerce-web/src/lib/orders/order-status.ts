@@ -53,10 +53,31 @@ export const TERMINAL_STATUSES: ReadonlySet<KnownOrderStatusName> =
   new Set<KnownOrderStatusName>(['Delivered', 'Cancelled']);
 
 /**
- * True while the customer may still cancel without being charged.
- * Submitted is the only state inside the cooling-off window.
+ * True while the customer may still cancel.
+ *
+ * Mirrors Order.Cancel (src/Ordering/Ordering.Domain/Orders/Order.cs:257-273)
+ * precisely: it throws ONLY for Delivered and Cancelled. Every earlier state
+ * accepts cancellation — Submitted is instant and free (IsInGracePeriod, no
+ * payment taken), later states go through the refund/compensating path
+ * (OrderCancelledDomainEvent carries the previous status so the handler knows
+ * whether a refund is owed). Gating the UI on Submitted alone would hide a
+ * supported operation for Paid and Shipped orders.
+ *
+ * Unknown statuses fail closed: the server remains the decider, but the UI
+ * does not offer an action on a state it cannot describe.
  */
 export function isCancellable(status: OrderStatusName): boolean {
+  return isKnownStatus(status) && !TERMINAL_STATUSES.has(status as KnownOrderStatusName);
+}
+
+/**
+ * True while cancellation is instant and free.
+ *
+ * Mirrors Order.IsInGracePeriod (Order.cs:58): Status == Submitted, payment NOT
+ * taken. Past this point cancellation still works but triggers the refund
+ * path, and the UI must say so instead of promising "free".
+ */
+export function isInGracePeriod(status: OrderStatusName): boolean {
   return status === 'Submitted';
 }
 

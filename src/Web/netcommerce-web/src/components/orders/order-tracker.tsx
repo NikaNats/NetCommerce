@@ -23,11 +23,19 @@ import { describeStatus } from '@/lib/ui/status';
  * The connection authenticates with `withCredentials`, i.e. the httpOnly session
  * cookie. A bearer token is never passed into client code.
  */
+export interface OrderTimeline {
+  paidAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+}
+
 export default function OrderTracker({
   orderId,
   initialStatus,
   orderNumber,
   placedAt,
+  timeline,
   cancellationReason,
 }: {
   orderId: string;
@@ -40,6 +48,14 @@ export default function OrderTracker({
 initialStatus: OrderStatusName;
   orderNumber: string;
   placedAt: string;
+  /**
+   * Milestone timestamps from the OrderResponse projection, in domain order.
+   * Each is null until the transition happens — a milestone renders only when
+   * its instant exists, so the timeline can never claim an event that has not
+   * occurred. The socket carries no timestamps, so this prop does not update
+   * live; the 15s REST reconciliation re-reads it.
+   */
+  timeline: OrderTimeline;
   cancellationReason: string | null;
 }) {
   const { status, message, connected, needsIntervention } = useOrderSaga(
@@ -72,8 +88,10 @@ initialStatus: OrderStatusName;
         <span className="mono">{orderNumber}</span>
       </p>
       <p className="order-status__meta">
-        <span className="field-label">Placed</span> {formatPlacedAt(placedAt)}
+        <span className="field-label">Placed</span> {formatInstant(placedAt)}
       </p>
+
+      <OrderTimeline milestones={timeline} />
 
       {/*
         Connection state is shown honestly. "Connected" means the socket is open,
@@ -104,16 +122,44 @@ initialStatus: OrderStatusName;
 }
 
 /**
- * Format the placement timestamp.
+ * Milestone timeline from the persisted projection.
  *
- * Rendered on the SERVER (this is a server component boundary in practice — the
- * string arrives as an ISO value), so the locale is whatever the server has. That
- * is deliberate: a client's timezone would make two users disagree about when an
- * order was placed, and a hydration mismatch is worse than a slightly odd format.
- * The machine-readable value stays in the `dateTime` attribute for anything that
- * needs the exact instant.
+ * Domain order, each rendered only when its instant exists: Paid → Shipped →
+ * Delivered, or Cancelled instead. Placed is shown above and never repeated
+ * here.
  */
-function formatPlacedAt(iso: string): string {
+function OrderTimeline({ milestones }: { milestones: OrderTimeline }) {
+  const events = [
+    { label: 'Payment received', at: milestones.paidAt },
+    { label: 'Shipped', at: milestones.shippedAt },
+    { label: 'Delivered', at: milestones.deliveredAt },
+    { label: 'Cancelled', at: milestones.cancelledAt },
+  ].filter((event): event is { label: string; at: string } => event.at !== null);
+
+  if (events.length === 0) return null;
+
+  return (
+    <ol className="order-timeline">
+      {events.map((event) => (
+        <li key={event.label} className="order-status__meta">
+          <span className="field-label">{event.label}</span>{' '}
+          <time dateTime={event.at}>{formatInstant(event.at)}</time>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * Format a persisted instant.
+ *
+ * Rendered with a pinned UTC locale and timezone so every viewer — and every
+ * render of the same value — agrees. A client-timezone format would make two
+ * users disagree about when an order shipped, and a hydration mismatch is
+ * worse than a slightly odd format. The machine-readable value stays in the
+ * `dateTime` attribute for anything that needs the exact instant.
+ */
+function formatInstant(iso: string): string {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
 

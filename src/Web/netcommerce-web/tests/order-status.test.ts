@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isCancellable,
+  isInGracePeriod,
   mapOrderStatus,
   TERMINAL_STATUSES,
   type OrderStatusName,
@@ -57,13 +58,24 @@ describe('mapOrderStatus', () => {
     expect(TERMINAL_STATUSES.has('Paid')).toBe(false);
   });
 
-  it('is not cancellable outside Submitted', () => {
+  it('is cancellable in every non-terminal state (Order.Cancel throws only on Delivered/Cancelled)', () => {
     expect(isCancellable('Submitted')).toBe(true);
-    expect(isCancellable('AwaitingValidation')).toBe(false);
-    expect(isCancellable('Paid')).toBe(false);
+    expect(isCancellable('AwaitingValidation')).toBe(true);
+    expect(isCancellable('StockConfirmed')).toBe(true);
+    expect(isCancellable('Paid')).toBe(true);
+    expect(isCancellable('Shipped')).toBe(true);
+    expect(isCancellable('Delivered')).toBe(false);
+    expect(isCancellable('Cancelled')).toBe(false);
   });
 
   it('treats an unknown status as not cancellable', () => {
     expect(isCancellable('Unknown(99)')).toBe(false);
+  });
+
+  it('is in the free-cancellation grace period only while Submitted', () => {
+    expect(isInGracePeriod('Submitted')).toBe(true);
+    expect(isInGracePeriod('AwaitingValidation')).toBe(false);
+    expect(isInGracePeriod('Paid')).toBe(false);
+    expect(isInGracePeriod('Unknown(99)')).toBe(false);
   });
 });

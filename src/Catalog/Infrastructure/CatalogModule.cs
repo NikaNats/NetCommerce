@@ -67,6 +67,10 @@ public static class CatalogModule
 
         services.AddScoped<IPriceLookupService, OrderingPriceLookup>();
 
+        // Search-index rebuild (admin disaster recovery). Scoped: shares the
+        // request's DbContext and Wolverine outbox transaction boundary.
+        services.AddScoped<ISearchIndexRebuilder, SearchIndexRebuildService>();
+
         // Note: Wolverine handles transactional outbox automatically via its middleware.
         // No explicit pipeline behaviors needed - transactions are managed by [AutoApplyTransactions] policy.
 

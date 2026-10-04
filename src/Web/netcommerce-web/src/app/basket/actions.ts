@@ -2,11 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 
-import { apiFetch } from '@/lib/api/client.server';
 import {
+  clearBasket,
   removeBasketItem,
   updateBasketItemQuantity,
 } from '@/lib/api/catalog.server';
+import { actionErrorMessage } from '@/lib/api/action-error';
 import { newIdempotencyKey } from '@/lib/api/headers';
 import { isValidQuantity } from '@/lib/basket/basket';
 import { requireSession } from '@/lib/auth/guards';
@@ -40,10 +41,7 @@ export async function setQuantityAction(
   try {
     await updateBasketItemQuantity(productId, quantity, newIdempotencyKey());
   } catch (cause) {
-    return {
-      ok: false,
-      message: cause instanceof Error ? cause.message : 'Could not update the basket.',
-    };
+    return { ok: false, message: actionErrorMessage(cause) };
   }
 
   revalidatePath('/basket');
@@ -65,10 +63,7 @@ export async function removeItemAction(
   try {
     await removeBasketItem(productId, newIdempotencyKey());
   } catch (cause) {
-    return {
-      ok: false,
-      message: cause instanceof Error ? cause.message : 'Could not remove that item.',
-    };
+    return { ok: false, message: actionErrorMessage(cause) };
   }
 
   revalidatePath('/basket');
@@ -83,15 +78,9 @@ export async function clearBasketAction(
   await requireSession('/basket');
 
   try {
-    // DELETE /api/v1/basket — no catalog.server wrapper exists for the
-    // clear-basket route, so this calls the client directly rather than
-    // reaching into the catalog module for it.
-    await apiFetch<void>('/api/v1/basket', { method: 'DELETE', cache: 'no-store' });
+    await clearBasket(newIdempotencyKey());
   } catch (cause) {
-    return {
-      ok: false,
-      message: cause instanceof Error ? cause.message : 'Could not clear the basket.',
-    };
+    return { ok: false, message: actionErrorMessage(cause) };
   }
 
   revalidatePath('/basket');

@@ -1,22 +1,21 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { getProductById } from '@/lib/api/catalog.server';
-import { isPublished, primaryImage } from '@/lib/catalog/products';
+import { getProductById, getStockByProductId } from '@/lib/api/catalog.server';
+import { isProductId, isPublished, primaryImage } from '@/lib/catalog/products';
+import { canPurchaseStock } from '@/lib/inventory/stock';
 import { formatMoney } from '@/lib/format/money';
 import { AddToCartForm } from '@/components/catalog/add-to-cart-form';
+import { StockBadge } from '@/components/catalog/stock-badge';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const GUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
 
-  if (!GUID_PATTERN.test(id)) return { title: 'Not found' };
+  if (!isProductId(id)) return { title: 'Not found' };
 
   try {
     const product = await getProductById(id);
@@ -45,7 +44,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function ProductByIdPage({ params }: PageProps) {
   const { id } = await params;
 
-  if (!GUID_PATTERN.test(id)) notFound();
+  if (!isProductId(id)) notFound();
 
   let product = null;
   let fault: string | null = null;
@@ -95,7 +94,13 @@ export default async function ProductByIdPage({ params }: PageProps) {
   }
 
   const hero = primaryImage(product.images);
-  const purchasable = isPublished(product.status);
+  const published = isPublished(product.status);
+  // Same best-effort contract as the slug route: skipped when unpublished,
+  // unknown on any stock failure, never blocking.
+  const stock = published
+    ? await getStockByProductId(product.id).catch(() => null)
+    : null;
+  const purchasable = published && canPurchaseStock(stock);
 
   return (
     <main id="main" className="stack rail">
@@ -130,6 +135,8 @@ export default async function ProductByIdPage({ params }: PageProps) {
             {formatMoney(product.price, product.currency)}
           </p>
 
+          {published ? <StockBadge stock={stock} /> : null}
+
           {product.description ? (
             <p className="prose">{product.description}</p>
           ) : null}
@@ -139,12 +146,12 @@ export default async function ProductByIdPage({ params }: PageProps) {
                           productId={product.id}
                           productName={product.name}
                         />
-          ) : (
+          ) : !published ? (
             <p className="notice" role="status">
               This item is <strong>{product.status.toLowerCase()}</strong> and is
               not available to buy yet.
             </p>
-          )}
+          ) : null}
         </div>
       </div>
     </main>

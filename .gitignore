@@ -101,3 +101,6 @@ BenchmarkDotNet.Artifacts/
 
 # Load test results
 LoadTest/
+
+# Generated Keycloak prod realm (build with tools/keycloak/build-prod-realm.mjs)
+tools/keycloak/netcommerce-realm.prod.json

@@ -45,6 +45,22 @@ import { mapOrderStatus, type OrderStatusName } from '@/lib/orders/order-status'
  * `ManualInterventionRequired` in particular must never be missed.
  */
 
+/**
+ * The API origin the hub lives on.
+ *
+ * Inlined as a literal rather than read through the server-only config module: this
+ * hook runs in the BROWSER, and importing `@/lib/config` would pull `readConfig()`
+ * — which throws on a missing API_BASE_URL and reads server env — into the client
+ * bundle. `NEXT_PUBLIC_` is the only env Next will inline there.
+ *
+ * Returns an empty string when unset, which resolves to a same-origin path. That
+ * fails loudly with a 404 rather than silently reaching somewhere unexpected, which
+ * is the right failure: a misconfigured deployment should not appear to work.
+ */
+function hubOrigin(): string {
+  return process.env.NEXT_PUBLIC_API_ORIGIN ?? '';
+}
+
 export interface OrderSagaState {
   orderId: string;
   /**
@@ -136,7 +152,17 @@ export function useOrderSaga(
     // transport and constructing it during SSR would leak a socket into the
     // server render.
     const connection = new HubConnectionBuilder()
-      .withUrl('/api/messages', {
+      // The API origin, NOT a same-origin path.
+      //
+      // Next.js cannot proxy this: a Route Handler handles HTTP requests and cannot
+      // perform the Upgrade handshake a websocket requires, so `/api/messages` on this
+      // origin is a 404 and SignalR dies during JSON negotiation. There is no
+      // rewrites() entry that would change that.
+      //
+      // The socket carries the httpOnly session cookie and NO bearer token, so
+      // cross-origin here grants nothing the page did not already have. `connect-src`
+      // in next.config.ts allowlists this origin for exactly this reason.
+      .withUrl(`${hubOrigin()}/api/messages`, {
         skipNegotiation: false,
         withCredentials: true,
       })

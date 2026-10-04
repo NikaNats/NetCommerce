@@ -9,6 +9,7 @@ using NetCommerce.Kernel.Security.Authentication;
 using NetCommerce.Ordering.Infrastructure.Persistence;
 using NetCommerce.Payments.Infrastructure.Persistence;
 using NetCommerce.Shipping.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Wolverine.Http;
 using Wolverine.SignalR;
 
@@ -42,7 +43,22 @@ public static class PipelineExtensions
         await app.Services.ApplyMigrationsAsync<PaymentsDbContext>();
         await app.Services.ApplyMigrationsAsync<FinanceDbContext>();
         await app.Services.ApplyMigrationsAsync<ShippingDbContext>();
+
+        // Drift guard: the six contexts migrate independently with no shared
+        // transaction, so a partial failure boots prod against a half-migrated
+        // schema combination that fails per-request. Verify zero pending
+        // across all six and fail the pipeline step — never the deploy — when
+        // anything remains.
+        var pending = await app.Services.GetPendingMigrationsAsync();
 #pragma warning restore IL3050
+
+        if (pending.Count > 0)
+        {
+            Console.WriteLine("[MIGRATION RUNNER] FAILING: pending migrations remain after apply:");
+            foreach (var (context, migrations) in pending)
+                Console.WriteLine($"  {context}: {string.Join(", ", migrations)}");
+            return 1;
+        }
 
         Console.WriteLine("[MIGRATION RUNNER] Schema migrations complete. Exiting clean.");
         return 0;
@@ -132,7 +148,9 @@ public static class PipelineExtensions
         // SignalR Hub for Real-Time Order Notifications.
         // Wolverine's built-in WolverineHub provides WebSocket messaging to browsers.
         // Frontend connects to this endpoint to receive order status updates.
-        app.MapWolverineSignalRHub("/api/messages");
+        // Request timeouts are DISABLED here: this is a long-lived connection,
+        // and the 90s default policy would sever every socket and long-poll.
+        app.MapWolverineSignalRHub("/api/messages").DisableRequestTimeout();
 
         // Wolverine.Http Endpoints (Zero-Ceremony, Attribute-Based).
         // Maps endpoints decorated with [WolverineGet], [WolverinePost], etc.

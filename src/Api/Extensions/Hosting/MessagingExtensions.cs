@@ -32,6 +32,17 @@ public static class MessagingExtensions
         var connectionString = config.GetConnectionString("OrderingDb")
             ?? config.GetConnectionString("postgres");
 
+        // Fail closed when the outbox has nowhere to persist: the previous code
+        // silently booted non-durable (in-memory outbox) and every saga message
+        // became one process crash away from loss. Empty counts as missing —
+        // an explicitly-emptied connection string is a misconfiguration, not
+        // an opt-out.
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Missing connection string: OrderingDb or postgres (required for the Wolverine transactional outbox).");
+        }
+
         host.UseWolverineMessaging(
             config,
             opts =>
@@ -54,7 +65,6 @@ public static class MessagingExtensions
                 {
                     opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
                 }
-
                 opts.AddSagaType<OrderFulfillmentSaga>();
                 opts.ConfigureKernelDefaults<BaseDbContext>();
 

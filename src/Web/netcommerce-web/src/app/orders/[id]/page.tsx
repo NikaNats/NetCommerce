@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 
 import OrderTracker from '@/components/orders/order-tracker';
+import { CancelOrderForm } from '@/components/orders/cancel-order-form';
 import { ApiError, apiFetch } from '@/lib/api/client.server';
 import { requireSession } from '@/lib/auth/guards';
-import { mapOrderStatus } from '@/lib/orders/order-status';
+import { isCancellable, isInGracePeriod, mapOrderStatus } from '@/lib/orders/order-status';
 
 export const metadata: Metadata = {
   title: 'Your order',
@@ -45,11 +46,19 @@ export default async function OrderPage({
   await requireSession(`/orders/${id}`);
 
   try {
+    // The full OrderResponse projection: status for the tracker, the four
+    // milestone timestamps for the timeline, the cancellation reason. The
+    // endpoint deliberately carries nothing else (no addresses, no payment
+    // identifiers) — see OrderReadEndpoints.cs.
     const order = await apiFetch<{
       id: string;
       orderNumber: string;
       status: number;
       createdAt: string;
+      paidAt?: string | null;
+      shippedAt?: string | null;
+      deliveredAt?: string | null;
+      cancelledAt?: string | null;
       cancellationReason?: string | null;
     }>(`/api/v1/orders/${encodeURIComponent(id)}`);
 
@@ -68,8 +77,21 @@ export default async function OrderPage({
           initialStatus={statusName}
           orderNumber={order.orderNumber}
           placedAt={order.createdAt}
+          timeline={{
+            paidAt: order.paidAt ?? null,
+            shippedAt: order.shippedAt ?? null,
+            deliveredAt: order.deliveredAt ?? null,
+            cancelledAt: order.cancelledAt ?? null,
+          }}
           cancellationReason={order.cancellationReason ?? null}
         />
+
+        {isCancellable(statusName) ? (
+          <CancelOrderForm
+            orderId={order.id}
+            inGracePeriod={isInGracePeriod(statusName)}
+          />
+        ) : null}
       </main>
     );
   } catch (cause) {

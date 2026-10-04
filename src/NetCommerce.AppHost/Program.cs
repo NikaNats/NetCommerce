@@ -16,11 +16,16 @@ var postgres = builder.AddPostgres("postgres", password: postgresPassword)
     .WithPgAdmin(pgAdmin => { pgAdmin.WithHostPort(5050); })
     .WithLifetime(ContainerLifetime.Persistent);
 
-// Module databases - each bounded context gets its own database
+// Module databases - each bounded context gets its own database.
+// All six contexts the API migrates (see PipelineExtensions --migrate-only)
+// need a resource here: without one the module silently falls back to
+// DefaultConnection (localhost) via NpgsqlPoolingExtensions.
 var catalogDb = postgres.AddDatabase("CatalogDb", "catalog");
 var orderingDb = postgres.AddDatabase("OrderingDb", "ordering");
 var inventoryDb = postgres.AddDatabase("InventoryDb", "inventory");
 var paymentsDb = postgres.AddDatabase("PaymentsDb", "payments");
+var financeDb = postgres.AddDatabase("FinanceDb", "finance");
+var shippingDb = postgres.AddDatabase("ShippingDb", "shipping");
 var keycloakDb = postgres.AddDatabase("KeycloakDb", "keycloak");
 
 // =============================================================================
@@ -104,6 +109,8 @@ var api = builder.AddProject<NetCommerce_Api>("netcommerce-api")
     .WithReference(orderingDb).WaitFor(orderingDb)
     .WithReference(inventoryDb).WaitFor(inventoryDb)
     .WithReference(paymentsDb).WaitFor(paymentsDb)
+    .WithReference(financeDb).WaitFor(financeDb)
+    .WithReference(shippingDb).WaitFor(shippingDb)
     // Redis
     .WithReference(redis).WaitFor(redis)
     // Blob storage
@@ -158,6 +165,22 @@ var web = builder.AddExecutable("netcommerce-web", npmExecutable, "run", "dev")
     .WithWorkingDirectory("../Web/netcommerce-web")
     // Server-side calls to the API go through Aspire service discovery.
     .WithEnvironment("API_BASE_URL", api.GetEndpoint("http"))
+    // CSP connect-src allowlist (next.config.ts readApiOrigin): the browser opens
+    // the SignalR hub (/api/messages) directly on the API origin — a Next rewrite
+    // cannot proxy the WebSocket Upgrade handshake. Same value as API_BASE_URL,
+    // exposed under a separate name so the CSP builder's intent is explicit.
+    .WithEnvironment("PUBLIC_API_ORIGIN", api.GetEndpoint("http"))
+    // Client-side hub origin (use-order-saga.ts hubOrigin): NEXT_PUBLIC_ is the
+    // only env Next inlines into the browser bundle. Must match PUBLIC_API_ORIGIN;
+    // when unset the hook fails loudly with a same-origin 404 rather than
+    // silently reaching somewhere unexpected.
+    .WithEnvironment("NEXT_PUBLIC_API_ORIGIN", api.GetEndpoint("http"))
+    // CSP img-src allowlist (next.config.ts readStorageOrigin): must match the
+    // Storage__CdnBaseUrl origin in src/Api/appsettings*.json (MinIO,
+    // http://localhost:9000/netcommerce in development — cleartext http, which
+    // 'self' data: https: alone hard-blocks). A blanket `http:` is deliberately
+    // NOT used: it would permit any cleartext origin in production too.
+    .WithEnvironment("STORAGE_ORIGIN", "http://localhost:9000")
     // Keycloak's browser-facing authorize URL, used to build the PKCE redirect.
     .WithEnvironment("KEYCLOAK_BASE_URL", keycloak.GetEndpoint("http"))
     .WithEnvironment("KEYCLOAK_REALM", "netcommerce")

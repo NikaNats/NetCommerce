@@ -1,11 +1,22 @@
 import type { Metadata } from 'next';
 
+import { siteOrigin } from '@/lib/config';
 import { fontClassNames, fontVariablesClassName } from './fonts';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'NetCommerce',
+  // metadataBase makes every relative OG/canonical URL absolute. Without it
+  // social unfurlers and indexers receive relative paths, which they discard.
+  metadataBase: new URL(siteOrigin()),
+  title: {
+    default: 'NetCommerce',
+    template: '%s · NetCommerce',
+  },
   description: 'Catalog, basket and order tracking for NetCommerce.',
+  openGraph: {
+    siteName: 'NetCommerce',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -70,6 +70,8 @@
     <!-- Authentication -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect"/>
+    <!-- Data Protection key ring (shared across replicas via Redis) -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis"/>
 
     <!-- OpenAPI -->
     <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>

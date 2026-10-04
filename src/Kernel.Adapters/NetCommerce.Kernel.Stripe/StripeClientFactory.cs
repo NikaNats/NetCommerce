@@ -113,12 +113,18 @@ public sealed partial class StripeClientFactory : IDisposable
     /// <param name="signature">Stripe-Signature header value.</param>
     /// <returns>Parsed Stripe Event if signature is valid.</returns>
     /// <exception cref="StripeException">Thrown if signature verification fails.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     Thrown when no webhook secret is configured. The previous code parsed
+    ///     without verifying in that case, so any future caller silently accepted
+    ///     forged webhooks — a fail-open helper one refactor away from production.
+    /// </exception>
     public Event VerifyWebhookSignature(string json, string signature)
     {
         if (string.IsNullOrEmpty(_options.WebhookSecret))
         {
             Log.WebhookSecretNotConfigured(_logger);
-            return EventUtility.ParseEvent(json);
+            throw new InvalidOperationException(
+                "Stripe:WebhookSecret is not configured. Refusing to accept an unverifiable webhook.");
         }
 
         return EventUtility.ConstructEvent(json, signature, _options.WebhookSecret);

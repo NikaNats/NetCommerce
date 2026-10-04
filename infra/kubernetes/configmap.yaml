@@ -1,0 +1,23 @@
+# Non-secret production configuration. Secrets live in secrets.example.yaml
+# (copied to a real Secret or, better, an ExternalSecret). Values with
+# example.com are per-deployment and MUST be edited.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: netcommerce-config
+  namespace: netcommerce
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  # First origin is the primary storefront (StrictSameOrigin policy uses it).
+  Cors__AllowedOrigins__0: "https://shop.example.com"
+  # VPC CIDRs of the ingress path; the app trusts X-Forwarded-For/Proto from these only.
+  ForwardedHeaders__KnownNetworks__0: "10.0.0.0/8"
+  ForwardedHeaders__KnownNetworks__1: "172.16.0.0/12"
+  ForwardedHeaders__KnownNetworks__2: "192.168.0.0/16"
+  ForwardedHeaders__ForwardLimit: "1"
+  # S3-compatible object storage (MinIO/AWS) when ConnectionStrings__blobs is unset.
+  Storage__BucketName: "netcommerce"
+  Storage__CdnBaseUrl: "https://cdn.example.com/netcommerce"
+  # Operational knobs (non-secret; tune per environment).
+  GracePeriod__GracePeriodMinutes: "5"
+  ReservationCleanup__Enabled: "true"

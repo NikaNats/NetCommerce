@@ -102,6 +102,23 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 }
 
 /**
+ * The public origin of the storefront, for absolute URLs the server renders
+ * itself (sitemap, robots, Open Graph).
+ *
+ * Lives here rather than in a lib/seo helper because it is the same knowledge
+ * as publicOrigin below: the operator-declared PUBLIC_ORIGIN, which is
+ * required outside development. The localhost fallback therefore only ever
+ * serves local dev, where the dev script is pinned to port 3000. A sitemap
+ * built with the wrong origin would submit wrong URLs to every indexer, so
+ * there is deliberately no Host-header derivation — the declared value wins.
+ */
+export function siteOrigin(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = env.PUBLIC_ORIGIN?.trim();
+  if (raw) return raw.replace(/\/$/, '');
+  return 'http://localhost:3000';
+}
+
+/**
  * The origin the browser used, used to build redirect URIs.
  *
  * Prefers the operator-declared PUBLIC_ORIGIN over the Host header. The Host

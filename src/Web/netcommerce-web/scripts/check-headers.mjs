@@ -64,13 +64,31 @@ for (const d of [
 
 console.log('\n=== the load-bearing directive ===');
 // connect-src 'self' is what would catch a regression introducing a client-side
-// fetch that puts a token in the browser. Assert it is restrictive, not merely
-// present.
+// fetch that puts a token in the browser. It is widened by exactly one explicit
+// pair — the API origin over http(s) plus its ws(s) mate for the SignalR socket
+// (next.config.ts readApiOrigin; the gate env pins API_BASE_URL to
+// http://localhost:59999). Assert that shape: 'self' plus explicit origins,
+// never a scheme wildcard (`https:`) or host wildcard (`*`), either of which
+// would let the socket (or an exfiltration fetch) reach an arbitrary host.
 const connectSrc = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('connect-src'));
+const connectSources = (connectSrc ?? '').replace(/^connect-src\s+/, '').split(/\s+/).filter(Boolean);
+const extraSources = connectSources.filter((s) => s !== "'self'");
 check(
-  'connect-src does not allow arbitrary origins',
-  Boolean(connectSrc) && !/https?:/.test(connectSrc),
+  "connect-src is anchored at 'self'",
+  connectSources.includes("'self'"),
   connectSrc ?? '(missing)',
+);
+check(
+  'connect-src has no wildcard',
+  Boolean(connectSrc) && !connectSrc.includes('*'),
+  connectSrc ?? '(missing)',
+);
+check(
+  'connect-src allows only the explicit API http(s) + ws(s) pair',
+  extraSources.length > 0 &&
+    extraSources.length <= 2 &&
+    extraSources.every((s) => /^https?:\/\/[^*\s]+$/.test(s) || /^wss?:\/\/[^*\s]+$/.test(s)),
+  extraSources.join(' ') || '(no extra sources)',
 );
 
 check(

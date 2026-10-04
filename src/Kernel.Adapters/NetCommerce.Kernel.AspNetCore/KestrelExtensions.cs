@@ -1,6 +1,8 @@
 #nullable enable
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -51,7 +53,21 @@ public static class KestrelExtensions
             o.MemoryBufferThreshold = 1024 * 1024; // Buffer to disk after 1MB
         });
 
-        builder.Services.AddRequestTimeouts();
+        builder.Services.AddRequestTimeouts(options =>
+        {
+            // A registered-without-policy AddRequestTimeouts is a no-op: every
+            // request ran unbounded. The default bound converts a hung
+            // downstream (Stripe, Keycloak, Meili, a wedged query) into a 503
+            // instead of a held thread. Npgsql commands already bound tighter
+            // (15s), HttpClients carry their own timeouts — this is the outer
+            // backstop. Long-lived endpoints opt OUT explicitly at the map site
+            // (the SignalR hub disables it; see MapEnterpriseEndpoints).
+            options.DefaultPolicy = new RequestTimeoutPolicy
+            {
+                Timeout = TimeSpan.FromSeconds(90),
+                TimeoutStatusCode = StatusCodes.Status503ServiceUnavailable
+            };
+        });
 
         // Note: Response Compression is already in your Program.cs
     }

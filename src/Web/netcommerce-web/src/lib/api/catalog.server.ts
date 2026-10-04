@@ -5,7 +5,9 @@ import {
   type Product,
   type ProductListItem,
 } from '@/lib/catalog/products';
+import type { Category } from '@/lib/catalog/categories';
 import type { AddBasketItemRequest, Basket } from '@/lib/basket/basket';
+import type { StockDto } from '@/lib/inventory/stock';
 
 /**
  * Server-side reads for the storefront.
@@ -91,6 +93,49 @@ export async function getBasket(): Promise<Basket> {
 }
 
 /**
+ * GET /api/v1/inventory/product/{productId} — AllowAnonymous.
+ *
+ * A missing record is a normal 404 (not every product has a stock row) and
+ * resolves to null, which the pages treat as "unknown", never as "out of
+ * stock". Anything else propagates: a 500 here must not masquerade as
+ * availability in either direction.
+ *
+ * Cached briefly under the product tag, so a publish invalidates it alongside
+ * the product itself. Reservation-time truth still lives server-side — this
+ * read informs the buy button, it never promises fulfillment.
+ */
+export async function getStockByProductId(productId: string): Promise<StockDto | null> {
+  try {
+    return await apiFetch<StockDto>(
+      `/api/v1/inventory/product/${encodeURIComponent(productId)}`,
+      { next: { revalidate: 30, tags: ['catalog', `product:${productId}`] } },
+    );
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 404) return null;
+    throw cause;
+  }
+}
+
+/**
+ * GET /api/v1/categories/ — AllowAnonymous.
+ *
+ * A longer revalidate than products: categories change rarely, and the tag
+ * still allows explicit invalidation. An outage must not render as "no
+ * categories" — an empty filter list hides purchasable products — so only a
+ * 404 (no such collection) resolves to []; anything else propagates.
+ */
+export async function getCategories(): Promise<Category[]> {
+  try {
+    return await apiFetch<Category[]>('/api/v1/categories/', {
+      next: { revalidate: 300, tags: ['catalog', 'categories'] },
+    });
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 404) return [];
+    throw cause;
+  }
+}
+
+/**
  * POST /api/v1/basket/items — requires a session.
  *
  * `idempotencyKey` should be supplied by the caller when a retry of the same
@@ -130,4 +175,13 @@ export async function removeBasketItem(
     `/api/v1/basket/items/${encodeURIComponent(productId)}`,
     { method: 'DELETE', cache: 'no-store', idempotencyKey },
   );
+}
+
+/** DELETE /api/v1/basket — requires a session. Empties the whole basket. */
+export async function clearBasket(idempotencyKey?: string): Promise<void> {
+  await apiFetch<void>('/api/v1/basket', {
+    method: 'DELETE',
+    cache: 'no-store',
+    idempotencyKey,
+  });
 }

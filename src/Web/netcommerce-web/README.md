@@ -264,6 +264,9 @@ Two notes on how that check is scoped, both learned the hard way:
 | Variable              | Required            | Purpose                                              |
 | --------------------- | ------------------- | ---------------------------------------------------- |
 | `API_BASE_URL`        | outside development | Base URL of the .NET API (Aspire injects it)         |
+| `PUBLIC_API_ORIGIN`   | never (falls back to `API_BASE_URL`) | API origin for the CSP `connect-src` allowlist (SignalR hub needs `http(s):` + `ws(s):`) |
+| `NEXT_PUBLIC_API_ORIGIN` | outside development for live order tracking | Same API origin, inlined into the browser bundle for the SignalR hub (`use-order-saga.ts`); unset fails loudly with a same-origin 404 |
+| `STORAGE_ORIGIN`      | outside development | Origin serving product imagery for the CSP `img-src` allowlist — must match `Storage__CdnBaseUrl` origin (`http://localhost:9000` in dev; cleartext, so `'self' data: https:` alone blocks every image) |
 | `KEYCLOAK_BASE_URL`   | outside development | Keycloak base URL (Aspire injects it)                |
 | `KEYCLOAK_REALM`      | outside development | Realm name                                           |
 | `KEYCLOAK_CLIENT_ID`  | outside development | Must be a public client with S256 PKCE               |
@@ -343,18 +346,60 @@ Against the API's real contracts, read from the endpoint and DTO source:
   removal, and clear (`GET/POST/PUT/DELETE /api/v1/basket`), all through Server
   Actions so the browser never holds a token. The basket total shown is always
   the server's `totalPrice`, never a client-side sum.
+- Checkout (`/checkout`): contact + shipping/billing + coupon form posting to
+  `POST /api/v1/orders` with a per-page idempotency key (retries reuse it, so
+  no duplicate order), basket re-read server-side, catalog prices echoed as
+  `ExpectedPrice` for the server's 409 price guard, basket cleared best-effort
+  after create, then redirect to the order page.
+- Order detail (`/orders/{id}`): persisted status plus the live `OrderTracker`
+  socket (`/api/messages` on the API origin, cookie-authenticated, reconciled
+  against `GET /api/bff/orders/{id}`), with cancellation while `Submitted`
+  (`DELETE /api/v1/orders/{id}`).
+
+## Production
+
+The image is the standalone server (`output: 'standalone'`), built by
+`Dockerfile` in this directory:
+
+```bash
+docker build \
+  -f src/Web/netcommerce-web/Dockerfile \
+  --build-arg NEXT_PUBLIC_API_ORIGIN=https://api.example.com \
+  --build-arg PUBLIC_API_ORIGIN=https://api.example.com \
+  --build-arg STORAGE_ORIGIN=https://cdn.example.com \
+  -t netcommerce-web:prod src/Web/netcommerce-web
+```
+
+The three build args are load-bearing, not convenience: `NEXT_PUBLIC_*` is
+inlined into the browser bundle at build time and the CSP allowlists are baked
+the same way, so a build without production values serves a CSP and hub URL
+that do not match the deployment. Everything else is runtime env (required in
+production — the process throws naming the missing variable):
+
+`API_BASE_URL`, `KEYCLOAK_BASE_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`,
+`PUBLIC_ORIGIN`, `REDIS_URL` (multi-replica sessions refuse to boot without
+it), plus the `STORAGE_ORIGIN` / `*_API_ORIGIN` pair above.
+
+Operations:
+
+- Liveness `/api/health/live` is dependency-free (a failing API must not
+  restart a healthy web process); readiness `/api/health/ready` gates on
+  config + session store + API `/health/ready` and answers 503 otherwise —
+  the same live/ready split as the backend.
+- Every outbound API call carries a 15s timeout (`DEFAULT_API_TIMEOUT_MS`);
+  a hung dependency becomes a rendered notice, not a hung page.
+- Security baseline: `X-Powered-By` disabled, HSTS in production, CSP +
+  `nosniff` / `DENY` / `Referrer-Policy` / `Permissions-Policy` on every
+  response (asserted on a live response by `scripts/check-headers.sh`).
+- SEO baseline: `robots.ts` (session/API routes disallowed), `sitemap.ts`
+  (stable public routes; product URLs resolve through `/catalog`), title
+  template + `metadataBase` + Open Graph in the root layout.
 
 ## Not implemented yet
 
-Deliberately out of scope: checkout and Stripe Elements, the SignalR
-order-tracking UI (`useOrderSaga` is written and unit-tested but no page mounts
-it yet), order history pages, a production Dockerfile for the standalone
-output, and the `openapi-typescript` schema file (`npm run codegen:api` —
-which works again now that `/openapi/v1.json` returns 200).
-
-Two prerequisites when the tracking UI gets built: `useOrderSaga` reconciles
-against `GET /api/bff/orders/{id}`, which has no Next route yet, and it dials
-`/api/messages` relative to the storefront origin while the hub lives on the
-API origin — neither is reachable from a browser today. Both need a deliberate
-origin strategy (same-origin proxy route), not a hardcoded API URL in the
-browser bundle.
+Deliberately out of scope: Stripe Elements (the backend exposes webhook-only
+payment confirmation; the storefront collects no card data and stays out of
+PCI scope), order history listing (no `GET /api/v1/orders` collection route
+exists server-side), vendor/admin consoles, and the `openapi-typescript`
+schema file (`npm run codegen:api` — contracts are hand-transcribed from the
+DTO source with file:line citations instead).

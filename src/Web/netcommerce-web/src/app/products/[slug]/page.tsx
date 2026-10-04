@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { ApiError } from '@/lib/api/client.server';
-import { getProductBySlug } from '@/lib/api/catalog.server';
+import { getProductBySlug, getStockByProductId } from '@/lib/api/catalog.server';
 import { isPublished, primaryImage } from '@/lib/catalog/products';
+import { canPurchaseStock } from '@/lib/inventory/stock';
 import { formatMoney } from '@/lib/format/money';
 import { AddToCartForm } from '@/components/catalog/add-to-cart-form';
+import { StockBadge } from '@/components/catalog/stock-badge';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -100,7 +102,15 @@ export default async function ProductPage({ params }: PageProps) {
   if (!product) notFound();
 
   const hero = primaryImage(product.images);
-  const purchasable = isPublished(product.status);
+  const published = isPublished(product.status);
+  // Best-effort availability: skipped entirely for unpublished products (the
+  // badge would contradict the not-for-sale notice), and any stock failure
+  // degrades to unknown — which never blocks a purchase the reservation saga
+  // might still fulfill.
+  const stock = published
+    ? await getStockByProductId(product.id).catch(() => null)
+    : null;
+  const purchasable = published && canPurchaseStock(stock);
 
   return (
     <main id="main" className="stack rail">
@@ -142,6 +152,8 @@ export default async function ProductPage({ params }: PageProps) {
             {formatMoney(product.price, product.currency)}
           </p>
 
+          {published ? <StockBadge stock={stock} /> : null}
+
           {product.description ? (
             <p className="prose">{product.description}</p>
           ) : null}
@@ -167,14 +179,16 @@ export default async function ProductPage({ params }: PageProps) {
               productId={product.id}
               productName={product.name}
             />
-          ) : (
+          ) : !published ? (
             // Not-published is a normal state, not an error. Say so plainly
-            // instead of rendering a buy button that would fail.
+            // instead of rendering a buy button that would fail. (Out-of-stock
+            // needs no extra branch: the StockBadge above already explains why
+            // no form follows.)
             <p className="notice" role="status">
               This item is <strong>{product.status.toLowerCase()}</strong> and is
               not available to buy yet.
             </p>
-          )}
+          ) : null}
         </div>
       </div>
     </main>

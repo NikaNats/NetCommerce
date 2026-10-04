@@ -1,0 +1,145 @@
+name: Release Images
+
+# Builds and publishes the production images. Runs on VERSION TAGS ONLY
+# (v*), never on branches — a release must come from a tag, not a tree.
+#
+# Zero-bypass guarantee: this workflow NEVER sets any of the test/mock escape
+# hatches (Stripe__AllowTestModeInProduction, Couriers__AllowMockInProduction,
+# *AcknowledgedInProduction, AllowInMemoryInProduction). Those exist only in
+# native-aot-verification.yml for CI smoke. If a future edit adds one here,
+# the "forbidden env" step below fails the run.
+#
+# Secrets and prod URLs come from the GitHub Environment named "production"
+# (configure: repository Settings -> Environments -> production):
+#   Vars:     PROD_API_ORIGIN, PROD_STORAGE_ORIGIN, PROD_PUBLIC_ORIGIN
+#   Secrets:  GHCR is via GITHUB_TOKEN; image signing via cosign if enabled.
+# Runtime secrets (DB, Redis, Keycloak, Stripe, Meili, Blob) are NOT baked in —
+# they are injected at deploy time from the secret manager (see
+# infra/kubernetes/secrets.example.yaml). The images carry no credentials.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Release preconditions
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      # The tag must exist on main: no releasing from a side branch.
+      - name: Tag ancestry check
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor ${{ github.ref }} origin/main
+
+      - name: Prod realm builds clean
+        run: node tools/keycloak/build-prod-realm.mjs
+
+      - name: Forbidden bypass env scan
+        run: |
+          if grep -RIn "AllowTestModeInProduction\|AllowMockInProduction\|AcknowledgedInProduction\|AllowInMemoryInProduction" .github/workflows/release.yml infra/; then
+            echo "FAIL: test/mock bypass flags must never appear in release artifacts."
+            exit 1
+          fi
+          echo "No bypass flags in release path."
+
+      - name: Required production vars present
+        run: |
+          : "${{ vars.PROD_API_ORIGIN:?PROD_API_ORIGIN var missing in production environment}}"
+          : "${{ vars.PROD_STORAGE_ORIGIN:?PROD_STORAGE_ORIGIN var missing}}"
+          : "${{ vars.PROD_PUBLIC_ORIGIN:?PROD_PUBLIC_ORIGIN var missing}}"
+
+  api-image:
+    name: API image
+    needs: guard
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/netcommerce-api
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  web-image:
+    name: Web image
+    needs: guard
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/netcommerce-web
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+
+      # NEXT_PUBLIC_API_ORIGIN is inlined into the browser bundle and the CSP
+      # allowlists are baked at build time: these MUST be the production values,
+      # from the environment — never localhost, never a previous deploy's.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: src/Web/netcommerce-web
+          file: src/Web/netcommerce-web/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_ORIGIN=${{ vars.PROD_API_ORIGIN }}
+            PUBLIC_API_ORIGIN=${{ vars.PROD_API_ORIGIN }}
+            STORAGE_ORIGIN=${{ vars.PROD_STORAGE_ORIGIN }}
