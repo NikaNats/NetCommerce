@@ -10,6 +10,54 @@ jobs:
   build-verify:
     name: Build & Test Verify
     runs-on: ubuntu-latest
+
+    # Integration tests boot the API in-process via WebApplicationFactory, which
+    # registers every module — so they need real Postgres and Redis, not mocks.
+    #
+    # Without these, 3 tests failed with "Missing connection string: ShippingDb or
+    # DefaultConnection" and a Wolverine timeout: the host could not start. These
+    # mirror the service set native-aot-verification.yml already runs, so the two
+    # workflows exercise the same infrastructure rather than different worlds.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: Password123!
+          POSTGRES_DB: netcommerce
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # One database with a SearchPath per module, matching the module layout.
+      CONNECTIONSTRINGS__CATALOGDB: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!;SearchPath=catalog
+      CONNECTIONSTRINGS__ORDERINGDB: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!;SearchPath=ordering
+      CONNECTIONSTRINGS__INVENTORYDB: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!;SearchPath=inventory
+      CONNECTIONSTRINGS__PAYMENTSDB: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!;SearchPath=payments
+      CONNECTIONSTRINGS__FINANCEDB: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!;SearchPath=finance
+      CONNECTIONSTRINGS__SHIPPINGDB: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!;SearchPath=shipping
+      CONNECTIONSTRINGS__POSTGRES: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!
+      CONNECTIONSTRINGS__REDIS: 127.0.0.1:6379
+      # Test-only credentials. The webhook tests need Stripe to be reachable in a
+      # configured-but-test mode; they never contact the live Stripe API.
+      Stripe__SecretKey: sk_test_mock
+      Stripe__WebhookSecret: whsec_test_secret
+      Stripe__AllowTestModeInProduction: "true"
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -36,3 +84,15 @@ jobs:
       # AutomatedLoadTest runs in the dedicated load-tests workflow (needs Docker + minutes);
       # keeping PR validation fast and hermetic.
       - run: dotnet test --no-build -c Release --filter "Category!=Integration&Category!=AutomatedLoadTest"
+      - name: Deployment manifest consistency
+        run: |
+          # Cross-references every ConfigMap and Secret reference in infra/kubernetes
+          # against what configmap.yaml and secrets.example.yaml actually declare.
+          #
+          # An unresolvable reference is accepted by `kubectl apply` and then fails as a
+          # CrashLoop with no obvious cause, so it is cheaper to catch here. This also
+          # asserts the web container receives the variables that next.config.ts and the
+          # session store depend on — PUBLIC_API_ORIGIN and STORAGE_ORIGIN in
+          # particular, since their absence degrades the CSP and silently blocks product
+          # images and the realtime hub.
+          node scripts/check-manifests.mjs
