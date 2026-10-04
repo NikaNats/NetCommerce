@@ -17,7 +17,11 @@ export KEYCLOAK_BASE_URL=http://localhost:59998
 export KEYCLOAK_REALM=netcommerce
 export KEYCLOAK_CLIENT_ID=netcommerce-web
 export PUBLIC_ORIGIN=http://localhost:3000
-export npm_config_cache=/scratch/.npm
+
+# Writable npm cache in BOTH the sandbox and CI. See npm-cache-dir.sh for why a
+# hardcoded /scratch path breaks on a GitHub runner.
+# shellcheck source=scripts/npm-cache-dir.sh
+. "$(dirname "$0")/npm-cache-dir.sh"
 
 # Logs go to .probe/ inside the project, NOT /tmp. The sandbox's /tmp is not
 # shared with the invoking shell, so a log written there can be invisible to the
@@ -25,8 +29,6 @@ export npm_config_cache=/scratch/.npm
 # server that actually started.
 PROBE_DIR=".probe"
 mkdir -p "$PROBE_DIR"
-
-mkdir -p /scratch/.npm
 
 if command -v netstat >/dev/null 2>&1 && netstat -ano 2>/dev/null | grep -q ':3000 .*LISTENING'; then
   echo "ABORT: port 3000 already in use."

@@ -11,18 +11,11 @@
 # read-only, and npm needs the bridge network.
 set -Eeuo pipefail
 
-# npm cache location.
-#
-# /scratch is the sandbox's writable scratch root on this host; CI has no such
-# directory. Default to the project-local cache so the same script runs in both
-# places, and only override it where /scratch exists.
-if [ -d /scratch ] && [ -w /scratch ]; then
-  export npm_config_cache=/scratch/.npm
-  mkdir -p /scratch/.npm
-else
-  export npm_config_cache="$PWD/.npm-cache"
-  mkdir -p "$PWD/.npm-cache"
-fi
+# npm cache location. Shared with check-headers.sh and verify-render.sh so all
+# three behave identically in the sandbox AND on a GitHub runner, where a
+# hardcoded /scratch path fails with "Permission denied".
+# shellcheck source=scripts/npm-cache-dir.sh
+. "$(dirname "$0")/npm-cache-dir.sh"
 
 # --- dependency install (skipped when node_modules is already present) --------
 # `npm ci` against the COMMITTED lockfile, which is what a fresh clone and CI
@@ -78,6 +71,14 @@ echo "### security headers (asserted on a live response)"
 # A CSP declared in next.config.ts but never served is decoration, so this reads
 # the headers off a real response rather than reading the config back.
 bash scripts/check-headers.sh "$PWD"
+
+echo
+echo "### npm cache resolution (sandbox + CI)"
+# This gate runs in the local sandbox AND on a GitHub runner. A hardcoded
+# /scratch npm cache works in one and dies in the other with
+# "Permission denied" — which is exactly how the previous CI run failed, after
+# 401 tests, a production build, and every render check had already passed.
+bash scripts/check-npm-cache.sh
 
 echo
 echo "ALL CHECKS PASSED"
