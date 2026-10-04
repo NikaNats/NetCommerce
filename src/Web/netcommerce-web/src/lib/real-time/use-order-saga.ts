@@ -57,8 +57,32 @@ import { mapOrderStatus, type OrderStatusName } from '@/lib/orders/order-status'
  * fails loudly with a 404 rather than silently reaching somewhere unexpected, which
  * is the right failure: a misconfigured deployment should not appear to work.
  */
+/**
+ * The API origin the hub lives on.
+ *
+ * ## Why a module-scope CONSTANT rather than a read inside the function
+ *
+ * Next inlines `NEXT_PUBLIC_*` by substituting the literal text
+ * `process.env.NEXT_PUBLIC_API_ORIGIN` at build time, and that substitution is
+ * applied by matching the member expression. Hoisting it to module scope keeps the
+ * literal expression in the source and makes the intent explicit.
+ *
+ * NOTE ON VERIFICATION: I initially believed reading it inside a function broke
+ * inlining, and wrote that claim into this comment. It does not — Turbopack
+ * substitutes the expression wherever it appears. The evidence that corrected me:
+ * an image built WITH the build arg produced a correct CSP header, and a search of
+ * the client bundle found neither the origin NOR `HubConnectionBuilder` at all.
+ * The whole realtime module was absent because the order page never rendered its
+ * tracker — the API was unreachable, so the page took its error path. The original
+ * form was fine. This constant is kept for readability, not as a fix.
+ *
+ * Empty degrades to a same-origin path, which fails loudly with a 404 rather than
+ * reaching somewhere unexpected — the right failure for a misconfigured deploy.
+ */
+const NEXT_PUBLIC_API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? '';
+
 function hubOrigin(): string {
-  return process.env.NEXT_PUBLIC_API_ORIGIN ?? '';
+  return NEXT_PUBLIC_API_ORIGIN;
 }
 
 export interface OrderSagaState {
