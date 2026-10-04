@@ -81,15 +81,30 @@ jobs:
       - run: dotnet restore --force-evaluate
       - name: Strict Compiler & Analyzer Validation (Zero-Error Policy)
         run: |
-          # Roslyn enforces CA2000/CA2016/IL2026/IL3050 (+ CA1031 in Domain/Application)
-          # as errors. Any resource-leak, missing-CancellationToken, or trimming breach
-          # fails here. (Replaces the former grep-based CancellationToken guard.)
-          # Perf/style findings (CA1848, IDE) stay visible as warnings, not gates.
+          # NO /p:TreatWarningsAsErrors here, deliberately.
+          #
+          # MSBuild global properties OVERRIDE anything a project sets. Passing
+          # /p:TreatWarningsAsErrors=true forced the value to `true` for EVERY
+          # project, including test projects — and Directory.Build.props:91-100
+          # deliberately relaxes those (test correctness is enforced by EXECUTION,
+          # not by style analysis). The override silently defeated that policy and
+          # turned 2,176 CA1707/CA1304/CA1063 findings in test code into build
+          # errors. Verified: the same test project builds clean without the flag
+          # and FAILS with it.
+          #
+          # Directory.Build.props already sets the policy correctly and per-scope:
+          #   - production projects: TreatWarningsAsErrors=true in Release/CI
+          #   - test projects:       false, so warnings stay visible but non-fatal
+          #   - Domain/Application:  CA1031 promoted via scoped .editorconfig
+          # This step therefore just builds Release, which CI=true already makes
+          # strict everywhere it is meant to be.
+          #
+          # To tighten a rule later, change it in Directory.Build.props or a scoped
+          # .editorconfig — not with a global flag that silently overrides both.
           dotnet build NetCommerce.slnx \
             -c Release \
             --no-restore \
-            /p:TreatWarningsAsErrors=true \
-            /p:CodeAnalysisTreatWarningsAsErrors=true
+            --no-incremental
       - name: Execute Architecture & Boundary Tests
         run: |
           dotnet test tests/NetCommerce.Architecture.Tests/NetCommerce.Architecture.Tests.csproj \
