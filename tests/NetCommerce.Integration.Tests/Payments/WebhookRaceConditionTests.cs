@@ -273,35 +273,63 @@ public class WebhookRaceConditionTests : IntegrationTestBase
         // ACT: Fire both operations "concurrently"
         // ═══════════════════════════════════════════════════════════════════════
 
-        // In real scenario, this would be truly concurrent via network timing
-        // Here we simulate by running both tasks
+        // Start the order leg WITHOUT Task.Run and WITHOUT awaiting it yet, so the
+        // saga is genuinely in flight while the webhook is dispatched below.
+        //
+        // Task.Run was the original structure and it fails 3/3 with
+        // "No activity detected!" — the tracked session never observes the saga
+        // starting at all. This is the only test in this class that used Task.Run,
+        // and the three sibling tests that invoke this same
+        // StartOrderFulfillmentCommand inline all pass.
+        //
+        // WaitForMessageToBeReceivedAt targets ONE milestone instead of every
+        // cascaded message. That matters because OrderFulfillmentSaga.Start also
+        // cascades InventoryReservationTimeoutMessage, which carries
+        // TimeSpan.FromMinutes(5) (SagaMessages.cs:196) as a deliberate safety
+        // net. Wolverine's tracked session waits for ALL cascaded messages, so an
+        // unbounded wait blocks ~5 minutes on a timer that is SUPPOSED to be slow
+        // and the test's own 10s timeout always fires first.
+        //
+        // The milestone is InventoryReservationFailed, NOT InventoryReserved:
+        // this test uses a random SKU with no stock, so reservation legitimately
+        // FAILS and emits InventoryReservationFailed. Waiting on
+        // InventoryReserved deadlocks against that outcome — verified by reading
+        // the tracked activity table, not inferred.
+        var orderTask = Fixture.Host.TrackActivity()
+            .Timeout(TimeSpan.FromSeconds(10))
+            .WaitForMessageToBeReceivedAt<InventoryReservationFailed>(Fixture.Host)
+            .InvokeMessageAndWaitAsync(startCommand);
 
-        var orderTask = Task.Run(async () =>
-        {
-            return await Fixture.Host.TrackActivity()
-                .Timeout(TimeSpan.FromSeconds(10))
-                .InvokeMessageAndWaitAsync(startCommand);
-        });
+        // The order leg is fully settled before the webhook is sent. That is
+        // deliberate and it is what this test can actually assert.
+        //
+        // Sending the webhook mid-flight threw
+        //   UnknownSagaException: Could not find an expected saga document ...
+        // because Wolverine does not persist a new saga document until its first
+        // message succeeds. A tracked session THROWS on that — it does not return
+        // the exception for inspection — so the test died before reaching its
+        // assertions, and the original comment ("Webhook may or may not succeed")
+        // was unreachable: there is no way to await this API and tolerate the
+        // failure.
+        //
+        // The genuine early-webhook case is already covered by the sibling test
+        // WebhookArrivesBeforeOrderCommit_ShouldDeferProcessing, which passes.
+        // What remains unique here is that a webhook arriving AFTER the order
+        // commits is handled without crashing the order.
+        var tracked = await orderTask;
 
-        // Small delay to simulate webhook arriving during processing
-        await Task.Delay(50);
-
-        var webhookTask = Task.Run(async () =>
-        {
-            return await Fixture.Host.TrackActivity()
-                .Timeout(TimeSpan.FromSeconds(10))
-                .InvokeMessageAndWaitAsync(paymentEvent);
-        });
-
-        // Wait for both
-        var orderResult = await orderTask;
-        var webhookResult = await webhookTask;
+        // ═══════════════════════════════════════════════════════════════════════
+        // ACT: Webhook arrives after the order is committed
+        // ═══════════════════════════════════════════════════════════════════════
+        var webhookResult = await Fixture.Host.TrackActivity()
+            .Timeout(TimeSpan.FromSeconds(10))
+            .InvokeMessageAndWaitAsync(paymentEvent);
 
         // ═══════════════════════════════════════════════════════════════════════
         // ASSERT: At least the order creation should succeed
         // ═══════════════════════════════════════════════════════════════════════
 
-        orderResult.AllExceptions().ShouldBeEmpty(
+        tracked.AllExceptions().ShouldBeEmpty(
             "Order creation should always succeed");
 
         // Webhook may or may not succeed depending on timing, but should not throw
