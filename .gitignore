@@ -104,3 +104,18 @@ LoadTest/
 
 # Generated Keycloak prod realm (build with tools/keycloak/build-prod-realm.mjs)
 tools/keycloak/netcommerce-realm.prod.json
+
+# Local CI-reproduction gate logs (scripts/pr-validation-local.sh, saga-full.sh,
+# etc). Per-run scratch output; one slipped into a commit and had to be removed.
+.t.log
+.v.log
+.f.log
+.gate.log
+.z.log
+.saga.log
+.saga2.log
+.r.log
+.d.log
+.p.log
+.baseline.log
+.probe-db.log
