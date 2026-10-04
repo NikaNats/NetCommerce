@@ -44,11 +44,23 @@ public sealed class PaymentTransaction : AggregateRoot<Guid>
 
     public void SetExternalTransactionId(string externalId)
     {
+        // The external id is assigned once at initiation. Overwriting it would
+        // re-point the ledger row at a different PSP charge.
+        if (Status is PaymentStatus.Completed or PaymentStatus.Failed or PaymentStatus.Refunded)
+            throw new InvalidOperationException(
+                $"Cannot set external transaction id in status {Status}.");
+
         ExternalTransactionId = externalId;
     }
 
     public void MarkAsCompleted(string externalTransactionId)
     {
+        // Only an in-flight payment can complete. Completing a Refunded payment
+        // (late webhook after compensation) would resurrect settled money.
+        if (Status is not PaymentStatus.Pending and not PaymentStatus.Processing)
+            throw new InvalidOperationException(
+                $"Cannot complete payment in status {Status}.");
+
         ExternalTransactionId = externalTransactionId;
         Status = PaymentStatus.Completed;
         CompletedAt = DateTime.UtcNow;
@@ -58,6 +70,12 @@ public sealed class PaymentTransaction : AggregateRoot<Guid>
 
     public void MarkAsFailed(string reason)
     {
+        // Terminal states are final: a Failed webhook arriving after completion
+        // or refund is stale news, not a state change.
+        if (Status is not PaymentStatus.Pending and not PaymentStatus.Processing)
+            throw new InvalidOperationException(
+                $"Cannot fail payment in status {Status}.");
+
         Status = PaymentStatus.Failed;
         FailureReason = reason;
         CompletedAt = DateTime.UtcNow;
@@ -67,6 +85,11 @@ public sealed class PaymentTransaction : AggregateRoot<Guid>
 
     public void MarkAsRefunded(string externalRefundId)
     {
+        // Refunds settle captured funds: only a Completed payment can be refunded.
+        if (Status != PaymentStatus.Completed)
+            throw new InvalidOperationException(
+                $"Cannot refund payment in status {Status}.");
+
         Status = PaymentStatus.Refunded;
         Metadata = $"RefundId:{externalRefundId}";
 

@@ -53,6 +53,8 @@
     <ProjectReference Include="..\..\src\Kernel.Adapters\NetCommerce.Kernel.EfCore\NetCommerce.Kernel.EfCore.csproj"/>
     <ProjectReference Include="..\..\src\Domain.Shared\NetCommerce.Domain.Shared\NetCommerce.Domain.Shared.csproj"/>
     <ProjectReference Include="..\..\src\Kernel.Adapters\NetCommerce.Kernel.Security\NetCommerce.Kernel.Security.csproj"/>
+    <ProjectReference Include="..\..\src\Basket\Basket.Application\Basket.Application.csproj"/>
+    <ProjectReference Include="..\..\src\Basket\Basket.Infrastructure\Basket.Infrastructure.csproj"/>
     <ProjectReference Include="..\..\src\Api\NetCommerce.Api.csproj"/>
   </ItemGroup>
 

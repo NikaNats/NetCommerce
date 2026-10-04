@@ -29,12 +29,28 @@ public sealed class OrderingPriceLookup : IPriceLookupService
 
         CatalogDbContext db = _serviceProvider.GetRequiredService<CatalogDbContext>();
 
-        return await db.Products
-            .AsNoTracking()
-            .Where(p => requestedIds.Contains(p.Id))
+        // The category NAME is part of this contract (Ordering taxes by
+        // category via ITaxProvider), so translate it here at the boundary:
+        // a null Category silently disables every category tax rule.
+        // Left join: a product whose category row is gone still prices.
+        return await (from p in db.Products.AsNoTracking()
+                      join c in db.Categories.AsNoTracking()
+                          on p.CategoryId equals c.Id into categories
+                      from c in categories.DefaultIfEmpty()
+                      where requestedIds.Contains(p.Id)
+                      select new
+                      {
+                          p.Id,
+                          Snapshot = new PriceSnapshot(
+                              p.Name,
+                              p.Price,
+                              p.Sku,
+                              p.WeightKg,
+                              c != null ? c.Name : null)
+                      })
             .ToDictionaryAsync(
-                p => p.Id,
-                p => new PriceSnapshot(p.Name, p.Price, p.Sku, p.WeightKg),
+                x => x.Id,
+                x => x.Snapshot,
                 cancellationToken);
     }
 }

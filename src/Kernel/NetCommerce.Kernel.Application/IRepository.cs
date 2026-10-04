@@ -6,7 +6,14 @@ namespace NetCommerce.Kernel.Application;
 /// <summary>
 ///     Generic repository interface for aggregate roots.
 /// </summary>
-public interface IRepository<TAggregate, TId>
+/// <remarks>
+/// A read-write repository IS-A read-only repository: the read members are
+/// identical, so this extends <see cref="IReadOnlyRepository{TAggregate, TId}"/>
+/// instead of duplicating its shape. This makes narrowing honest — e.g.
+/// Catalog's read-only product view over the cached repository is a safe
+/// upcast, not a cast that can fail at runtime.
+/// </remarks>
+public interface IRepository<TAggregate, TId> : IReadOnlyRepository<TAggregate, TId>
     where TAggregate : class, IAggregateRoot<TId>
     where TId : notnull
 {

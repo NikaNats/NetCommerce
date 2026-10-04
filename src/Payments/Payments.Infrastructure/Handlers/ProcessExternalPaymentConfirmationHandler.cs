@@ -87,6 +87,20 @@ public static class ProcessExternalPaymentConfirmationHandler
             return;
         }
 
+        // IDEMPOTENCY: If already refunded, ignore. A webhook arriving after
+        // compensation is stale news; without this the guarded transitions on
+        // the aggregate below would throw and poison the message.
+        if (payment.Status == PaymentStatus.Refunded)
+        {
+            logger.LogInformation(
+                "Payment {PaymentId} for Order {OrderId} already refunded. " +
+                "Ignoring stale webhook. WebhookEventId: {WebhookEventId}",
+                payment.Id,
+                payment.OrderId,
+                command.WebhookEventId);
+            return;
+        }
+
         // Update status based on webhook event
         if (command.Status == "Succeeded")
         {

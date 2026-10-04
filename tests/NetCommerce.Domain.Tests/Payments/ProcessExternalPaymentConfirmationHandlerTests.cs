@@ -253,6 +253,39 @@ public class ProcessExternalPaymentConfirmationHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WebhookAfterRefund_ShouldIgnoreWithoutThrowing()
+    {
+        // Arrange: compensation refunded the payment; a late webhook is stale
+        // news. Without the Refunded idempotency guard the aggregate's
+        // protected transitions would throw and poison the message.
+        string externalTransactionId = "pi_test_refunded_123";
+        var orderId = Guid.NewGuid();
+        PaymentTransaction payment = CreatePendingPayment(orderId, externalTransactionId);
+        payment.MarkAsCompleted(externalTransactionId);
+        payment.MarkAsRefunded("re_123");
+        _mockRepository.GetByExternalIdAsync(externalTransactionId)
+            .Returns(payment);
+
+        var command = new ProcessExternalPaymentConfirmation(
+            externalTransactionId,
+            "Failed",
+            "evt_late");
+
+        // Act
+        await ProcessExternalPaymentConfirmationHandler.Handle(
+            command,
+            _mockRepository,
+            _mockBus,
+            _mockLogger,
+            default);
+
+        // Assert: refund state preserved, nothing persisted or published
+        payment.Status.ShouldBe(PaymentStatus.Refunded);
+        _mockRepository.DidNotReceive().Update(Arg.Any<PaymentTransaction>());
+        await _mockBus.DidNotReceive().PublishAsync(Arg.Any<object>());
+    }
+
+    [Fact]
     public async Task Handle_MultipleSuccessWebhooks_ShouldProcessOnlyFirst()
     {
         // Arrange - Simulate Stripe retry scenario
@@ -273,7 +306,7 @@ public class ProcessExternalPaymentConfirmationHandlerTests
             "Succeeded",
             "evt_retry");
 
-        // Act - Process first webhook
+        // Act - Process first webhook (marks the payment Completed)
         await ProcessExternalPaymentConfirmationHandler.Handle(
             command1,
             _mockRepository,
@@ -281,8 +314,9 @@ public class ProcessExternalPaymentConfirmationHandlerTests
             _mockLogger,
             default);
 
-        // Manually mark as completed (simulating domain event processing)
-        payment.MarkAsCompleted(externalTransactionId);
+        // No manual re-completion: completing an already-Completed payment is
+        // an illegal transition (the aggregate guards it). The retry below
+        // must hit the handler's Completed idempotency guard instead.
 
         // Act - Process second webhook (retry)
         await ProcessExternalPaymentConfirmationHandler.Handle(
