@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "NetCommerce — Modular Monolith Topology",
+    "output": "docs/diagrams/netcommerce-architecture.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "components": [
+    { "id": "browser", "type": "external", "label": "Browser", "sublabel": "opaque cookie only", "pos": [40, 300], "size": [130, 60] },
+    { "id": "web", "type": "frontend", "label": "Next.js BFF", "sublabel": "session custodian", "pos": [230, 300], "size": [140, 60], "tag": "AddExecutable" },
+    { "id": "api", "type": "backend", "label": ".NET API", "sublabel": "token authority", "pos": [440, 300], "size": [140, 60], "tag": "AddProject" },
+    { "id": "keycloak", "type": "security", "label": "Keycloak", "sublabel": "OIDC + PKCE", "pos": [440, 140], "size": [140, 60] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL 17", "sublabel": "6 module schemas", "pos": [660, 300], "size": [140, 60] },
+    { "id": "redis", "type": "database", "label": "Redis 8", "sublabel": "sessions + cache", "pos": [660, 140], "size": [140, 60] },
+    { "id": "wolverine", "type": "messagebus", "label": "Wolverine 6.41", "sublabel": "outbox + saga", "pos": [660, 460], "size": [140, 60] },
+    { "id": "signalr", "type": "messagebus", "label": "SignalR hub", "sublabel": "ReceiveMessage", "pos": [440, 460], "size": [140, 60], "tag": "UseSignalR()" },
+    { "id": "meili", "type": "database", "label": "MeiliSearch", "sublabel": "search read model", "pos": [880, 460], "size": [140, 60] },
+    { "id": "storage", "type": "cloud", "label": "Azurite / Blob", "sublabel": "product media", "pos": [880, 140], "size": [140, 60] },
+    { "id": "seq", "type": "cloud", "label": "Seq", "sublabel": "log sink", "pos": [1100, 460], "size": [140, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Aspire application host", "wraps": ["api", "postgres", "redis", "wolverine", "meili", "storage", "seq"] },
+    { "kind": "security-group", "label": "Trust boundary — API owns every token exchange", "wraps": ["api", "keycloak"] }
+  ],
+  "connections": [
+    { "id": "browser-web", "from": "browser", "to": "web", "label": "HTTPS + httpOnly cookie", "variant": "emphasis", "labelAt": [200, 374] },
+    { "id": "web-api", "from": "web", "to": "api", "label": "bearer, server-side only", "variant": "security", "labelAt": [345, 374] },
+    { "id": "api-keycloak", "from": "api", "to": "keycloak", "label": "introspect + refresh", "variant": "security", "fromSide": "top", "toSide": "bottom", "labelAt": [450, 214] },
+    { "id": "api-pg", "from": "api", "to": "postgres", "label": "Npgsql" },
+    { "id": "api-redis", "from": "api", "to": "redis", "label": "HybridCache", "fromSide": "top", "toSide": "bottom", "labelDy": -62 },
+    { "id": "api-wolverine", "from": "api", "to": "wolverine", "label": "publish", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "labelDy": 58 },
+    { "id": "api-signalr", "from": "api", "to": "signalr", "label": "ToSignalR()", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "labelAt": [640, 430] },
+    { "id": "api-storage", "from": "api", "to": "storage", "label": "media", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "labelAt": [790, 214] },
+    { "id": "wolverine-meili", "from": "wolverine", "to": "meili", "label": "project", "variant": "dashed", "labelAt": [790, 536] },
+    { "id": "api-seq", "from": "api", "to": "seq", "label": "OTel logs", "variant": "dashed", "fromSide": "bottom", "toSide": "left", "labelAt": [900, 620] }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Trust boundary",
+      "items": [
+        "The .NET API is the sole token authority: /auth/token, /auth/refresh, /auth/logout, /auth/session (AuthEndpoints.cs)",
+        "Next.js is a BFF and session custodian — it holds tokens server-side and never forwards them to the browser"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Eight bounded contexts",
+      "items": [
+        "Basket, Catalog, Finance, Inventory, Media, Ordering, Payments, Shipping — one PostgreSQL schema each",
+        "Communication is asynchronous through Wolverine, never direct module-to-module calls"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Real-time and search",
+      "items": [
+        "UseSignalR() + ToSignalR() deliver order status to the browser (MessagingExtensions.cs:88,94)",
+        "MeiliSearch is a read model projected from Catalog events, never written synchronously"
+      ]
+    }
+  ]
+}
