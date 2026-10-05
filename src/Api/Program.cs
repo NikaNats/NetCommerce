@@ -42,7 +42,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // 4. API services, AOT JSON, modules, versioning/OpenAPI
-builder.Services.AddApiServicesMinimal(builder.Configuration);
+// The --migrate-only runner applies EF schemas and exits before any HTTP
+// pipeline exists, so serving-time CORS enforcement is skipped for it (it
+// would otherwise fail schema setup for a concern migration never exercises).
+var migrateOnly = args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase);
+builder.Services.AddApiServicesMinimal(builder.Configuration, enforceCors: !migrateOnly);
 builder.Services.AddAotJsonSerialization();
 builder.Services.AddModules(builder.Configuration);
 builder.Services.AddApiHealthChecks(builder.Configuration);

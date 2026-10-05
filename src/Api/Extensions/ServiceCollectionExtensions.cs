@@ -17,9 +17,17 @@ public static partial class ServiceCollectionExtensions
     /// <summary>
     ///     Add API services for Minimal API (no controllers).
     /// </summary>
+    /// <param name="enforceCors">
+    ///     When false (the <c>--migrate-only</c> runner), the serving-time CORS
+    ///     allowlist is not enforced: migration never binds HTTP, so demanding
+    ///     storefront origins there would couple schema setup to deployment
+    ///     config and fail the pipeline for no security benefit. Serving paths
+    ///     always pass true (the default).
+    /// </param>
     public static IServiceCollection AddApiServicesMinimal(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        bool enforceCors = true)
     {
         // CORS - explicit origins, fail-closed outside Development.
         // SECURITY: Never use AllowAnyOrigin in production! An unset/empty
@@ -35,7 +43,7 @@ public static partial class ServiceCollectionExtensions
             .Select(o => o.Trim())
             .ToArray();
 
-        if (allowedOrigins.Length == 0)
+        if (allowedOrigins.Length == 0 && enforceCors)
         {
             var environmentName = configuration["ASPNETCORE_ENVIRONMENT"]
                 ?? configuration["DOTNET_ENVIRONMENT"]
