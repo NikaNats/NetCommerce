@@ -1,0 +1,503 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "NetCommerce Workflow \u2014 CI/CD Pipeline & Saga Compensation",
+    "output": "docs/diagrams/workflow.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "CI Pipeline (pr-validation.yml)"
+    },
+    {
+      "id": "aot",
+      "label": "Native AOT Verification"
+    },
+    {
+      "id": "release",
+      "label": "Release (release.yml)"
+    },
+    {
+      "id": "saga",
+      "label": "Saga Compensation Flow"
+    },
+    {
+      "id": "exceptions",
+      "label": "Compensation Paths",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "ci-phase",
+      "label": "PR Validation",
+      "fromCol": 0,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "aot-phase",
+      "label": "AOT Verification",
+      "fromCol": 0,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "release-phase",
+      "label": "Release Gate",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "security"
+    },
+    {
+      "id": "saga-happy",
+      "label": "Happy Path",
+      "fromCol": 0,
+      "toCol": 4,
+      "variant": "default"
+    },
+    {
+      "id": "saga-comp",
+      "label": "Compensation",
+      "fromCol": 2,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "push",
+      "lane": "ci",
+      "col": 0,
+      "type": "frontend",
+      "label": "Push to main/develop",
+      "sublabel": "trigger",
+      "tag": "branch"
+    },
+    {
+      "id": "syntax-gate",
+      "lane": "ci",
+      "col": 1,
+      "type": "security",
+      "label": "Workflow Syntax Gate",
+      "sublabel": "validate-workflows.mjs",
+      "tag": "blocking"
+    },
+    {
+      "id": "dotnet-restore",
+      "lane": "ci",
+      "col": 0,
+      "type": "backend",
+      "label": "dotnet restore --locked-mode",
+      "sublabel": "locked inputs"
+    },
+    {
+      "id": "build-verify",
+      "lane": "ci",
+      "col": 2,
+      "type": "backend",
+      "label": "Build & Test Verify",
+      "sublabel": "565 domain + 313 integration",
+      "tag": "postgres+redis"
+    },
+    {
+      "id": "arch-tests",
+      "lane": "ci",
+      "col": 2,
+      "type": "security",
+      "label": "Architecture & Boundary Tests",
+      "sublabel": "NetCommerce.Architecture.Tests"
+    },
+    {
+      "id": "manifest-check",
+      "lane": "ci",
+      "col": 3,
+      "type": "backend",
+      "label": "Deployment Manifest Consistency",
+      "sublabel": "check-manifests.mjs"
+    },
+    {
+      "id": "aot-trim",
+      "lane": "aot",
+      "col": 0,
+      "type": "security",
+      "label": "AOT Trimming Boundaries",
+      "sublabel": "Architecture.Tests"
+    },
+    {
+      "id": "compile-aot",
+      "lane": "aot",
+      "col": 2,
+      "type": "cloud",
+      "label": "Compile Native AOT Container",
+      "sublabel": "Clang + ILC Linker",
+      "tag": "docker build"
+    },
+    {
+      "id": "container-smoke",
+      "lane": "aot",
+      "col": 3,
+      "type": "security",
+      "label": "Container Smoke Test",
+      "sublabel": "migration 6/33 + boot + auth read",
+      "tag": "blocking"
+    },
+    {
+      "id": "release-guard",
+      "lane": "release",
+      "col": 4,
+      "type": "security",
+      "label": "Release Preconditions",
+      "sublabel": "tag on main + prod realm + no bypass",
+      "tag": "human gate"
+    },
+    {
+      "id": "api-image",
+      "lane": "release",
+      "col": 4,
+      "type": "cloud",
+      "label": "API Image Build & Push",
+      "sublabel": "ghcr.io/netcommerce-api"
+    },
+    {
+      "id": "web-image",
+      "lane": "release",
+      "col": 4,
+      "type": "cloud",
+      "label": "Web Image Build & Push",
+      "sublabel": "PROD_API_ORIGIN inlined",
+      "tag": "production"
+    },
+    {
+      "id": "deploy",
+      "lane": "release",
+      "col": 5,
+      "type": "cloud",
+      "label": "Deploy to Production",
+      "sublabel": "Kubernetes",
+      "tag": "production"
+    },
+    {
+      "id": "saga-start",
+      "lane": "saga",
+      "col": 0,
+      "type": "frontend",
+      "label": "Order Created",
+      "sublabel": "StartOrderFulfillmentCommand"
+    },
+    {
+      "id": "reserve",
+      "lane": "saga",
+      "col": 1,
+      "type": "security",
+      "label": "Reserve Inventory",
+      "sublabel": "ReserveInventoryCommand",
+      "tag": "State.cs:155"
+    },
+    {
+      "id": "reserved",
+      "lane": "saga",
+      "col": 2,
+      "type": "backend",
+      "label": "Inventory Reserved",
+      "sublabel": "HappyPath.cs:23"
+    },
+    {
+      "id": "request-pay",
+      "lane": "saga",
+      "col": 3,
+      "type": "backend",
+      "label": "Request Payment",
+      "sublabel": "RequestPaymentCommand"
+    },
+    {
+      "id": "pay-succeed",
+      "lane": "saga",
+      "col": 4,
+      "type": "backend",
+      "label": "Payment Succeeded",
+      "sublabel": "webhook \u2192 HappyPath.cs:118"
+    },
+    {
+      "id": "fulfilled",
+      "lane": "saga",
+      "col": 5,
+      "type": "backend",
+      "label": "Order Fulfilled",
+      "sublabel": "\u2192 SignalR push (IOrderNotification)"
+    },
+    {
+      "id": "timeout-reserve",
+      "lane": "exceptions",
+      "col": 2,
+      "type": "security",
+      "label": "Inventory Timeout (5m)",
+      "sublabel": "InventoryReservationTimeoutMessage",
+      "tag": "State.cs:196"
+    },
+    {
+      "id": "comp-reserve",
+      "lane": "exceptions",
+      "col": 3,
+      "type": "backend",
+      "label": "Compensate: Cancel Order",
+      "sublabel": "Release stock reservation"
+    },
+    {
+      "id": "timeout-pay",
+      "lane": "exceptions",
+      "col": 2,
+      "type": "security",
+      "label": "Payment Timeout (5m)",
+      "sublabel": "PaymentConfirmationTimeoutMessage",
+      "tag": "State.cs:226"
+    },
+    {
+      "id": "comp-pay",
+      "lane": "exceptions",
+      "col": 3,
+      "type": "backend",
+      "label": "Compensate: Refund",
+      "sublabel": "Cancel payment if captured"
+    },
+    {
+      "id": "timeout-ship",
+      "lane": "exceptions",
+      "col": 4,
+      "type": "security",
+      "label": "Shipping Stall (30m)",
+      "sublabel": "ShippingStallTimeoutMessage",
+      "tag": "State.cs:256"
+    },
+    {
+      "id": "comp-ship",
+      "lane": "exceptions",
+      "col": 4,
+      "type": "backend",
+      "label": "Compensate: Escalate",
+      "sublabel": "Contact support, manual"
+    },
+    {
+      "id": "cancelled",
+      "lane": "exceptions",
+      "col": 5,
+      "type": "frontend",
+      "label": "Order Cancelled",
+      "sublabel": "terminal state"
+    }
+  ],
+  "edges": [
+    {
+      "from": "push",
+      "to": "syntax-gate"
+    },
+    {
+      "from": "syntax-gate",
+      "to": "dotnet-restore"
+    },
+    {
+      "from": "dotnet-restore",
+      "to": "build-verify"
+    },
+    {
+      "from": "dotnet-restore",
+      "to": "aot-trim"
+    },
+    {
+      "from": "build-verify",
+      "to": "arch-tests"
+    },
+    {
+      "from": "arch-tests",
+      "to": "manifest-check"
+    },
+    {
+      "from": "aot-trim",
+      "to": "compile-aot"
+    },
+    {
+      "from": "compile-aot",
+      "to": "container-smoke"
+    },
+    {
+      "from": "manifest-check",
+      "to": "release-guard"
+    },
+    {
+      "from": "container-smoke",
+      "to": "release-guard"
+    },
+    {
+      "from": "release-guard",
+      "to": "api-image"
+    },
+    {
+      "from": "release-guard",
+      "to": "web-image"
+    },
+    {
+      "from": "api-image",
+      "to": "deploy"
+    },
+    {
+      "from": "web-image",
+      "to": "deploy"
+    },
+    {
+      "from": "saga-start",
+      "to": "reserve"
+    },
+    {
+      "from": "reserve",
+      "to": "reserved",
+      "label": "success"
+    },
+    {
+      "from": "reserve",
+      "to": "timeout-reserve",
+      "label": "timeout 5m"
+    },
+    {
+      "from": "reserved",
+      "to": "request-pay"
+    },
+    {
+      "from": "request-pay",
+      "to": "pay-succeed"
+    },
+    {
+      "from": "request-pay",
+      "to": "timeout-pay",
+      "label": "timeout 5m"
+    },
+    {
+      "from": "pay-succeed",
+      "to": "fulfilled"
+    },
+    {
+      "from": "timeout-reserve",
+      "to": "comp-reserve"
+    },
+    {
+      "from": "comp-reserve",
+      "to": "cancelled"
+    },
+    {
+      "from": "timeout-pay",
+      "to": "comp-pay"
+    },
+    {
+      "from": "comp-pay",
+      "to": "cancelled"
+    },
+    {
+      "from": "fulfilled",
+      "to": "timeout-ship",
+      "label": "shipment\nstarted"
+    },
+    {
+      "from": "timeout-ship",
+      "to": "comp-ship"
+    },
+    {
+      "from": "comp-ship",
+      "to": "cancelled"
+    }
+  ],
+  "groups": [
+    {
+      "id": "blocking",
+      "label": "Blocking Quality Gates",
+      "lane": "ci",
+      "fromCol": 1,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "container-smoke",
+      "label": "Container Smoke",
+      "lane": "aot",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "release-gate",
+      "label": "Release Preconditions",
+      "lane": "release",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "security"
+    },
+    {
+      "id": "saga-happy-group",
+      "label": "Saga Happy Path",
+      "lane": "saga",
+      "fromCol": 0,
+      "toCol": 4,
+      "variant": "default"
+    },
+    {
+      "id": "saga-comp-group",
+      "label": "Compensation Branches",
+      "lane": "exceptions",
+      "fromCol": 2,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "push",
+    "syntax-gate",
+    "dotnet-restore",
+    "build-verify",
+    "arch-tests",
+    "manifest-check",
+    "aot-trim",
+    "compile-aot",
+    "container-smoke",
+    "release-guard",
+    "api-image",
+    "web-image",
+    "deploy",
+    "saga-start",
+    "reserve",
+    "reserved",
+    "request-pay",
+    "pay-succeed",
+    "fulfilled"
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Three CI Workflows",
+      "items": [
+        "pr-validation.yml \u2014 PR gate (PostgreSQL 17 + Redis 8 services)",
+        "native-aot-verification.yml \u2014 AOT trim boundaries + container smoke",
+        "release.yml \u2014 Tag-only, zero bypass flags, production vars required"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Zero-Bypass Release",
+      "items": [
+        "release.yml NEVER sets AllowTestModeInProduction",
+        "PROD_API_ORIGIN, PROD_STORAGE_ORIGIN, PROD_PUBLIC_ORIGIN required",
+        "Images carry no runtime secrets; injected at deploy from secret manager"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Saga Compensation (3 Timeouts)",
+      "items": [
+        "Inventory Reservation: 5m \u2192 cancel order, release stock (State.cs:196)",
+        "Payment Confirmation: 5m \u2192 cancel payment, refund (State.cs:226)",
+        "Shipping Stall: 30m \u2192 escalate, contact support (State.cs:256)",
+        "No silent failures \u2014 every timeout has explicit compensation"
+      ]
+    }
+  ]
+}

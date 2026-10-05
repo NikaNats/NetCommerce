@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "stages": [
+    {
+      "label": "API Ingress"
+    },
+    {
+      "label": "Transactional Outbox"
+    },
+    {
+      "label": "Wolverine Processor"
+    },
+    {
+      "label": "Saga & Consumers"
+    },
+    {
+      "label": "Real-Time Delivery"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "client",
+      "type": "frontend",
+      "label": "Client",
+      "sublabel": "checkout POST",
+      "stage": 0,
+      "row": 0,
+      "tag": "checkout"
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": ".NET API",
+      "sublabel": "minimal endpoints",
+      "stage": 0,
+      "row": 2,
+      "tag": "minimal APIs"
+    },
+    {
+      "id": "tx",
+      "type": "database",
+      "label": "DB Transaction",
+      "sublabel": "Npgsql",
+      "stage": 1,
+      "row": 0,
+      "tag": "atomic"
+    },
+    {
+      "id": "outbox",
+      "type": "database",
+      "label": "Outbox Table",
+      "sublabel": "wolverine.envelopes",
+      "stage": 1,
+      "row": 2,
+      "tag": "durable"
+    },
+    {
+      "id": "pg",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "orders + outbox",
+      "stage": 1,
+      "row": 4,
+      "tag": "primary DB"
+    },
+    {
+      "id": "wolverine",
+      "type": "messagebus",
+      "label": "Wolverine 6.41",
+      "sublabel": "outbox processor",
+      "stage": 2,
+      "row": 1,
+      "tag": "outbox processor"
+    },
+    {
+      "id": "saga",
+      "type": "backend",
+      "label": "OrderFulfillmentSaga",
+      "sublabel": "wolverine saga storage",
+      "stage": 3,
+      "row": 0,
+      "tag": "saga",
+      "width": 160
+    },
+    {
+      "id": "inventory",
+      "type": "database",
+      "label": "Inventory DB",
+      "sublabel": "reservation",
+      "stage": 3,
+      "row": 2,
+      "tag": "reservation"
+    },
+    {
+      "id": "payments",
+      "type": "backend",
+      "label": "Payments",
+      "sublabel": "Stripe webhook",
+      "stage": 3,
+      "row": 4,
+      "tag": "webhook"
+    },
+    {
+      "id": "signalr",
+      "type": "messagebus",
+      "label": "SignalR",
+      "sublabel": "/api/messages",
+      "stage": 4,
+      "row": 0,
+      "tag": "realtime"
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Next.js BFF",
+      "sublabel": "session custodian",
+      "stage": 4,
+      "row": 2,
+      "tag": "BFF"
+    }
+  ],
+  "flows": [
+    {
+      "id": "e1",
+      "from": "client",
+      "to": "api",
+      "label": "POST /api/v1/orders\nX-Idempotency-Key",
+      "classification": "sync",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e2",
+      "from": "api",
+      "to": "tx",
+      "label": "BEGIN\nINSERT order\nINSERT outbox envelope",
+      "classification": "sync",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e3",
+      "from": "tx",
+      "to": "outbox",
+      "label": "envelope persisted\n(CloudEvent)",
+      "classification": "async",
+      "variant": "default"
+    },
+    {
+      "id": "e4",
+      "from": "tx",
+      "to": "pg",
+      "label": "COMMIT\n(order + outbox atomic)",
+      "classification": "sync",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "vertical-channel",
+      "via": [
+        [
+          430,
+          157
+        ],
+        [
+          430,
+          600
+        ]
+      ],
+      "labelAt": [
+        340,
+        500
+      ]
+    },
+    {
+      "id": "e5",
+      "from": "outbox",
+      "to": "wolverine",
+      "label": "poll / dispatch\nenvelope",
+      "classification": "async",
+      "variant": "default",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          445,
+          385
+        ],
+        [
+          445,
+          271
+        ]
+      ],
+      "labelAt": [
+        480,
+        328
+      ]
+    },
+    {
+      "id": "e6",
+      "from": "wolverine",
+      "to": "saga",
+      "label": "StartOrderFulfillmentCommand\n(State.cs:131)",
+      "classification": "async",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e7",
+      "from": "saga",
+      "to": "inventory",
+      "label": "ReserveInventoryCommand\n(State.cs:155)",
+      "classification": "async",
+      "variant": "dashed",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "e8",
+      "from": "inventory",
+      "to": "saga",
+      "label": "InventoryReserved\n(HappyPath.cs:23)",
+      "classification": "async",
+      "variant": "default",
+      "route": "straight",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "e9",
+      "from": "saga",
+      "to": "payments",
+      "label": "RequestPaymentCommand\n(HappyPath.cs:65)",
+      "classification": "async",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          810,
+          186
+        ],
+        [
+          810,
+          700
+        ],
+        [
+          745,
+          700
+        ]
+      ],
+      "labelAt": [
+        777,
+        687
+      ]
+    },
+    {
+      "id": "e11",
+      "from": "payments",
+      "to": "wolverine",
+      "label": "PaymentSucceeded\nwebhook",
+      "classification": "async",
+      "variant": "default",
+      "route": "bottom-channel",
+      "fromSide": "bottom"
+    },
+    {
+      "id": "e12",
+      "from": "wolverine",
+      "to": "saga",
+      "label": "PaymentSucceeded\n(HappyPath.cs:118)",
+      "classification": "async",
+      "variant": "default"
+    },
+    {
+      "id": "e13",
+      "from": "saga",
+      "to": "wolverine",
+      "label": "IOrderNotification\nSignalR publish",
+      "classification": "async",
+      "variant": "dashed",
+      "route": "top-channel"
+    },
+    {
+      "id": "e14",
+      "from": "wolverine",
+      "to": "signalr",
+      "label": "ToSignalR()\nMessagingExtensions:94",
+      "classification": "async",
+      "variant": "dashed",
+      "route": "top-channel"
+    },
+    {
+      "id": "e15",
+      "from": "signalr",
+      "to": "web",
+      "label": "ReceiveMessage\n(order_status_changed)",
+      "classification": "async",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e16",
+      "from": "web",
+      "to": "api",
+      "label": "GET /api/bff/orders/{id}\nreconcile",
+      "classification": "sync",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "channelY": 760,
+      "route": "bottom-channel"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Transactional Outbox",
+      "items": [
+        "Order + outbox envelope in SAME DB transaction",
+        "No dual-write, no silent data loss",
+        "MessagingExtensions.cs:66"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Wolverine Event Lineage",
+      "items": [
+        "Outbox -> Wolverine -> Saga -> Consumers",
+        "CloudEvent envelope: specversion=1.0",
+        "MessagingExtensions.cs:66,94"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fail-Closed Design",
+      "items": [
+        "Outbox failure = app fails fast",
+        "Cannot start without PostgreSQL",
+        "MessagingExtensions.cs:43"
+      ]
+    }
+  ],
+  "meta": {
+    "title": "NetCommerce Dataflow — Transactional Outbox & Wolverine Event Lineage",
+    "output": "docs/diagrams/dataflow.html",
+    "viewBox": [
+      1400,
+      900
+    ],
+    "quality_profile": "showcase",
+    "locale": "en"
+  }
+}
