@@ -85,3 +85,27 @@ Code is the source of truth. See `docs/diagrams/README-drift.md`.
 | Aspire 13.1 | 13.5.4 | `Directory.Packages.props:32` |
 | SignalR not mentioned | `UseSignalR()` present | `MessagingExtensions.cs:88` |
 | "10-state saga" | 10 states ✓ | `OrderFulfillmentSaga.State.cs:169-181` |
+---
+
+## Diagram 3: sequence (checkout) - STATUS: IN PROGRESS, VALIDATE FAILED
+
+Artifact `checkout-sequence.json` authored but did NOT pass `validate` with `quality: showcase`. 5 structural geometry errors remain (edge routing, label overlap, segment overflow) after targeted repair rounds reached a best count of 1. Not described as done. Evidence is source-grounded. No browser/per-user CSP/screenshot proof obtained for any artifact; user's session/2FA request unverified.
+
+---
+
+## Diagram 3: sequence (checkout) — STATUS: KNOWN GEOMETRY ISSUES
+
+The `checkout-sequence.json` was authored with full source citations but has 5 remaining structural errors in `validate` (message spacing <28px, label overlaps, segment border proximity). Root cause: 12 messages in 960px width forces <28px vertical spacing. This is a geometric constraint, not a citation error.
+
+All evidence is source-grounded:
+- checkout/actions.ts:55, :47, :81-82
+- HappyPath.cs:23, :65, :130, :153
+- State.cs:131, :155
+- MessagingExtensions.cs:94
+- use-order-saga.ts:141, :189, :219
+- OrderFulfillmentSaga.State.cs:131/155/196/226
+- MessagingExtensions.cs:88,94
+
+This artifact is NOT `deliver`ed; `validate` returns exit 1. Per skill: "A failed delivery preserves any previous output." Not reported as delivered.
+
+Evidence index complete. All claims source-grounded. No browser/session verification performed.
