@@ -204,6 +204,20 @@ jobs:
       CONNECTIONSTRINGS__POSTGRES: Host=127.0.0.1;Port=5432;Database=netcommerce;Username=postgres;Password=Password123!
       CONNECTIONSTRINGS__REDIS: 127.0.0.1:6379
       CONNECTIONSTRINGS__MEILISEARCH: http://127.0.0.1:7700
+      # Cors:AllowedOrigins is REQUIRED outside Development/Testing:
+      # ServiceCollectionExtensions.cs:38-56 throws at startup when it is empty
+      # ("Unset means unknown, and unknown must not become
+      # localhost-with-credentials"). appsettings.json ships it as [], so without
+      # this the migration step aborted with exit 134.
+      #
+      # The key is INDEXED on purpose. The value is read as a SECTION via
+      # Get<string[]>(), and .NET binds arrays from environment variables only
+      # through indexed keys -- `Cors__AllowedOrigins` alone leaves the array
+      # empty and the guard still throws. Verified both ways.
+      Cors__AllowedOrigins__0: https://shop.example.com
+      # Same requirement, satisfied for the migration runner so it reaches the
+      # database step instead of failing at startup.
+      ASPNETCORE_ENVIRONMENT: Production
       # Full Azurite dev-store connection string (Azure.Storage.Blobs does not
       # understand the legacy 'UseDevelopmentStorage=true' shorthand).
       CONNECTIONSTRINGS__BLOBS: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
@@ -304,6 +318,7 @@ jobs:
             -e "Ordering__Email__AllowInMemoryInProduction=true" \
             -e "ASPNETCORE_ENVIRONMENT=Production" \
             -e "ASPNETCORE_URLS=http://+:8080" \
+            -e "Cors__AllowedOrigins__0=https://shop.example.com" \
             ${{ env.IMAGE_NAME }}
 
       - name: Verification Checkpoint 1 — Startup Latency & Clean Boot
