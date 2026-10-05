@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "133252e8-d9ed-4c1f-b497-e610838a3503",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "C:\\Users\\Nika\\source\\repos\\NikaNats\\NetCommerce\\docs\\diagrams\\checkout-sequence.json",
+  "output": "C:\\Users\\Nika\\source\\repos\\NikaNats\\NetCommerce\\docs\\diagrams\\checkout-sequence.html",
+  "specification": {
+    "sha256": "929424b6d7eb1e9a50cf477a95c799a195ac4a778c4e3fb40b0db1a1d4c86c64",
+    "bytes": 4060
+  },
+  "artifact": {
+    "sha256": "b5891a50e21ebf0187bc2f7a14e3f2154ea77e67cd89852a40fd4ed8df709bda",
+    "bytes": 763230
+  }
+}

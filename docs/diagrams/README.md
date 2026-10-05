@@ -87,15 +87,18 @@ Code is the source of truth. See `docs/diagrams/README-drift.md`.
 | "10-state saga" | 10 states ✓ | `OrderFulfillmentSaga.State.cs:169-181` |
 ---
 
-## Diagram 3: sequence (checkout) - STATUS: IN PROGRESS, VALIDATE FAILED
+## Diagram 3: sequence (checkout) — STATUS: DELIVERED
 
-Artifact `checkout-sequence.json` authored but did NOT pass `validate` with `quality: showcase`. 5 structural geometry errors remain (edge routing, label overlap, segment overflow) after targeted repair rounds reached a best count of 1. Not described as done. Evidence is source-grounded. No browser/per-user CSP/screenshot proof obtained for any artifact; user's session/2FA request unverified.
+`checkout-sequence.html` finalized 2026-10-05 with `quality: showcase`: validate,
+deliver, strict check, and real-browser browser-check all pass, 0 diagnostics.
+Repair: 12 messages respaced to 30px in a 1075×690 viewport (satisfies both the
+desktop-readability font projection and the wide-ratio viewport gates), segment
+borders cleared, reconcile reordered after subscribe.
 
----
-
-## Diagram 3: sequence (checkout) — STATUS: KNOWN GEOMETRY ISSUES
-
-The `checkout-sequence.json` was authored with full source citations but has 5 remaining structural errors in `validate` (message spacing <28px, label overlaps, segment border proximity). Root cause: 12 messages in 960px width forces <28px vertical spacing. This is a geometric constraint, not a citation error.
+| | |
+|---|---|
+| Specification SHA-256 | `929424b6d7eb1e9a50cf477a95c799a195ac4a778c4e3fb40b0db1a1d4c86c64` (4,060 bytes) |
+| Artifact SHA-256 | `b5891a50e21ebf0187bc2f7a14e3f2154ea77e67cd89852a40fd4ed8df709bda` (763,230 bytes) |
 
 All evidence is source-grounded:
 - checkout/actions.ts:55, :47, :81-82
@@ -106,6 +109,25 @@ All evidence is source-grounded:
 - OrderFulfillmentSaga.State.cs:131/155/196/226
 - MessagingExtensions.cs:88,94
 
-This artifact is NOT `deliver`ed; `validate` returns exit 1. Per skill: "A failed delivery preserves any previous output." Not reported as delivered.
+Evidence index complete. No perceptual review performed (visualReview: not-requested).
+
+---
+
+## Diagram 4: dataflow (transactional outbox & Wolverine event lineage) — STATUS: IN REPAIR, VALIDATE FAILING
+
+`dataflow.json` repair in progress: 20 remaining `validate` items (16
+label-route-clearance, 2 endpoint-side-direction, 1 proper-crossing, 1
+edge-through-node). Semantic corrections applied and source-verified:
+`RequestPaymentCommand` now routes saga→Payments via bus (HappyPath.cs:65; no
+`POST /api/v1/payments` endpoint exists — only the Stripe webhook receiver in
+PaymentWebhookEndpoints.cs:39, so that edge was removed); return edges use
+top/bottom channel routing; stages staggered across rows 0–4.
+
+All evidence is source-grounded:
+- MessagingExtensions.cs:66 (outbox), :68 (saga persistence), :94 (SignalR publish)
+- State.cs:131, :155 (saga commands)
+- HappyPath.cs:23, :65, :118 (consumer handlers)
+
+This artifact is NOT `deliver`ed; `validate` returns exit 1. Not reported as delivered.
 
 Evidence index complete. All claims source-grounded. No browser/session verification performed.

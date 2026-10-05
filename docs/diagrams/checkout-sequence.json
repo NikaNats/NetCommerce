@@ -4,7 +4,7 @@
   "meta": {
     "title": "Checkout to Real-Time Order Progress",
     "output": "docs/diagrams/checkout-sequence.html",
-    "viewBox": [960, 680],
+    "viewBox": [1075, 690],
     "column_fit": "spread",
     "quality_profile": "showcase",
     "locale": "en"
@@ -20,26 +20,26 @@
     { "id": "pay", "type": "backend", "label": "Payments", "sublabel": "Stripe adapter" }
   ],
   "segments": [
-      { "from": 150, "to": 300, "label": "Place order" },
-      { "from": 310, "to": 480, "label": "Saga runs" },
-      { "from": 480, "to": 600, "label": "Progress to browser" }
+      { "from": 150, "to": 270, "label": "Place order" },
+      { "from": 270, "to": 420, "label": "Saga runs" },
+      { "from": 420, "to": 580, "label": "Progress to browser" }
     ],
     "messages": [
-      { "id": "submit", "from": "browser", "to": "web", "y": 170, "label": "placeOrderAction", "variant": "emphasis", "note": "checkout/actions.ts:55" },
-      { "id": "idem", "from": "browser", "to": "web", "y": 210, "label": "X-Idempotency-Key", "variant": "security", "note": "actions.ts:81-82 minted once per page load" },
+      { "id": "submit", "from": "browser", "to": "web", "y": 165, "label": "placeOrderAction", "variant": "emphasis", "note": "checkout/actions.ts:55" },
+      { "id": "idem", "from": "browser", "to": "web", "y": 195, "label": "X-Idempotency-Key", "variant": "security", "note": "actions.ts:81-82 minted once per page load" },
 
-      { "id": "post-order", "from": "web", "to": "api", "y": 260, "label": "POST /api/v1/orders", "variant": "security", "note": "OrderEndpoints.cs MapPost(\"/\"); actions.ts:47" },
-      { "id": "persist", "from": "api", "to": "pg", "y": 310, "label": "insert + outbox", "variant": "dashed", "note": "outbox, same tx" },
+      { "id": "post-order", "from": "web", "to": "api", "y": 225, "label": "POST /api/v1/orders", "variant": "security", "note": "OrderEndpoints.cs MapPost(\"/\"); actions.ts:47" },
+      { "id": "persist", "from": "api", "to": "pg", "y": 255, "label": "insert + outbox", "variant": "dashed", "note": "outbox, same tx" },
 
-      { "id": "saga-start", "from": "api", "to": "bus", "y": 350, "label": "StartOrderFulfillmentCommand", "variant": "dashed", "note": "State.cs:131" },
-      { "id": "reserve", "from": "bus", "to": "inv", "y": 390, "label": "ReserveInventoryCommand", "variant": "dashed", "note": "State.cs:155 SELECT...FOR UPDATE" },
-      { "id": "reserved", "from": "inv", "to": "bus", "y": 435, "label": "InventoryReserved", "variant": "default", "note": "HappyPath.cs:23" },
-      { "id": "request-pay", "from": "bus", "to": "pay", "y": 470, "label": "RequestPaymentCommand", "variant": "dashed", "note": "HappyPath.cs:65 webhook-first" },
+      { "id": "saga-start", "from": "api", "to": "bus", "y": 285, "label": "StartOrderFulfillmentCommand", "variant": "dashed", "note": "State.cs:131" },
+      { "id": "reserve", "from": "bus", "to": "inv", "y": 315, "label": "ReserveInventoryCommand", "variant": "dashed", "note": "State.cs:155 SELECT...FOR UPDATE" },
+      { "id": "reserved", "from": "inv", "to": "bus", "y": 345, "label": "InventoryReserved", "variant": "default", "note": "HappyPath.cs:23" },
+      { "id": "request-pay", "from": "bus", "to": "pay", "y": 375, "label": "RequestPaymentCommand", "variant": "dashed", "note": "HappyPath.cs:65 webhook-first" },
 
-      { "id": "open-tracker", "from": "browser", "to": "hub", "y": 490, "label": "connect /api/messages", "variant": "emphasis", "note": "use-order-saga.ts:189" },
-            { "id": "subscribe", "from": "hub", "to": "browser", "y": 520, "label": "ReceiveMessage", "variant": "security", "note": "use-order-saga.ts:219 ReceiveMessage (not per-event channel)" },
-            { "id": "push", "from": "hub", "to": "browser", "y": 550, "label": "order_status_changed", "variant": "emphasis", "note": "MessagingExtensions.cs:94 Publish(IOrderNotification -> ToSignalR())" },
-            { "id": "reconcile", "from": "browser", "to": "web", "y": 525, "label": "GET /api/bff/orders/{id}", "variant": "dashed", "note": "use-order-saga.ts:141 BFF proxy" }
+      { "id": "open-tracker", "from": "browser", "to": "hub", "y": 405, "label": "connect /api/messages", "variant": "emphasis", "note": "use-order-saga.ts:189" },
+            { "id": "subscribe", "from": "hub", "to": "browser", "y": 435, "label": "ReceiveMessage", "variant": "security", "note": "use-order-saga.ts:219 ReceiveMessage (not per-event channel)" },
+            { "id": "reconcile", "from": "browser", "to": "web", "y": 465, "label": "GET /api/bff/orders/{id}", "variant": "dashed", "note": "use-order-saga.ts:141 BFF proxy" },
+            { "id": "push", "from": "hub", "to": "browser", "y": 495, "label": "order_status_changed", "variant": "emphasis", "note": "MessagingExtensions.cs:94 Publish(IOrderNotification -> ToSignalR())" }
     ],
   "cards": [
     {
