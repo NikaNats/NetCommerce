@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "OrderFulfillmentSaga — Lifecycle",
+    "output": "docs/diagrams/order-fulfillment-saga-lifecycle.html",
+    "viewBox": [1060, 680],
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "lanes": [
+    { "id": "main", "label": "Happy path (main rail)" },
+    { "id": "waiting", "label": "Timeout waits" },
+    { "id": "exceptions", "label": "Compensation" },
+    { "id": "terminal", "label": "Terminal" }
+  ],
+  "states": [
+    { "id": "reserving", "type": "active", "label": "Reserving", "sublabel": "ReserveInventory", "lane": "main", "col": 0, "step": "01", "tag": "State.cs:150" },
+    { "id": "grace", "type": "waiting", "label": "GracePeriod", "sublabel": "5-min cooling-off", "lane": "main", "col": 1, "step": "02", "tag": "HappyPath.cs:35" },
+    { "id": "locking", "type": "active", "label": "Locking", "sublabel": "LockInventory", "lane": "main", "col": 2, "step": "03", "tag": "Timeouts.cs:52" },
+    { "id": "paying", "type": "active", "label": "Paying", "sublabel": "awaiting webhook", "lane": "main", "col": 3, "step": "04", "tag": "HappyPath.cs:65" },
+    { "id": "confirming", "type": "active", "label": "Confirming", "sublabel": "ConfirmInventory", "lane": "main", "col": 4, "step": "05", "tag": "HappyPath.cs:130" },
+
+    { "id": "completed", "type": "success", "label": "Completed", "sublabel": "hard deduction", "lane": "terminal", "col": 2, "tag": "HappyPath.cs:153" },
+
+    { "id": "reserve_timeout", "type": "waiting", "label": "Reserve timeout", "sublabel": "5 min", "lane": "waiting", "col": 0, "tag": "SagaMessages:196" },
+    { "id": "payment_timeout", "type": "waiting", "label": "Payment timeout", "sublabel": "30 min", "lane": "waiting", "col": 1, "tag": "SagaMessages:190" },
+
+    { "id": "compensating", "type": "failure", "label": "Compensating", "sublabel": "release+refund", "lane": "exceptions", "col": 0, "yOffset": 78, "tag": "Compensation:198" },
+    { "id": "stall_timeout", "type": "waiting", "label": "Stalled 4h", "sublabel": "escalation timer", "lane": "exceptions", "col": 1, "yOffset": 78, "tag": "SagaMessages:226" },
+
+    { "id": "failed", "type": "failure", "label": "Failed", "sublabel": "refund confirmed", "lane": "terminal", "col": 0, "tag": "Compensation:239" },
+    { "id": "manual", "type": "failure", "label": "Manual", "sublabel": "refund failed", "lane": "terminal", "col": 1, "tag": "Compensation:259" }
+  ],
+  "transitions": [
+    { "id": "t1", "from": "reserving", "to": "grace", "variant": "default", "label": "InventoryReserved", "labelDy": 55 },
+    { "id": "t2", "from": "grace", "to": "locking", "variant": "default", "label": "GracePeriodTimeout", "labelDy": 55 },
+    { "id": "t3", "from": "locking", "to": "paying", "variant": "default", "label": "InventoryLocked", "labelDy": 55 },
+    { "id": "t4", "from": "paying", "to": "confirming", "variant": "default", "label": "PaymentSucceeded", "labelDy": 55 },
+    { "id": "t5", "from": "confirming", "to": "completed", "variant": "default", "label": "InventoryConfirmed", "labelDy": 55 },
+
+    { "id": "t6", "from": "reserve_timeout", "to": "compensating", "variant": "security", "fromSide": "left", "toSide": "left", "via": [[316, 307], [316, 385]] },
+    { "id": "t7", "from": "payment_timeout", "to": "compensating", "variant": "security", "label": "release + fail", "labelAt": [470, 350] },
+
+    { "id": "t9", "from": "compensating", "to": "failed", "variant": "security", "label": "refund confirmed", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelDy": 122 },
+    { "id": "t10", "from": "compensating", "to": "stall_timeout", "variant": "security", "fromSide": "bottom", "toSide": "bottom", "via": [[402, 432], [556, 432]] },
+    { "id": "t11", "from": "stall_timeout", "to": "manual", "variant": "security", "label": "escalate", "route": "straight", "labelDy": 122 }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Path and timeout delays",
+      "items": [
+        "Reserving → Grace → Locking → Paying → Confirming → Completed; every timeout funnels to Compensating",
+        "Delays differ: reserve 5 min · payment 30 min · confirm 5 min · stalled 4 h (SagaMessages.cs:188-226)"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Guards and the trap state",
+      "items": [
+        "Late or duplicate timeouts are ignored outside their origin state, preventing double-charge (Timeouts.cs:20-24)",
+        "A stalled refund escalates after 4 h to Manual — non-terminal, needs an operator"
+      ]
+    }
+]
+}
