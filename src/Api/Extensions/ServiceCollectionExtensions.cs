@@ -17,6 +17,8 @@ public static partial class ServiceCollectionExtensions
     /// <summary>
     ///     Add API services for Minimal API (no controllers).
     /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">Application configuration (CORS origins, rate limits).</param>
     /// <param name="enforceCors">
     ///     When false (the <c>--migrate-only</c> runner), the serving-time CORS
     ///     allowlist is not enforced: migration never binds HTTP, so demanding
