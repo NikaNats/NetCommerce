@@ -55,6 +55,7 @@ public class PaymentWebhookTests : IntegrationTestBase
             builder.UseSetting("ConnectionStrings:OrderingDb", fixture.PostgresConnectionString);
             builder.UseSetting("ConnectionStrings:PaymentsDb", fixture.PostgresConnectionString);
             builder.UseSetting("ConnectionStrings:FinanceDb", fixture.PostgresConnectionString);
+            builder.UseSetting("ConnectionStrings:ShippingDb", fixture.PostgresConnectionString);
             builder.UseSetting("ConnectionStrings:postgres", fixture.PostgresConnectionString);
             builder.UseSetting("ConnectionStrings:Redis", fixture.RedisConnectionString);
 
