@@ -8,7 +8,7 @@ namespace NetCommerce.Ordering.Domain.Orders;
 /// </summary>
 public static class OrderCancellationPolicy
 {
-    /// <summary>Whether <see cref="Order.Cancel"/> may run from this status.</summary>
+    /// <summary>Whether <see cref="Order.Cancel(string)"/> may run from this status.</summary>
     public static bool CanCancel(OrderStatus status) =>
         status is not OrderStatus.Delivered and not OrderStatus.Cancelled;
 
