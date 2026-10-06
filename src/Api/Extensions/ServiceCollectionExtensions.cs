@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.Extensions.Options;
 using NetCommerce.Api.Serialization;
 using NetCommerce.Basket.Infrastructure;
 using NetCommerce.Catalog.Application.Products.Validators;
@@ -31,40 +32,28 @@ public static partial class ServiceCollectionExtensions
         IConfiguration configuration,
         bool enforceCors = true)
     {
-        // CORS - explicit origins, fail-closed outside Development.
-        // SECURITY: Never use AllowAnyOrigin in production! An unset/empty
-        // allowlist previously fell back to localhost origins, which in
-        // production either blocks the real storefront (visible breakage) or
-        // tempts an AllowAnyOrigin "fix" (fail-open). So: Development keeps the
-        // localhost convenience defaults; every other environment throws at
-        // startup naming the missing Cors:AllowedOrigins value.
-        var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-            ?? [];
-        var allowedOrigins = configuredOrigins
-            .Where(o => !string.IsNullOrWhiteSpace(o))
+        // CORS - explicit origins, fail-closed outside Development/Testing.
+        // SECURITY: Never use AllowAnyOrigin in production! Registration uses
+        // the configured origins, or localhost convenience defaults when none
+        // are set (dev ergonomics and test hosts, which never touch the
+        // network). The fail-closed gate is CorsOptionsValidator below, which
+        // runs at startup via ValidateOnStart with the REAL host environment
+        // and throws in Production/Staging when nothing explicit is declared.
+        var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?.Where(o => !string.IsNullOrWhiteSpace(o))
             .Select(o => o.Trim())
-            .ToArray();
-
-        if (allowedOrigins.Length == 0 && enforceCors)
+            .ToArray() ?? [];
+        if (allowedOrigins.Length == 0)
         {
-            var environmentName = configuration["ASPNETCORE_ENVIRONMENT"]
-                ?? configuration["DOTNET_ENVIRONMENT"]
-                ?? Microsoft.Extensions.Hosting.Environments.Production;
-            // Development AND Testing keep localhost convenience defaults: test
-            // hosts (WebApplicationFactory/TestServer) never touch the network,
-            // so origins are meaningless there and strictness would only break
-            // the suite. Every other environment fails fast below.
-            if (string.Equals(environmentName, Microsoft.Extensions.Hosting.Environments.Development, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(environmentName, "Testing", StringComparison.OrdinalIgnoreCase))
-            {
-                allowedOrigins = ["https://localhost:5001", "https://localhost:3000"];
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    $"Cors:AllowedOrigins must list the storefront origin(s) in {environmentName}. " +
-                    "Unset means unknown, and unknown must not become localhost-with-credentials.");
-            }
+            allowedOrigins = ["https://localhost:5001", "https://localhost:3000"];
+        }
+
+        if (enforceCors)
+        {
+            services.AddOptions<CorsOptions>()
+                .Bind(configuration.GetSection(CorsOptions.SectionName));
+            services.AddSingleton<IValidateOptions<CorsOptions>, CorsOptionsValidator>();
+            services.AddOptions<CorsOptions>().ValidateOnStart();
         }
 
         services.AddCors(options =>
