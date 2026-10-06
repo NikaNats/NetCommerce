@@ -1,6 +1,7 @@
 using NetCommerce.Domain.Shared;
 using NetCommerce.Kernel.Application;
 using NetCommerce.Kernel.Core.Domain;
+using CancelReason = global::NetCommerce.Ordering.Domain.Orders.CancellationReason;
 
 namespace NetCommerce.Ordering.Domain.Orders;
 
@@ -63,6 +64,12 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
         string idempotencyKey,
         string? notes = null)
     {
+        if (customerId == Guid.Empty)
+            throw new ArgumentException("Customer is required.", nameof(customerId));
+        ArgumentNullException.ThrowIfNull(shippingAddress);
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            throw new ArgumentException("Idempotency key is required.", nameof(idempotencyKey));
+
         var order = new Order
         {
             Id = Guid.NewGuid(),
@@ -100,6 +107,17 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
         string resolvedBy,
         string notes)
     {
+        // Owned by Finance reconciliation (ghost-charge compensation).
+        // Invoked via CreateShadowOrderCommand; do not call from normal checkout.
+        if (string.IsNullOrWhiteSpace(externalTxnId))
+            throw new ArgumentException("External transaction id is required.", nameof(externalTxnId));
+        ArgumentNullException.ThrowIfNull(amount);
+        ArgumentNullException.ThrowIfNull(shippingAddress);
+        if (string.IsNullOrWhiteSpace(resolvedBy))
+            throw new ArgumentException("Resolver is required for audit.", nameof(resolvedBy));
+        if (string.IsNullOrWhiteSpace(notes))
+            throw new ArgumentException("Audit notes are required.", nameof(notes));
+
         var order = new Order
         {
             Id = Guid.NewGuid(),
@@ -142,8 +160,22 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
         PriceBreakdown priceBreakdown, // Snapshot: pricing breakdown at order time
         string? sku = null)
     {
+        if (IsShadowOrder)
+            throw new InvalidOperationException("Cannot add items to a reconciliation shadow order.");
         if (Status != OrderStatus.Submitted)
             throw new InvalidOperationException("Cannot add items to non-submitted order");
+        if (productId == Guid.Empty)
+            throw new ArgumentException("Product is required.", nameof(productId));
+        if (string.IsNullOrWhiteSpace(appliedTitle))
+            throw new ArgumentException("Snapshot title is required.", nameof(appliedTitle));
+        ArgumentNullException.ThrowIfNull(appliedPrice);
+        ArgumentNullException.ThrowIfNull(priceBreakdown);
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be positive.");
+        var weight = WeightKg.Create(appliedWeightKg).Value;
+        if (_items.Count > 0 && _items[0].AppliedPrice.Currency != appliedPrice.Currency)
+            throw new InvalidOperationException(
+                $"All items must share one currency: {_items[0].AppliedPrice.Currency} and {appliedPrice.Currency}.");
 
         var existingItem = _items.FirstOrDefault(i => i.ProductId == productId);
         if (existingItem != null)
@@ -158,7 +190,7 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
                 appliedTitle,
                 appliedPrice,
                 quantity,
-                appliedWeightKg,
+                weight,
                 sku,
                 priceBreakdown);
 
@@ -170,22 +202,34 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
 
     public void SetBillingAddress(BillingAddress address)
     {
+        ArgumentNullException.ThrowIfNull(address);
         BillingAddress = address;
     }
 
     /// <summary>
     ///     Called by background worker after grace period ends.
     ///     Transitions from Submitted to AwaitingValidation.
+    ///     Idempotent: second calls are no-ops so retried workers/saga timeouts are safe.
     /// </summary>
     public void ConfirmGracePeriod()
     {
-        if (Status != OrderStatus.Submitted)
-            return; // Idempotency check - already processed or cancelled
+        TryConfirmGracePeriod();
+    }
+
+    /// <summary>
+    ///     Tries the Submitted → AwaitingValidation transition.
+    ///     Returns true when the transition ran, false when already processed.
+    /// </summary>
+    public bool TryConfirmGracePeriod()
+    {
+        if (IsShadowOrder || Status != OrderStatus.Submitted)
+            return false; // Idempotency check - already processed, cancelled, or N/A
 
         Status = OrderStatus.AwaitingValidation;
 
         // Triggers Payment Processing via integration event
         RaiseDomainEvent(new OrderGracePeriodConfirmedDomainEvent(Id, OrderNumber, CustomerId, TotalAmount));
+        return true;
     }
 
     /// <summary>
@@ -256,20 +300,25 @@ public sealed class Order : AggregateRoot<Guid>, IMultiTenant
     /// </summary>
     public void Cancel(string reason)
     {
-        if (Status == OrderStatus.Delivered || Status == OrderStatus.Cancelled)
+        Cancel(CancelReason.Create(reason));
+    }
+
+    public void Cancel(CancelReason reason)
+    {
+        ArgumentNullException.ThrowIfNull(reason);
+        if (!OrderCancellationPolicy.CanCancel(Status))
             throw new InvalidOperationException($"Cannot cancel order. Current status: {Status}");
 
         var previousStatus = Status;
-        var wasInGracePeriod = Status == OrderStatus.Submitted;
 
         Status = OrderStatus.Cancelled;
         CancelledAt = DateTime.UtcNow;
-        CancellationReason = reason;
+        CancellationReason = reason.Value;
 
         // The event handler will check previousStatus to determine if refunds are needed
         // If previousStatus == Submitted: release stock only, no payment was taken
         // If previousStatus >= Paid: need to process refunds
-        RaiseDomainEvent(new OrderCancelledDomainEvent(Id, reason, previousStatus));
+        RaiseDomainEvent(new OrderCancelledDomainEvent(Id, reason.Value, previousStatus));
     }
 
     private void RecalculateTotal()

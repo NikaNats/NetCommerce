@@ -28,9 +28,18 @@ public static class IdempotencyKeys
     public static string ForOrderRefund(Guid orderId) => $"refund_{orderId}";
 
     /// <summary>One shadow order per ghost charge.</summary>
-    public static string ForShadowOrder(string externalTransactionId) => $"shadow-{externalTransactionId}";
+    public static string ForShadowOrder(string externalTransactionId)
+    {
+        if (string.IsNullOrWhiteSpace(externalTransactionId))
+            throw new ArgumentException("External transaction id is required.", nameof(externalTransactionId));
+        return $"shadow-{externalTransactionId.Trim()}";
+    }
 
     /// <summary>One reconciliation refund per ghost charge.</summary>
-    public static string ForReconciliationRefund(string externalTransactionId) =>
-        $"reconcile-refund_{externalTransactionId}";
+    public static string ForReconciliationRefund(string externalTransactionId)
+    {
+        if (string.IsNullOrWhiteSpace(externalTransactionId))
+            throw new ArgumentException("External transaction id is required.", nameof(externalTransactionId));
+        return $"reconcile-refund_{externalTransactionId.Trim()}";
+    }
 }

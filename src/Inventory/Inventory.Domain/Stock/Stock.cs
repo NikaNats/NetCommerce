@@ -41,9 +41,7 @@ public sealed class Stock : AggregateRoot<Guid>
     {
         var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return Quantity - _reservations
-            .Where(r =>
-                (r.Status == ReservationStatus.Active && r.ExpiresAt > now) ||
-                r.Status == ReservationStatus.PendingPayment)
+            .Where(r => ReservationExpiryPolicy.HoldsStock(r, now))
             .Sum(r => r.Quantity);
     }
 
@@ -55,9 +53,7 @@ public sealed class Stock : AggregateRoot<Guid>
     {
         var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return _reservations
-            .Where(r =>
-                (r.Status == ReservationStatus.Active && r.ExpiresAt > now) ||
-                r.Status == ReservationStatus.PendingPayment)
+            .Where(r => ReservationExpiryPolicy.HoldsStock(r, now))
             .Sum(r => r.Quantity);
     }
 
@@ -85,6 +81,10 @@ public sealed class Stock : AggregateRoot<Guid>
     {
         if (initialQuantity < 0)
             throw new ArgumentException("Quantity cannot be negative", nameof(initialQuantity));
+        if (lowStockThreshold < 0)
+            throw new ArgumentOutOfRangeException(nameof(lowStockThreshold), "Threshold cannot be negative.");
+        if (string.IsNullOrWhiteSpace(sku))
+            throw new ArgumentException("SKU is required.", nameof(sku));
 
         var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return new Stock
@@ -227,6 +227,8 @@ public sealed class Stock : AggregateRoot<Guid>
 
     public void UpdateLowStockThreshold(int threshold)
     {
+        if (threshold < 0)
+            throw new ArgumentOutOfRangeException(nameof(threshold), "Threshold cannot be negative.");
         LowStockThreshold = threshold;
     }
 
@@ -237,7 +239,7 @@ public sealed class Stock : AggregateRoot<Guid>
     {
         var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         var expired = _reservations
-            .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= now)
+            .Where(r => ReservationExpiryPolicy.IsExpired(r, now))
             .ToList();
 
         foreach (var reservation in expired)

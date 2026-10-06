@@ -19,12 +19,21 @@ public sealed class OrderItem : Entity<Guid>
         string? sku,
         PriceBreakdown priceBreakdown)
     {
+        if (productId == Guid.Empty)
+            throw new ArgumentException("Product is required.", nameof(productId));
+        if (string.IsNullOrWhiteSpace(appliedTitle))
+            throw new ArgumentException("Snapshot title is required.", nameof(appliedTitle));
+        ArgumentNullException.ThrowIfNull(appliedPrice);
+        ArgumentNullException.ThrowIfNull(priceBreakdown);
+        if (quantity <= 0)
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be positive.");
+
         Id = id;
         ProductId = productId;
-        AppliedTitle = appliedTitle;
+        AppliedTitle = appliedTitle.Trim();
         AppliedPrice = appliedPrice;
         Quantity = quantity;
-        AppliedWeightKg = appliedWeightKg;
+        AppliedWeightKg = WeightKg.Create(appliedWeightKg).Value;
         Sku = sku;
         PriceBreakdown = priceBreakdown;
     }
