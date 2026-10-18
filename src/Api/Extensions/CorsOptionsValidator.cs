@@ -23,11 +23,15 @@ public sealed class CorsOptions
 ///     Uses the REAL host environment (injected): reading the environment name
 ///     back out of configuration misdetects WebApplicationFactory hosts, which
 ///     set the environment via UseEnvironment without setting the env var.
-///     Checks apply to Production/Staging only, so local development and the
-///     test suite keep the localhost convenience defaults.
+///     Deny-by-default: only Development and Testing (test hosts never touch
+///     the network) keep the localhost convenience defaults; every other
+///     environment name, including custom ones like UAT or QA, must declare
+///     origins.
 /// </summary>
 public sealed partial class CorsOptionsValidator : IValidateOptions<CorsOptions>
 {
+    public const string TestingEnvironment = "Testing";
+
     private readonly IHostEnvironment _environment;
     private readonly ILogger<CorsOptionsValidator> _logger;
 
@@ -41,7 +45,7 @@ public sealed partial class CorsOptionsValidator : IValidateOptions<CorsOptions>
 
     public ValidateOptionsResult Validate(string? name, CorsOptions options)
     {
-        if (!_environment.IsProduction() && !_environment.IsStaging())
+        if (_environment.IsDevelopment() || _environment.IsEnvironment(TestingEnvironment))
             return ValidateOptionsResult.Success;
 
         var origins = (options.AllowedOrigins ?? [])
@@ -53,7 +57,7 @@ public sealed partial class CorsOptionsValidator : IValidateOptions<CorsOptions>
         {
             Log.AllowlistMissing(_logger, _environment.EnvironmentName);
             return ValidateOptionsResult.Fail(
-                "Cors:AllowedOrigins must list the storefront origin(s) in Production/Staging. " +
+                $"Cors:AllowedOrigins must list the storefront origin(s) in {_environment.EnvironmentName}. " +
                 "Unset means unknown, and unknown must not become localhost-with-credentials.");
         }
 

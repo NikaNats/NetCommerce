@@ -137,7 +137,8 @@ no fallback resource and previously landed on `DefaultConnection` silently.
 `ConnectionStrings__blobs` selects the Azure driver; without it the S3/MinIO
 path activates and demands `Storage__Endpoint` + keys + `CdnBaseUrl` instead
 (fail-closed in Production). `Cors__AllowedOrigins__0` must be the storefront
-origin — empty means the process refuses to boot outside Development.
+origin — empty means the process refuses to boot in every environment except
+Development/Testing.
 
 > In **Strict** mode (production default), elevated admin endpoints (`/api/admin/dlq`, `/api/admin/finance`, `/api/admin/orders`) demand a valid `X-Admin-Api-Key` header **and** a fresh `auth_time` claim. If the key isn't configured, startup validation **fails closed** — that's intentional.
 

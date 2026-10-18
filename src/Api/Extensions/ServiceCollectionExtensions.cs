@@ -38,7 +38,8 @@ public static partial class ServiceCollectionExtensions
         // are set (dev ergonomics and test hosts, which never touch the
         // network). The fail-closed gate is CorsOptionsValidator below, which
         // runs at startup via ValidateOnStart with the REAL host environment
-        // and throws in Production/Staging when nothing explicit is declared.
+        // and throws in every environment except Development/Testing when
+        // nothing explicit is declared.
         var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
             ?.Where(o => !string.IsNullOrWhiteSpace(o))
             .Select(o => o.Trim())

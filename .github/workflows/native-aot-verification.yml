@@ -205,7 +205,7 @@ jobs:
       CONNECTIONSTRINGS__REDIS: 127.0.0.1:6379
       CONNECTIONSTRINGS__MEILISEARCH: http://127.0.0.1:7700
       # Cors:AllowedOrigins is REQUIRED outside Development/Testing:
-      # ServiceCollectionExtensions.cs:38-56 throws at startup when it is empty
+      # CorsOptionsValidator (ValidateOnStart) fails startup when it is empty
       # ("Unset means unknown, and unknown must not become
       # localhost-with-credentials"). appsettings.json ships it as [], so without
       # this the migration step aborted with exit 134.

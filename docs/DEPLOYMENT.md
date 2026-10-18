@@ -106,7 +106,7 @@ docker build -t netcommerce-api-aot -f src/Api/Dockerfile .
 | `ConnectionStrings__Redis` | Redis (basket, BFF sessions, Data Protection ring) | `redis:6379` |
 | `ConnectionStrings__blobs` | Azure Blob Storage. Selects the Azure driver; when unset the S3 driver activates and `Storage__Endpoint` + keys + `Storage__CdnBaseUrl` are required instead | Azure connection string |
 | `ConnectionStrings__meilisearch` | MeiliSearch URL (key enforced separately) | `http://meilisearch:7700` |
-| `Cors__AllowedOrigins__0` | Primary storefront origin (more as `__1`, …). Empty refuses to boot outside Development | `https://shop.example.com` |
+| `Cors__AllowedOrigins__0` | Primary storefront origin (more as `__1`, …). Empty refuses to boot in every environment except Development/Testing (custom names like `UAT` included) | `https://shop.example.com` |
 | `Keycloak__AuthServerUrl` | Keycloak base URL | `https://idp.example.com` |
 | `Keycloak__Realm` | Realm name | `netcommerce` |
 | `Auth__Audience` | JWT audience | `netcommerce-api` |

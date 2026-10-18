@@ -1,16 +1,24 @@
 #nullable enable
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using NetCommerce.Api.Extensions;
 using Shouldly;
 
 namespace NetCommerce.Integration.Tests.Api;
 
 /// <summary>
-///     Unit tests for the CORS fail-closed guard in
-///     <see cref="ServiceCollectionExtensions.AddApiServicesMinimal"/>.
+///     Tests for the CORS fail-closed guard: <see cref="CorsOptionsValidator"/>
+///     wired by <see cref="ServiceCollectionExtensions.AddApiServicesMinimal"/>
+///     through ValidateOnStart.
 /// </summary>
 /// <remarks>
+/// <para>
+///     Each test boots a real host and calls StartAsync, so the guard sees the
+///     REAL <see cref="IHostEnvironment"/> exactly as production startup does,
+///     not an environment name sniffed from configuration.
+/// </para>
 /// <para>
 ///     The native-AOT verification pipeline runs the API with
 ///     <c>--migrate-only</c> in Production to apply the six module schemas.
@@ -22,57 +30,72 @@ namespace NetCommerce.Integration.Tests.Api;
 /// </remarks>
 public sealed class CorsGuardTests
 {
-    private static IConfiguration Config(string? environment, string[]? origins = null)
+    private static async Task StartHostAsync(
+        string environment,
+        string[]? origins = null,
+        bool enforceCors = true)
     {
+        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            EnvironmentName = environment
+        });
+
         var values = new Dictionary<string, string?>();
-        if (environment is not null)
-            values["ASPNETCORE_ENVIRONMENT"] = environment;
         if (origins is not null)
         {
             for (var i = 0; i < origins.Length; i++)
                 values[$"Cors:AllowedOrigins:{i}"] = origins[i];
         }
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
+        builder.Configuration.AddInMemoryCollection(values);
+
+        builder.Services.AddLogging();
+        builder.Services.AddApiServicesMinimal(builder.Configuration, enforceCors);
+
+        using var host = builder.Build();
+        await host.StartAsync();
+        await host.StopAsync();
     }
 
-    [Fact]
-    public void ServingInProduction_WithoutOrigins_ShouldThrow()
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    [InlineData("UAT")]
+    public async Task Serving_WithoutOrigins_OutsideDevAndTesting_ShouldFailStartup(string environment)
     {
-        var services = new ServiceCollection();
-
-        var ex = Should.Throw<InvalidOperationException>(() =>
-            services.AddApiServicesMinimal(Config("Production")));
+        var ex = await Should.ThrowAsync<OptionsValidationException>(() => StartHostAsync(environment));
 
         ex.Message.ShouldContain("Cors:AllowedOrigins");
+        ex.Message.ShouldContain(environment);
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("UAT")]
+    public async Task Serving_WithOnlyBlankOrigins_ShouldFailStartup(string environment)
+    {
+        await Should.ThrowAsync<OptionsValidationException>(() =>
+            StartHostAsync(environment, ["  ", ""]));
     }
 
     [Fact]
-    public void MigrateOnlyInProduction_WithoutOrigins_ShouldNotThrow()
+    public async Task MigrateOnlyInProduction_WithoutOrigins_ShouldStart()
     {
-        var services = new ServiceCollection();
-
-        Should.NotThrow(() =>
-            services.AddApiServicesMinimal(Config("Production"), enforceCors: false));
+        await Should.NotThrowAsync(() =>
+            StartHostAsync("Production", enforceCors: false));
     }
 
     [Fact]
-    public void ServingInProduction_WithOrigins_ShouldNotThrow()
+    public async Task ServingInProduction_WithOrigins_ShouldStart()
     {
-        var services = new ServiceCollection();
-
-        Should.NotThrow(() =>
-            services.AddApiServicesMinimal(
-                Config("Production", ["https://shop.example.com"])));
+        await Should.NotThrowAsync(() =>
+            StartHostAsync("Production", ["https://shop.example.com"]));
     }
 
-    [Fact]
-    public void ServingInDevelopment_WithoutOrigins_ShouldKeepLocalhostDefaults()
+    [Theory]
+    [InlineData("Development")]
+    [InlineData(CorsOptionsValidator.TestingEnvironment)]
+    public async Task Serving_WithoutOrigins_InDevOrTesting_ShouldKeepLocalhostDefaults(string environment)
     {
-        var services = new ServiceCollection();
-
-        Should.NotThrow(() =>
-            services.AddApiServicesMinimal(Config("Development")));
+        await Should.NotThrowAsync(() => StartHostAsync(environment));
     }
 }

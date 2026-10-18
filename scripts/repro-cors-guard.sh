@@ -4,9 +4,15 @@
 # CI runs:
 #   dotnet run --project src/Api -c Debug --no-launch-profile -- --migrate-only
 # with DB connection strings set but NO Cors__AllowedOrigins and NO
-# ASPNETCORE_ENVIRONMENT. ServiceCollectionExtensions.cs:38-56 then treats the
-# environment as Production and throws, because "unset means unknown, and
-# unknown must not become localhost-with-credentials".
+# ASPNETCORE_ENVIRONMENT. The host then defaults to Production and the CORS
+# guard fails startup, because "unset means unknown, and unknown must not
+# become localhost-with-credentials".
+#
+# HISTORICAL: the guard now lives in CorsOptionsValidator (ValidateOnStart,
+# deny-by-default: only Development/Testing are exempt), and --migrate-only
+# skips it entirely (enforceCors: false in Program.cs). So Control A below now
+# takes its NOTE branch. The serving-side behavior is pinned by
+# tests/NetCommerce.Integration.Tests/Api/CorsGuardTests.cs.
 #
 # The same omission affects the "Start API Container" step, which sets
 # ASPNETCORE_ENVIRONMENT=Production but still no CORS origins.
@@ -33,7 +39,8 @@ run_migrate() {
 }
 
 # Why the indexed key: Cors:AllowedOrigins is read as a SECTION via
-# Get<string[]>() (ServiceCollectionExtensions.cs:31). Binding a .NET array from
+# Get<string[]>() (AddApiServicesMinimal, and the CorsOptions binding the
+# validator checks). Binding a .NET array from
 # environment variables requires INDEXED keys -- `Cors__AllowedOrigins` alone
 # binds to the scalar, the array stays empty, and the guard still throws.
 # Verified: the un-indexed form reproduced the failure even with a value
