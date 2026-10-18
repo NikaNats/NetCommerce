@@ -96,16 +96,36 @@ When available quantity drops to or below `LowStockThreshold` after a reservatio
 
 ### Pessimistic Locking
 
-All stock mutations use PostgreSQL's `SELECT ... FOR UPDATE` to acquire row-level locks:
+Every stock mutation runs inside an **explicit transaction** and takes PostgreSQL row locks with `SELECT ... FOR UPDATE` **in a statement of its own**, then loads the aggregate in a **second** statement (`StockRowLocks.LockAsync`, then a normal EF query):
 
-```sql
-SELECT s.*, s.xmin
-FROM inventory.stocks AS s
-WHERE s.product_id = @productId
-FOR UPDATE
+```csharp
+await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
+// 1. Lock (own statement)
+await StockRowLocks.LockAsync(db, sortedProductIds, ct);
+// SELECT 1 FROM inventory.stocks WHERE product_id = ANY(@ids) ORDER BY product_id FOR UPDATE
+
+// 2. Load (new statement => new READ COMMITTED snapshot, taken AFTER the lock is held)
+var stocks = await db.Stocks
+    .Where(s => sortedProductIds.Contains(s.ProductId))
+    .OrderBy(s => s.ProductId)
+    .Include(s => s.Reservations.Where(r =>
+        r.Status == ReservationStatus.Active || r.Status == ReservationStatus.PendingPayment))
+    .ToListAsync(ct);
 ```
 
-This prevents concurrent transactions from modifying the same stock row simultaneously. The lock is held for the duration of the database transaction.
+Two rules, each of which was once broken and oversold or lost reservations:
+
+1. **Never fold `FOR UPDATE` into the query that loads the reservations** (`FromSql("... FOR UPDATE").Include(s => s.Reservations)`). EF composes that as one statement. Under READ COMMITTED, a statement that blocks on the lock re-reads only the *locked* row once it is released; the joined reservation rows still come from the snapshot taken *before* it blocked. The waiter sees a fresh stock row (so the `xmin` check passes) beside a stale reservation set missing its predecessor's holds, and over-allocates. Measured before the fix: 40 of 40 concurrent reservations succeeded against 10 units.
+2. **Always hold the lock inside an explicit transaction.** The Wolverine pipeline opens no transaction before a handler runs; in autocommit the lock is released as soon as the `SELECT` finishes and concurrent reservers collide on `xmin` instead of queueing (measured: 30 of 5,000 succeeded against ample stock).
+
+`PartitionedStockHandlerTests.*_ConcurrentOrdersForOneProduct_ShouldNeverOversell` guard both rules against real PostgreSQL.
+
+Only non-terminal reservations are loaded for reservation: Confirmed/Released history is never pruned and is irrelevant to availability, so loading it would make every reservation of a popular product slower over time.
+
+### Hot-Product Capacity
+
+Because the row lock serializes every reservation for one product, a single SKU's reservation throughput is bounded by one row. Measured on a developer machine through the full in-process pipeline: roughly **100-200 reservations/s** for one product, decreasing as active (unexpired) holds accumulate, since each reservation evaluates the product's active holds. Excess demand queues (latency grows linearly with queue position) rather than failing or overselling. Different products proceed in parallel. Size flash-sale expectations, and the API/client timeouts in front of checkout, accordingly.
 
 ### Multi-Item Deadlock Prevention
 
@@ -118,13 +138,7 @@ var sortedProductIds = command.Items
     .OrderBy(id => id)  // Deterministic ordering
     .ToArray();
 
-var stocks = await db.Stocks
-    .FromSqlInterpolated(
-        $"SELECT s.*, s.xmin FROM inventory.stocks AS s " +
-        $"WHERE s.product_id = ANY({sortedProductIds}) " +
-        $"ORDER BY s.product_id FOR UPDATE")
-    .Include(s => s.Reservations)
-    .ToListAsync(ct);
+await StockRowLocks.LockAsync(db, sortedProductIds, ct); // ORDER BY product_id FOR UPDATE
 ```
 
 ### Fail-Closed Verification
@@ -153,14 +167,9 @@ This prevents partial reservations where some items are reserved but others fail
 
 ### Optimistic Concurrency
 
-In addition to pessimistic locking, EF Core uses PostgreSQL's `xmin` system column for optimistic concurrency:
+In addition to pessimistic locking, EF Core maps PostgreSQL's `xmin` system column as the stock row version (`IsRowVersion()`), so every update is checked against the version that was read.
 
-```csharp
-// xmin is included in SELECT query
-// EF Core's concurrency token verification catches stale writes
-```
-
-This provides a second layer of protection — if a row was modified between the lock acquisition and the save, a `DbUpdateConcurrencyException` is thrown.
+This is a second layer of protection — if a row was modified between the load and the save, a `DbUpdateConcurrencyException` is thrown (surfaced as `409 CONCURRENCY_CONFLICT`). Note that it only protects the *stock row*: it cannot detect a stale *reservation set*, which is why rule 1 above matters.
 
 ## Message Partitioning
 

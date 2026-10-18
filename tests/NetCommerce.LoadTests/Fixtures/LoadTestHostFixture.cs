@@ -209,11 +209,10 @@ public sealed class LoadTestHostFixture : IAsyncLifetime
 
     private async Task ApplyDatabaseSchemaAsync()
     {
-        // NOTE: deliberately CreateTablesAsync, NOT MigrateAsync.
-        // The Catalog model currently drifts from its committed migrations, so MigrateAsync
-        // throws PendingModelChangesWarning-as-error (pre-existing: no Catalog file is touched
-        // by this change set; prod --migrate-only hits the same wall until a migration is added).
-        // Load suites need schema, not history fidelity — same approach as IntegrationTestFixture.
+        // NOTE: deliberately CreateTablesAsync, NOT MigrateAsync. Load suites need schema,
+        // not history fidelity — same approach as IntegrationTestFixture. (Migration
+        // fidelity is gated elsewhere: all six contexts report no pending model changes,
+        // and CI applies the real migrations via --migrate-only in the container smoke.)
         var pg = PostgresConnectionString;
         await using var connection = new NpgsqlConnection(pg);
         await connection.OpenAsync();

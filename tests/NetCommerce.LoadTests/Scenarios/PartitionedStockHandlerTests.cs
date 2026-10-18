@@ -462,4 +462,100 @@ public class PartitionedStockHandlerTests : IAsyncLifetime
     }
 
     #endregion
+
+    #region Concurrency (oversell) Tests
+
+    private const int ContendedStock = 10;
+    private const int ContendingReservers = 40;
+
+    /// <summary>
+    ///     Saga checkout path: many orders racing for one product, each on its own
+    ///     DbContext/connection exactly as concurrent Wolverine handlers run.
+    ///     Guards the READ COMMITTED trap where a waiter that acquires the row lock
+    ///     sees the fresh stock row but a STALE reservation set (joined rows come from
+    ///     the snapshot taken before it blocked) and therefore over-allocates.
+    /// </summary>
+    [Fact]
+    public async Task Handle_ReserveInventory_ConcurrentOrdersForOneProduct_ShouldNeverOversell()
+    {
+        var productId = await SeedContendedStockAsync();
+
+        var results = await RunConcurrentlyAsync(async db =>
+        {
+            var command = new ReserveInventoryCommand(
+                Guid.NewGuid(),
+                [new OrderItemReservation(productId, 1, "PS5-CONSOLE")]);
+            var result = await ReserveInventoryHandler.Handle(command, db, _reserveLogger, CancellationToken.None);
+            return result is InventoryReserved;
+        });
+
+        await AssertNoOversellAsync(productId, results.Count(ok => ok));
+    }
+
+    /// <summary>Direct reservation endpoint path (POST /api/v1/inventory/reserve).</summary>
+    [Fact]
+    public async Task Handle_ReserveStock_ConcurrentOrdersForOneProduct_ShouldNeverOversell()
+    {
+        var productId = await SeedContendedStockAsync();
+        var logger = Substitute.For<ILogger<NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand>>();
+
+        var results = await RunConcurrentlyAsync(async db =>
+        {
+            var command = new NetCommerce.Inventory.Application.Stock.Commands.ReserveStockCommand(
+                productId, Guid.NewGuid(), 1);
+            var result = await ReserveStockHandler.HandleAsync(command, db, logger, CancellationToken.None);
+            return result.IsSuccess;
+        });
+
+        // The direct path must also SERIALIZE, not merely stay safe: with stock
+        // available, losing reservations to concurrency conflicts is a defect.
+        results.Count(ok => ok).ShouldBe(ContendedStock,
+            "every unit should be reservable when reservers serialize on the row lock");
+        await AssertNoOversellAsync(productId, results.Count(ok => ok));
+    }
+
+    private async Task<Guid> SeedContendedStockAsync()
+    {
+        var productId = Guid.NewGuid();
+        _dbContext.Stocks.Add(Stock.Create(productId, "PS5-CONSOLE", ContendedStock, 0));
+        await _dbContext.SaveChangesAsync();
+        return productId;
+    }
+
+    private async Task<bool[]> RunConcurrentlyAsync(Func<InventoryDbContext, Task<bool>> reserve)
+    {
+        using var gate = new SemaphoreSlim(0, ContendingReservers);
+        var tasks = Enumerable.Range(0, ContendingReservers).Select(async _ =>
+        {
+            await using var db = _fixture.CreateInventoryDbContext();
+            await gate.WaitAsync();
+            try
+            {
+                return await reserve(db);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A collision is a safe (if wasteful) outcome: it never oversells.
+                return false;
+            }
+        }).ToArray();
+
+        gate.Release(ContendingReservers);
+        return await Task.WhenAll(tasks);
+    }
+
+    private async Task AssertNoOversellAsync(Guid productId, int reportedSuccesses)
+    {
+        await using var verify = _fixture.CreateInventoryDbContext();
+        var holding = await verify.Set<StockReservation>()
+            .Where(r => r.StockId == verify.Stocks.Where(s => s.ProductId == productId).Select(s => s.Id).First())
+            .Where(r => r.Status == ReservationStatus.Active || r.Status == ReservationStatus.PendingPayment)
+            .SumAsync(r => r.Quantity);
+
+        reportedSuccesses.ShouldBeLessThanOrEqualTo(ContendedStock, "handlers reported more reservations than stock");
+        holding.ShouldBeLessThanOrEqualTo(ContendedStock, "persisted holds exceed physical stock (OVERSELL)");
+        holding.ShouldBe(reportedSuccesses, "every reported reservation must be persisted, and only those");
+    }
+
+    #endregion
 }

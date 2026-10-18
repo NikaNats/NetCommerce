@@ -84,10 +84,12 @@ public class ContentionStressTests
 
         // Metrics collectors
         var latencies = new ConcurrentBag<double>();
+        var latenciesByArrival = new ConcurrentBag<(int Arrival, double Ms)>();
         var dbTimeoutErrors = 0;
         var lockTimeoutErrors = 0;
         var successCount = 0;
         var stockDepletedCount = 0;
+        var otherFailures = 0;
 
         // Factory-routed client: full in-process pipeline (see fixture transport note).
         using var httpClient = _fixture.CreateClient();
@@ -105,8 +107,24 @@ public class ContentionStressTests
             new StringContent(seedPayload, Encoding.UTF8, "application/json"));
         seedResponse.EnsureSuccessStatusCode();
 
+        // Separate warm-up product: warm-up must exercise the REAL reserve path
+        // (row lock, aggregate load, insert, commit). Reserving random unseeded ids
+        // only ever warmed the 404 branch, leaving the burst's first requests to pay
+        // JIT and query compilation and skew the head of the distribution.
+        var warmupProductId = Guid.NewGuid();
+        var warmupSeed = await httpClient.PostAsync(
+            "/api/v1/inventory",
+            new StringContent(JsonSerializer.Serialize(new
+            {
+                productId = warmupProductId,
+                sku = "HOT-KEY-WARMUP",
+                initialQuantity = 10_000,
+                lowStockThreshold = 10
+            }), Encoding.UTF8, "application/json"));
+        warmupSeed.EnsureSuccessStatusCode();
+
         // ═══════════════════════════════════════════════════════════════
-        // WARM-UP PHASE (30 seconds)
+        // WARM-UP PHASE
         // ═══════════════════════════════════════════════════════════════
         var warmupScenario = Scenario.Create("warmup_phase", async context =>
         {
@@ -117,7 +135,7 @@ public class ContentionStressTests
                 .WithBody(new StringContent(
                     JsonSerializer.Serialize(new
                     {
-                        productId = Guid.NewGuid(),
+                        productId = warmupProductId,
                         orderId = warmupOrderId,
                         quantity = 1
                     }),
@@ -170,6 +188,7 @@ public class ContentionStressTests
             stopwatch.Stop();
 
             latencies.Add(stopwatch.Elapsed.TotalMilliseconds);
+            latenciesByArrival.Add((n, stopwatch.Elapsed.TotalMilliseconds));
 
             // Categorize response. NOTE: NBomber's StatusCode carries the REASON PHRASE
             // ("InternalServerError"), not the numeric code ("500") — HttpStatusCode.ToString()
@@ -201,6 +220,8 @@ public class ContentionStressTests
                     return Response.Ok("STOCK_DEPLETED", statusCode: statusCode);
                 }
 
+                // Anything else (client timeout, 429, 503...) is still a lost request.
+                Interlocked.Increment(ref otherFailures);
                 return Response.Fail(statusCode: statusCode);
             }
 
@@ -220,7 +241,44 @@ public class ContentionStressTests
         // ═══════════════════════════════════════════════════════════════
         // ASSERTIONS: ACM-GRADE METRICS
         // ═══════════════════════════════════════════════════════════════
-        var scenarioStats = stats.ScenarioStats[0];
+        var sortedLatencies = latencies.OrderBy(l => l).ToArray();
+        var p50 = sortedLatencies.Length > 0 ? sortedLatencies[(int)(sortedLatencies.Length * 0.50)] : 0;
+        var p90 = sortedLatencies.Length > 0 ? sortedLatencies[(int)(sortedLatencies.Length * 0.90)] : 0;
+        var p99 = sortedLatencies.Length > 0 ? sortedLatencies[(int)(sortedLatencies.Length * 0.99)] : 0;
+        var linearityRatio = p50 > 0 ? p99 / p50 : 0;
+
+        // Head-of-queue stall: under FIFO serialization on the row lock, a request's
+        // latency is explained by how many arrived before it, so the first half of
+        // arrivals should finish near or below the median. An early request stalling
+        // far past that is the real contention-leakage signature (lock starvation,
+        // deadlock-detector waits, retry storms). Floor of 1s = PostgreSQL's default
+        // deadlock_timeout, below which no lock pathology can manifest.
+        var headHalfWorst = latenciesByArrival
+            .Where(l => l.Arrival <= totalRequests / 2)
+            .Select(l => l.Ms)
+            .DefaultIfEmpty(0)
+            .Max();
+        var stallBound = Math.Max(10 * p50, 1_000);
+
+        // Printed BEFORE asserting: a failed run must still show its distribution,
+        // otherwise a red soak says only "ratio was X" with nothing to diagnose.
+        Console.WriteLine("═══════════════════════════════════════════════════════════════");
+        Console.WriteLine("SINGLE-KEY SATURATION RESULTS");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════");
+        Console.WriteLine($"Total Requests:        {totalRequests}");
+        Console.WriteLine($"Successful:            {successCount}");
+        Console.WriteLine($"Stock Depleted:        {stockDepletedCount}");
+        Console.WriteLine($"DB Timeouts:           {dbTimeoutErrors}");
+        Console.WriteLine($"Lock Timeouts:         {lockTimeoutErrors}");
+        Console.WriteLine($"Other Failures:        {otherFailures}");
+        Console.WriteLine($"P50 Latency:           {p50:F2}ms");
+        Console.WriteLine($"P90 Latency:           {p90:F2}ms");
+        Console.WriteLine($"P99 Latency:           {p99:F2}ms");
+        Console.WriteLine($"Linearity Ratio:       {linearityRatio:F2} (informational)");
+        Console.WriteLine($"Head-half worst:       {headHalfWorst:F2}ms (bound {stallBound:F0}ms)");
+        Console.WriteLine("Slowest (arrival#:ms): " + string.Join(", ", latenciesByArrival
+            .OrderByDescending(l => l.Ms).Take(8).Select(l => $"{l.Arrival}:{l.Ms:F0}")));
+        Console.WriteLine("═══════════════════════════════════════════════════════════════");
 
         // METRIC 1: Zero Deadlock Rate
         lockTimeoutErrors.ShouldBe(0,
@@ -231,34 +289,29 @@ public class ContentionStressTests
             "INFRASTRUCTURE FAILURE: Database timeouts detected. " +
             "Check PostgreSQL connection pool and query timeout settings.");
 
-        // METRIC 2: Linear Latency Growth Pattern
-        var sortedLatencies = latencies.OrderBy(l => l).ToArray();
-        var p50 = sortedLatencies.Length > 0 ? sortedLatencies[(int)(sortedLatencies.Length * 0.50)] : 0;
-        var p90 = sortedLatencies.Length > 0 ? sortedLatencies[(int)(sortedLatencies.Length * 0.90)] : 0;
-        var p99 = sortedLatencies.Length > 0 ? sortedLatencies[(int)(sortedLatencies.Length * 0.99)] : 0;
+        // Stock is seeded ABOVE demand, so a Conflict here is never real depletion:
+        // it is a reservation lost to a concurrency collision. This once hid a handler
+        // whose FOR UPDATE ran outside a transaction — 4,970 of 5,000 reservations
+        // "depleted" against 6,000 units while every other metric stayed green.
+        stockDepletedCount.ShouldBe(0,
+            $"LOST RESERVATIONS: {stockDepletedCount} of {totalRequests} rejected with ample stock. " +
+            "Same-product reservations are colliding instead of serializing on the row lock.");
 
-        var linearityRatio = p50 > 0 ? p99 / p50 : 0;
-        linearityRatio.ShouldBeLessThan(10.0,
-            $"QUEUE ANOMALY: P99/P50 ratio is {linearityRatio:F2}. " +
-            "Expected < 10 for linear queue behavior. May indicate contention leakage.");
+        otherFailures.ShouldBe(0,
+            $"LOST REQUESTS: {otherFailures} of {totalRequests} failed outright (timeout/429/503). " +
+            "The burst exceeds what one serialized product row sustains; see LOAD_SATURATION_* sizing.");
+
+        // METRIC 2: Queue fairness. NOT a P99/P50 bound: a FIFO queue that only builds
+        // late in the burst yields a high ratio from perfectly orderly tail requests
+        // (measured 13.5 with the slowest 8 all in the last 6% of arrivals), while full
+        // saturation yields ~2. The ratio stays printed for trend-watching only.
+        headHalfWorst.ShouldBeLessThanOrEqualTo(stallBound,
+            $"QUEUE ANOMALY: an early-arriving request took {headHalfWorst:F0}ms " +
+            $"(bound {stallBound:F0}ms = max(10 x P50, 1s)). Requests with little queue ahead " +
+            "of them should not stall: indicates lock starvation or contention leakage.");
 
         // METRIC 3: Saga Leak Detection
         await _fixture.AssertNoSagaLeaksAsync();
-
-        // Output detailed metrics for analysis
-        Console.WriteLine("═══════════════════════════════════════════════════════════════");
-        Console.WriteLine("SINGLE-KEY SATURATION RESULTS");
-        Console.WriteLine("═══════════════════════════════════════════════════════════════");
-        Console.WriteLine($"Total Requests:        {totalRequests}");
-        Console.WriteLine($"Successful:            {successCount}");
-        Console.WriteLine($"Stock Depleted:        {stockDepletedCount}");
-        Console.WriteLine($"DB Timeouts:           {dbTimeoutErrors}");
-        Console.WriteLine($"Lock Timeouts:         {lockTimeoutErrors}");
-        Console.WriteLine($"P50 Latency:           {p50:F2}ms");
-        Console.WriteLine($"P90 Latency:           {p90:F2}ms");
-        Console.WriteLine($"P99 Latency:           {p99:F2}ms");
-        Console.WriteLine($"Linearity Ratio:       {linearityRatio:F2}");
-        Console.WriteLine("═══════════════════════════════════════════════════════════════");
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════

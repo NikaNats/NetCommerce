@@ -86,9 +86,18 @@ public class ReserveInventoryHandler
                 .OrderBy(id => id)
                 .ToArray();
 
+            // Lock first, load second: see StockRowLocks for why one statement oversells.
+            await StockRowLocks.LockAsync(db, sortedProductIds, ct);
+
             var stocks = await db.Stocks
-                .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({sortedProductIds}) ORDER BY s.product_id FOR UPDATE")
-                .Include(s => s.Reservations)
+                .Where(s => sortedProductIds.Contains(s.ProductId))
+                .OrderBy(s => s.ProductId)
+                // Only non-terminal reservations: Reserve never reads Confirmed/Released
+                // history, which is never pruned and would otherwise be loaded in full
+                // on every checkout of a popular product, under the row lock.
+                .Include(s => s.Reservations.Where(r =>
+                    r.Status == Domain.Stock.ReservationStatus.Active ||
+                    r.Status == Domain.Stock.ReservationStatus.PendingPayment))
                 .ToListAsync(ct);
 
             // CRITICAL FAIL-CLOSED: Verify we locked ALL requested items
@@ -262,8 +271,12 @@ public class LockInventoryForPaymentHandler
                 .OrderBy(id => id)
                 .ToArray();
 
+            // Lock first, load second: see StockRowLocks for why one statement oversells.
+            await StockRowLocks.LockAsync(db, productIds, ct);
+
             var stocks = await db.Stocks
-                .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
+                .Where(s => productIds.Contains(s.ProductId))
+                .OrderBy(s => s.ProductId)
                 .Include(s => s.Reservations)
                 .ToListAsync(ct);
 
@@ -413,8 +426,12 @@ public class PartitionedConfirmInventoryHandler
                 "No reservations found for this order");
         }
 
+        // Lock first, load second: see StockRowLocks for why one statement oversells.
+        await StockRowLocks.LockAsync(db, productIds, ct);
+
         var stocks = await db.Stocks
-            .FromSqlInterpolated($"SELECT s.*, s.xmin FROM inventory.stocks AS s WHERE s.product_id = ANY({productIds}) ORDER BY s.product_id FOR UPDATE")
+            .Where(s => productIds.Contains(s.ProductId))
+            .OrderBy(s => s.ProductId)
             .Include(s => s.Reservations)
             .ToListAsync(ct);
 

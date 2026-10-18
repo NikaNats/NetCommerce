@@ -2,6 +2,23 @@
 
 All notable changes to NetCommerce, organized by development phase.
 
+## Release Hardening — Inventory Concurrency
+
+**Status:** Complete | Found by the weekly load suite, which had been red since 2026-10-11
+
+### Fixed
+- **Oversell in checkout reservations (critical).** `ReserveInventoryHandler` (the saga path every checkout takes) loaded reservations in the same statement as `SELECT ... FOR UPDATE`. Under READ COMMITTED, a waiter that acquired the lock saw the fresh stock row but a stale reservation set, so concurrent orders for one product over-allocated (40 of 40 reservations succeeded against 10 units). All stock locks now go through `StockRowLocks.LockAsync` in their own statement, with the aggregate loaded afterwards. The same fix applies to payment-lock and confirm, plus `StockRepository.GetByProductIdForUpdateAsync`.
+- **Lost reservations on `POST /api/v1/inventory/reserve`.** `ReserveStockHandler` took its row lock outside any transaction, so the lock was released immediately and concurrent reservers failed with `409` on `xmin` collisions (30 of 5,000 succeeded against ample stock). It now runs in an execution-strategy transaction, clears the change tracker per attempt (a transient retry could otherwise persist a duplicate reservation), and shares the lock-then-load rule.
+- Reservation loads for reserving now fetch only non-terminal reservations; unpruned Confirmed/Released history no longer slows every reservation of a popular product.
+
+### Tests
+- New `PartitionedStockHandlerTests.*_ConcurrentOrdersForOneProduct_ShouldNeverOversell` (real PostgreSQL, 40 concurrent reservers, 10 units) for both reserve paths. Both failed before the fix.
+- Single-key saturation now asserts zero lost reservations and zero failed requests. Its P99/P50 ratio gate, which flagged orderly FIFO tail latency and passed while 99% of requests failed fast, is replaced by a head-of-queue stall bound. Warm-up now exercises the real reserve path.
+- Load suites now capture console output (`[assembly: CaptureConsole]`), so CI logs show each suite's metrics.
+- Weekly saturation burst resized from 5,000 to 1,500 requests per 10s to fit measured single-row capacity (see `INVENTORY_PATTERNS.md` → Hot-Product Capacity).
+
+---
+
 ## Phase 10 — Documentation
 
 **Status:** Complete

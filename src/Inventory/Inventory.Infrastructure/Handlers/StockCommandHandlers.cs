@@ -57,41 +57,64 @@ public static class ReserveStockHandler
         ILogger<ReserveStockCommand> logger,
         CancellationToken cancellationToken)
     {
-        // Use pessimistic locking (SELECT FOR UPDATE) via raw SQL
-        // CRITICAL: Explicitly include xmin (PostgreSQL system column used for optimistic concurrency)
-        // SELECT * does NOT return system columns — omitting xmin causes EF Core tracking failures
-        var stock = await db.Stocks
-            .FromSqlInterpolated(
-                $"SELECT *, xmin FROM inventory.stocks WHERE product_id = {command.ProductId} FOR UPDATE")
-            .Include(s => s.Reservations)
-            .FirstOrDefaultAsync(cancellationToken);
+        // Execution-strategy transaction, mirroring ReserveInventoryHandler. The
+        // generated Wolverine pipeline opens NO transaction before this handler, so
+        // without one the SELECT ... FOR UPDATE below runs in autocommit and releases
+        // its row lock immediately: concurrent reservers for the same product then
+        // race on the xmin check and all but one fail with 409 (measured: 30 of 5,000
+        // succeeded against ample stock). Inside the transaction they serialize.
+        var strategy = db.Database.CreateExecutionStrategy();
 
-        if (stock is null)
-            return Result.Failure<Guid>(
-                Error.NotFound("Stock", command.ProductId));
-
-        try
+        return await strategy.ExecuteAsync(async () =>
         {
-            var reservation = stock.Reserve(command.OrderId, command.Quantity);
+            // A transient-fault retry re-runs this lambda on the same context. Without
+            // clearing, the re-query returns the already-tracked stock carrying the
+            // failed attempt's reservation, and the retry would persist two.
+            db.ChangeTracker.Clear();
+
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+            // Lock first, load second: see StockRowLocks for why one statement oversells.
+            await StockRowLocks.LockAsync(db, [command.ProductId], cancellationToken);
+
+            var stock = await db.Stocks
+                .Where(s => s.ProductId == command.ProductId)
+                // Only non-terminal reservations: Reserve never reads Confirmed/Released
+                // history, which is never pruned and would otherwise be loaded in full
+                // on every reservation of a popular product, under the row lock.
+                .Include(s => s.Reservations.Where(r =>
+                    r.Status == Domain.Stock.ReservationStatus.Active ||
+                    r.Status == Domain.Stock.ReservationStatus.PendingPayment))
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (stock is null)
+                return Result.Failure<Guid>(
+                    Error.NotFound("Stock", command.ProductId));
+
+            Domain.Stock.StockReservation reservation;
+            try
+            {
+                reservation = stock.Reserve(command.OrderId, command.Quantity);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Business rejection (e.g. insufficient stock): nothing to persist; the
+                // disposed transaction rolls back and releases the lock.
+                return Result.Failure<Guid>(Error.Conflict(ex.Message));
+            }
 
             logger.LogInformation(
                 "Reserved {Quantity} units for order {OrderId}, reservation {ReservationId}",
                 command.Quantity, command.OrderId, reservation.Id);
 
-            // Save inside the handler (same pattern as PartitionedStockHandlers): the
-            // Wolverine postprocessor SaveChanges runs AFTER the handler returns, so a
-            // concurrent-modification conflict (stale xmin) would otherwise escape as an
-            // unhandled 500. Saving here surfaces it inside this try, where it maps to a
-            // retryable 409 Conflict. The postprocessor save becomes a harmless no-op and
-            // outbox atomicity is preserved (single enlisted batch).
+            // Save and commit inside the handler: the lock must be held until the write
+            // lands. The Wolverine postprocessor SaveChanges afterwards is a no-op, and
+            // its CurrentTransaction commit is skipped because ours is already complete.
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-            return reservation.Id;
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Result.Failure<Guid>(Error.Conflict(ex.Message));
-        }
+            return Result.Success(reservation.Id);
+        });
     }
 }
 
