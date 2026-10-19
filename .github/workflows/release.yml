@@ -51,7 +51,14 @@ jobs:
 
       - name: Forbidden bypass env scan
         run: |
-          if grep -RIn "AllowTestModeInProduction\|AllowMockInProduction\|AcknowledgedInProduction\|AllowInMemoryInProduction" .github/workflows/release.yml infra/; then
+          # This workflow documents the flags in its header comments and names them in
+          # this very command, so scanning release.yml raw matches itself and fails every
+          # release. Scan only its non-comment, non-scan lines; scan infra/ in full.
+          pattern="AllowTestModeInProduction|AllowMockInProduction|AcknowledgedInProduction|AllowInMemoryInProduction"
+          hits=$(grep -RInE "$pattern" infra/ || true)
+          hits="$hits$(grep -nE "$pattern" .github/workflows/release.yml | grep -vE '^[0-9]+:[[:space:]]*#' | grep -vE 'pattern=' || true)"
+          if [ -n "$hits" ]; then
+            echo "$hits"
             echo "FAIL: test/mock bypass flags must never appear in release artifacts."
             exit 1
           fi
