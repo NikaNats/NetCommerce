@@ -49,7 +49,13 @@ jobs:
           LOAD_PS5_STOCK: 100
           LOAD_PS5_USERS: 1000
           LOAD_PS5_SECONDS: 30
-          LOAD_SATURATION_REQUESTS: 5000
+          # One hot product row serializes every reservation (that is the point:
+          # it is what prevents oversell). Measured single-row drain is ~100-200
+          # reservations/s, so 1500 in 10s queues to a ~20s P99, inside the 60s
+          # client timeout. 5000 "passed" only while 99% of requests fast-failed
+          # with 409s; with correct serialization it exceeds what one row can
+          # drain and every request past ~60s is lost to the client timeout.
+          LOAD_SATURATION_REQUESTS: 1500
           LOAD_SATURATION_SECONDS: 10
           LOAD_TEST_REPORTS_DIR: ${{ github.workspace }}/artifacts/load-test-reports
         run: |

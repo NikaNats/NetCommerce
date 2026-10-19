@@ -31,10 +31,12 @@ public class StockRepository : BaseRepository<Stock, Guid>, IStockRepository
     /// </summary>
     public async Task<Stock?> GetByProductIdForUpdateAsync(Guid productId, CancellationToken cancellationToken = default)
     {
-        // Use raw SQL with FOR UPDATE to acquire a row-level lock
-        // This ensures serialized access to the stock row within the transaction
+        // Lock first, load second, inside the caller's transaction: see StockRowLocks
+        // for why folding FOR UPDATE into the Include query reads stale reservations.
+        await StockRowLocks.LockAsync(_context, [productId], cancellationToken);
+
         var stock = await _context.Stocks
-            .FromSqlInterpolated($"SELECT * FROM inventory.stocks WHERE product_id = {productId} FOR UPDATE")
+            .Where(s => s.ProductId == productId)
             .Include(s => s.Reservations.Where(r => r.Status == ReservationStatus.Active))
             .FirstOrDefaultAsync(cancellationToken);
 

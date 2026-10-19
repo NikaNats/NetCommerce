@@ -1,0 +1,35 @@
+# Build context for src/Api/Dockerfile (context: repo root).
+# The image needs only the root build files plus src/, tests/ and tools/ sources;
+# it restores and compiles from scratch inside the container.
+
+# Local build output: a host's obj/project.assets.json (Windows paths, other RIDs)
+# copied into the Linux build poisons restore/publish.
+**/bin/
+**/obj/
+
+# The storefront has its own image and context (src/Web/netcommerce-web).
+src/Web/
+
+# Never ship local secrets or machine state into a build context.
+**/.env
+**/.env.*
+**/appsettings.*.local.json
+**/*.user
+**/*.pfx
+**/*.key
+
+# Tooling, VCS and scratch output.
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+.specify/
+docs/
+scripts/
+infra/
+artifacts/
+TestResults/
+**/TestResults/
+**/node_modules/
+**/*.log
